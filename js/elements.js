@@ -1,0 +1,1159 @@
+// Registry of optical elements.
+// Local coordinates: element centered at (0,0); default optical propagation is along +x.
+// def = { label, category, size:{w,h}|fn(el), params:[...], svg(el)->string,
+//         surfaces(el)->[{x1,y1,x2,y2,kind,data}], source(el)->[rays] }
+// Surface kinds handled by the tracer: mirror, lens, cmirror, dichroic, filter,
+// split, grating, absorb, transmit (data may change wavelength / deflect).
+
+import { esc, wavelengthToColor } from './util.js';
+import { uid } from './util.js';
+import { probeAt } from './raytrace.js';
+
+// true when the element's rotation would render baked-in text upside down
+function isFlipped(el) {
+  const r = ((el.rot || 0) % 360 + 360) % 360;
+  return r > 90 && r < 270;
+}
+// rotation for side-mounted (vertical) text that keeps it readable
+function sideTextRot(el) {
+  const r = (((el.rot || 0) + 90) % 360 + 360) % 360;
+  return (r > 90 && r < 270) ? -90 : 90;
+}
+
+const GLASS = '#c9e4f5', GLASS_S = '#4a90c4';
+
+function rectAbsorb(w, h) {
+  const x = w / 2, y = h / 2;
+  return [
+    { x1: -x, y1: -y, x2: x, y2: -y, kind: 'absorb' },
+    { x1: x, y1: -y, x2: x, y2: y, kind: 'absorb' },
+    { x1: x, y1: y, x2: -x, y2: y, kind: 'absorb' },
+    { x1: -x, y1: y, x2: -x, y2: -y, kind: 'absorb' },
+  ];
+}
+
+function boxSVG(w, h, fill, stroke, text, textFill, flip) {
+  return `<rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>` +
+    (text ? `<text x="0" y="0" ${flip ? 'transform="rotate(180)"' : ''} text-anchor="middle" dominant-baseline="central" font-size="${Math.min(11, w / (text.length * 0.62))}" font-weight="600" fill="${textFill || '#fff'}">${esc(text)}</text>` : '');
+}
+
+function hatch(x, y1, y2, side, n) {
+  // decorative hatching behind mirror-like surfaces
+  let s = '';
+  const step = (y2 - y1) / n;
+  for (let i = 0; i <= n; i++) {
+    const y = y1 + i * step;
+    s += `<line x1="${x}" y1="${y}" x2="${x + 6 * side}" y2="${y + 6}" stroke="#888" stroke-width="1"/>`;
+  }
+  return s;
+}
+
+// Wavefront shapers (SLM / DMD / deformable mirror) compose their optical
+// function from up to 4 overlaid layers, applied in order to the reflected ray.
+export const MAX_SHAPER_LAYERS = 4;
+export function newShaperLayer() {
+  return { type: 'lensarray', n: 3, f: 50, lines: 600, orders: '1', angle: 5, div: 8 };
+}
+const layersParam = { key: 'layers', label: 'Optical function', type: 'layers', def: [] };
+
+// object shapes for image-formation diagrams, in unit coords:
+// base at (0,0), tip at (0,-1); the traced image redraws the same shape
+// scaled by the magnification (negative m = inverted)
+export const OBJ_SHAPES = {
+  arrow: {
+    lines: [[[0, 0], [0, -0.72]]],
+    polys: [[[0, -1], [-0.17, -0.66], [0.17, -0.66]]],
+  },
+  F: {
+    lines: [[[-0.06, 0], [-0.06, -1]], [[-0.06, -1], [0.42, -1]], [[-0.06, -0.55], [0.3, -0.55]]],
+    polys: [],
+  },
+  tree: {
+    // fir tree: short trunk + three stacked crown tiers
+    lines: [[[0, 0], [0, -0.28]]],
+    polys: [
+      [[-0.36, -0.24], [0.36, -0.24], [0, -0.58]],
+      [[-0.28, -0.48], [0.28, -0.48], [0, -0.8]],
+      [[-0.2, -0.7], [0.2, -0.7], [0, -1]],
+    ],
+  },
+};
+
+// infographic card for the beam probe ("?" tool)
+function probeCard(el, rd) {
+  if (!rd) {
+    return `<g transform="translate(14,-28)"><rect x="0" y="-12" width="56" height="24" rx="4" fill="#fff" stroke="#c9ced6"/>` +
+      `<text x="28" y="0" text-anchor="middle" dominant-baseline="central" font-size="8" fill="#9aa2ad">no beam</text></g>`;
+  }
+  const prop = el.params.prop;
+  const isSC = rd.bw >= 200;
+  const c = wavelengthToColor(rd.wl);
+
+  if (prop === 'wl') {
+    const label = isSC ? `SC ${Math.round(rd.wl - rd.bw / 2)}–${Math.round(rd.wl + rd.bw / 2)} nm`
+      : rd.bw > 0 ? `${Math.round(rd.wl)} ± ${Math.round(rd.bw / 2)} nm` : `${Math.round(rd.wl)} nm`;
+    const w = label.length * 5.4 + 24;
+    return `<g transform="translate(14,-28)"><rect x="0" y="-12" width="${w}" height="24" rx="4" fill="#fff" stroke="#c9ced6"/>` +
+      `<circle cx="11" cy="0" r="4.5" fill="${isSC ? '#fff' : c}" ${isSC ? 'stroke="#888"' : ''}/>` +
+      (isSC ? `<path d="M 7,0 A 4.5 4.5 0 0 1 15.5,0" fill="#e04040"/><path d="M 7,0 A 4.5 4.5 0 0 0 15.5,0" fill="#3050e0"/>` : '') +
+      `<text x="20" y="0" font-size="9" dominant-baseline="central" fill="#333">${label}</text></g>`;
+  }
+
+  if (prop === 'pol') {
+    let icon, lab;
+    if (rd.pol === 'c') {
+      icon = `<path d="M 8,2 A 8.2 8.2 0 1 1 3,-7.7" fill="none" stroke="#333" stroke-width="1.6"/>` +
+        `<path d="M 3,-7.7 L 7.5,-8.5 L 4.5,-3.6 Z" fill="#333"/>`;
+      lab = 'circular';
+    } else if (typeof rd.pol === 'number') {
+      icon = `<g transform="rotate(${-rd.pol})"><line x1="-8.5" y1="0" x2="8.5" y2="0" stroke="#333" stroke-width="1.6"/>` +
+        `<path d="M 10,0 L 4.5,-3 L 4.5,3 Z M -10,0 L -4.5,-3 L -4.5,3 Z" fill="#333"/></g>`;
+      lab = `linear ${Math.round(rd.pol)}°`;
+    } else {
+      icon = `<g stroke="#666" stroke-width="1.3"><line x1="-8" y1="0" x2="8" y2="0"/><line x1="0" y1="-8" x2="0" y2="8"/><line x1="-5.7" y1="-5.7" x2="5.7" y2="5.7"/><line x1="-5.7" y1="5.7" x2="5.7" y2="-5.7"/></g>`;
+      lab = 'unpolarized';
+    }
+    return `<g transform="translate(28,-40)"><circle r="14" fill="#fff" stroke="#c9ced6"/>` + icon +
+      `<text x="0" y="24" text-anchor="middle" font-size="8" fill="#333">${lab}</text></g>`;
+  }
+
+  // spectrum plot: λ (nm) vs I (a.u.), schematic
+  const W = 74, H = 50, x0 = 10, y0 = H - 13, pw = W - 18, ph = H - 24;
+  let curve = '';
+  if (isSC) {
+    const hs = [0.35, 0.6, 0.85, 1, 0.9, 0.7, 0.45];
+    const bw = pw / hs.length;
+    hs.forEach((hgt, i) => {
+      const wlBar = rd.wl - rd.bw / 2 + rd.bw * i / (hs.length - 1);
+      curve += `<rect x="${x0 + i * bw}" y="${y0 - hgt * ph}" width="${bw}" height="${hgt * ph}" fill="${wavelengthToColor(wlBar)}" opacity="0.8"/>`;
+    });
+  } else {
+    const xc = x0 + Math.min(1, Math.max(0, (rd.wl - 400) / 380)) * pw;
+    const hw = Math.max(2.5, (rd.bw / 380) * pw / 2);
+    curve = `<path d="M ${x0},${y0} L ${Math.max(x0, xc - 3 * hw)},${y0} C ${xc - hw},${y0} ${xc - hw * 0.7},${y0 - ph} ${xc},${y0 - ph} C ${xc + hw * 0.7},${y0 - ph} ${xc + hw},${y0} ${Math.min(x0 + pw, xc + 3 * hw)},${y0} L ${x0 + pw},${y0}" fill="none" stroke="${c}" stroke-width="1.5"/>`;
+  }
+  const vlabel = isSC ? `${Math.round(rd.wl - rd.bw / 2)}–${Math.round(rd.wl + rd.bw / 2)} nm`
+    : rd.bw > 0 ? `${Math.round(rd.wl)} ± ${Math.round(rd.bw / 2)} nm` : `${Math.round(rd.wl)} nm`;
+  return `<g transform="translate(14,-${H + 6})">` +
+    `<rect x="0" y="0" width="${W}" height="${H}" rx="4" fill="#fff" stroke="#c9ced6"/>` +
+    `<line x1="${x0}" y1="${y0}" x2="${x0 + pw}" y2="${y0}" stroke="#888" stroke-width="1"/>` +
+    `<line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0 - ph - 2}" stroke="#888" stroke-width="1"/>` +
+    curve +
+    `<text x="${x0 + pw}" y="${H - 4}" text-anchor="end" font-size="5.5" fill="#888">λ (nm)</text>` +
+    `<text x="${x0 - 4}" y="${y0 - ph}" text-anchor="middle" font-size="5.5" fill="#888" transform="rotate(-90 ${x0 - 4} ${y0 - ph})">I (a.u.)</text>` +
+    `<text x="${x0 + pw}" y="${y0 - ph - 1}" text-anchor="end" font-size="6.5" fill="#333">${vlabel}</text>` +
+    `</g>`;
+}
+
+// samples can generate signal (fluorescence / SHG / THG / CARS) and
+// independently transmit or block the excitation beam
+function sampleModeParams() {
+  return [
+    { key: 'mode', label: 'Signal generated', type: 'select', def: 'none', options: [['none', 'None'], ['fluor', 'Fluorescence (isotropic)'], ['shg', 'SHG λ/2 (forward)'], ['thg', 'THG λ/3 (forward)'], ['cars', 'CARS (forward)']] },
+    { key: 'fluorWl', label: 'Emission λ (nm)', type: 'number', min: 200, max: 1200, step: 5, def: 520, show: p => p.mode === 'fluor' },
+    { key: 'carsWl', label: 'CARS λ (nm)', type: 'number', min: 200, max: 1200, step: 5, def: 660, show: p => p.mode === 'cars' },
+    { key: 'transmitExc', label: 'Transmit excitation', type: 'checkbox', def: true },
+  ];
+}
+function sampleSurfaces(el, h) {
+  const p = el.params;
+  // normalize legacy modes ('trans' / 'block') from older sketches
+  let m = p.mode;
+  const transmit = p.transmitExc !== undefined ? p.transmitExc : m !== 'block';
+  if (m === 'trans' || m === 'block' || m === undefined) m = 'none';
+  if (m === 'fluor') {
+    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'fluor', data: { wl: p.fluorWl, transmitExc: transmit } }];
+  }
+  if (m === 'shg' || m === 'thg' || m === 'cars') {
+    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'transmit', data: { convert: m, outWl: p.carsWl, transmitExc: transmit } }];
+  }
+  return transmit ? [] : rectAbsorb(8, 2 * h);
+}
+
+// lens outline at x=cx: biconvex for f>=0, biconcave for f<0
+function lensShape(cx, h, f) {
+  const d = f >= 0
+    ? `M ${cx},${-h} Q ${cx + 9},0 ${cx},${h} Q ${cx - 9},0 ${cx},${-h} Z`
+    : `M ${cx - 6},${-h} Q ${cx},${-h + 10} ${cx + 6},${-h} L ${cx + 6},${h} Q ${cx},${h - 10} ${cx - 6},${h} Z`;
+  return `<path d="${d}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
+}
+
+// laser body height grows with the beam width so a thick beam never
+// exceeds its source
+function laserH(el) {
+  const p = el.params;
+  return Math.max(34, p.beamMode === 'beam' ? p.beamWidth + 16 : 0);
+}
+
+// absorbing housing around a shaper's active face: top, bottom, back, and the
+// two bits of front frame beyond the active area (face at x=fx, body to x=bx)
+function shaperBody(fx, bx, L, hh) {
+  return [
+    { x1: fx, y1: -hh, x2: bx, y2: -hh, kind: 'absorb' },
+    { x1: fx, y1: hh, x2: bx, y2: hh, kind: 'absorb' },
+    { x1: bx, y1: -hh, x2: bx, y2: hh, kind: 'absorb' },
+    { x1: fx, y1: -hh, x2: fx, y2: -L, kind: 'absorb' },
+    { x1: fx, y1: L, x2: fx, y2: hh, kind: 'absorb' },
+  ];
+}
+
+const P = {
+  wavelength: { key: 'wavelength', label: 'Wavelength (nm)', type: 'number', min: 100, max: 12000, step: 1, def: 532 },
+  autoColor: { key: 'autoColor', label: 'Color from λ', type: 'checkbox', def: true },
+  color: { key: 'color', label: 'Beam color', type: 'color', def: '#e02020', show: p => !p.autoColor },
+};
+
+export const registry = {
+
+  // ---------------- Sources ----------------
+  laser: {
+    label: 'Laser', category: 'Sources', size: { w: 104, h: 38 },
+    size_: el => ({ w: 104, h: laserH(el) + 4 }),
+    params: [
+      P.wavelength,
+      { key: 'beamMode', label: 'Beam style', type: 'select', def: 'line', options: [['line', 'Simple line'], ['beam', 'Beam with size']] },
+      { key: 'beamWidth', label: 'Beam width (mm)', type: 'number', min: 1, max: 60, step: 0.5, def: 6, show: p => p.beamMode === 'beam' },
+      { key: 'bwMode', label: 'Spectrum', type: 'select', def: 'mono', options: [['mono', 'Monochromatic'], ['band', 'Broadband'], ['sc', 'Supercontinuum (white)']] },
+      { key: 'bandwidth', label: 'Bandwidth (nm)', type: 'number', min: 1, max: 400, step: 5, def: 40, show: p => p.bwMode === 'band' },
+      { key: 'pol', label: 'Polarization (°)', type: 'number', min: 0, max: 180, step: 5, def: 0 },
+      P.autoColor, P.color,
+    ],
+    svg(el) {
+      const h = laserH(el), hh = h / 2;
+      const ap = el.params.beamMode === 'beam' ? Math.min(hh - 4, el.params.beamWidth / 2 + 3) : 6;
+      return `<rect x="-46" y="${-hh}" width="92" height="${h}" rx="4" fill="#3a3f46" stroke="#22252a" stroke-width="1.5"/>` +
+        `<text x="0" y="0" ${isFlipped(el) ? 'transform="rotate(180)"' : ''} text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="700" letter-spacing="1.5" fill="#fff">LASER</text>` +
+        `<rect x="46" y="${-ap}" width="5" height="${2 * ap}" fill="#666" stroke="#444" stroke-width="1"/>`;
+    },
+    surfaces: el => rectAbsorb(92, laserH(el)),
+    source(el) {
+      const p = el.params;
+      if (p.beamMode === 'beam') {
+        // sample rays across the beam width; adjacent samples with an identical
+        // interaction history are filled as an envelope strip, so a lenslet
+        // array splits the beam into visibly separate focusing beamlets
+        const K = 25, w = p.beamWidth;
+        const out = [];
+        for (let i = 0; i < K; i++) out.push({ x: 52, y: -w / 2 + w * i / (K - 1), dx: 1, dy: 0, sample: i });
+        return out;
+      }
+      return [{ x: 52, y: 0, dx: 1, dy: 0 }];
+    },
+  },
+
+  led: {
+    label: 'LED', category: 'Sources', size: { w: 34, h: 30 },
+    params: [
+      P.wavelength,
+      { key: 'spread', label: 'Fan angle (°)', type: 'number', min: 0, max: 120, step: 5, def: 30 },
+      { key: 'nrays', label: 'Rays', type: 'number', min: 1, max: 11, step: 2, def: 5 },
+      P.autoColor, P.color,
+    ],
+    svg(el) {
+      const c = el.params.autoColor ? wavelengthToColor(el.params.wavelength) : el.params.color;
+      return `<path d="M -14,-12 L 6,-12 A 12 12 0 0 1 6,12 L -14,12 Z" fill="${c}" stroke="#333" stroke-width="1.5" opacity="0.85"/>` +
+        `<line x1="-14" y1="-15" x2="-14" y2="15" stroke="#333" stroke-width="2"/>` +
+        `<text x="-3" y="0" text-anchor="middle" dominant-baseline="central" font-size="8" font-weight="700" fill="#fff">LED</text>`;
+    },
+    source(el) {
+      const { spread, nrays } = el.params, out = [];
+      const n = Math.max(1, Math.round(nrays));
+      for (let i = 0; i < n; i++) {
+        const a = n === 1 ? 0 : (-spread / 2 + spread * i / (n - 1)) * Math.PI / 180;
+        out.push({ x: 19, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
+      }
+      return out;
+    },
+  },
+
+  lamp: {
+    label: 'Light source', category: 'Sources', size: { w: 34, h: 34 },
+    params: [
+      P.wavelength,
+      { key: 'spread', label: 'Fan angle (°)', type: 'number', min: 0, max: 180, step: 5, def: 40 },
+      { key: 'nrays', label: 'Rays', type: 'number', min: 1, max: 11, step: 2, def: 3 },
+      P.autoColor, P.color,
+    ],
+    svg() {
+      return `<circle r="13" fill="#fff3c4" stroke="#333" stroke-width="1.5"/>` +
+        `<path d="M -5,-5 Q 0,5 5,-5" fill="none" stroke="#333" stroke-width="1.2"/>` +
+        `<line x1="-9" y1="-9" x2="-13" y2="-13" stroke="#333" stroke-width="1"/><line x1="-9" y1="9" x2="-13" y2="13" stroke="#333" stroke-width="1"/>`;
+    },
+    source(el) {
+      const { spread, nrays } = el.params, out = [];
+      const n = Math.max(1, Math.round(nrays));
+      for (let i = 0; i < n; i++) {
+        const a = n === 1 ? 0 : (-spread / 2 + spread * i / (n - 1)) * Math.PI / 180;
+        out.push({ x: 15, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
+      }
+      return out;
+    },
+  },
+
+  // ---------------- Mirrors ----------------
+  mirror: {
+    label: 'Mirror', category: 'Mirrors', size: { w: 14, h: 56 },
+    params: [
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+      { key: 'refl', label: 'Reflectivity (%)', type: 'number', min: 1, max: 100, step: 1, def: 100 },
+    ],
+    size_: el => ({ w: 14, h: el.params.length + 6 }),
+    svg(el) {
+      const L = el.params.length / 2;
+      const partial = (el.params.refl ?? 100) < 100;
+      return `<line x1="0" y1="${-L}" x2="0" y2="${L}" stroke="#444" stroke-width="3.5" ${partial ? 'stroke-dasharray="6 2.5"' : ''}/>` + hatch(-1.5, -L, L - 6, -1, Math.round(el.params.length / 8));
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'mirror', data: { refl: el.params.refl } }];
+    },
+  },
+
+  galvo: {
+    label: 'Galvo mirror', category: 'Mirrors', size: { w: 30, h: 40 },
+    params: [{ key: 'length', label: 'Mirror size (mm)', type: 'number', min: 6, max: 60, step: 2, def: 20 }],
+    svg(el) {
+      const L = el.params.length / 2;
+      return `<circle r="4.5" fill="#777" stroke="#444" stroke-width="1.2"/>` +
+        `<line x1="0" y1="${-L}" x2="0" y2="${L}" stroke="#444" stroke-width="3"/>` +
+        `<path d="M -9,${-L - 3} A ${L + 5} ${L + 5} 0 0 1 9,${-L - 3}" fill="none" stroke="#999" stroke-width="1.2" stroke-dasharray="3 2"/>` +
+        `<path d="M -9,${L + 3} A ${L + 5} ${L + 5} 0 0 0 9,${L + 3}" fill="none" stroke="#999" stroke-width="1.2" stroke-dasharray="3 2"/>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'mirror' }];
+    },
+  },
+
+  cmirrorx: {
+    label: 'Convex mirror', category: 'Mirrors', size: { w: 18, h: 56 },
+    params: [
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+      { key: 'f', label: 'Focal length (mm)', type: 'number', min: 5, max: 2000, step: 5, def: -100, negative: true },
+    ],
+    size_: el => ({ w: 18, h: el.params.length + 6 }),
+    svg(el) {
+      const L = el.params.length / 2;
+      // bulges toward the incoming beam (from -x)
+      return `<path d="M 0,${-L} Q -7,0 0,${L}" fill="none" stroke="#444" stroke-width="3.5"/>` + hatch(1, -L, L - 6, 1, Math.round(el.params.length / 8));
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'cmirror', data: { f: -Math.abs(el.params.f) } }];
+    },
+  },
+
+  cmirror: {
+    label: 'Concave mirror', category: 'Mirrors', size: { w: 18, h: 56 },
+    params: [
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+      { key: 'f', label: 'Focal length (mm)', type: 'number', min: 5, max: 2000, step: 5, def: 100 },
+    ],
+    size_: el => ({ w: 18, h: el.params.length + 6 }),
+    svg(el) {
+      const L = el.params.length / 2;
+      // hollow toward the incoming beam (from -x): focuses it
+      return `<path d="M 0,${-L} Q 7,0 0,${L}" fill="none" stroke="#444" stroke-width="3.5"/>` + hatch(1, -L, L - 6, 1, Math.round(el.params.length / 8));
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'cmirror', data: { f: Math.abs(el.params.f) } }];
+    },
+  },
+
+  oap: {
+    label: 'Parabolic mirror', category: 'Mirrors', size: { w: 40, h: 90 },
+    params: [
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 80 },
+      { key: 'f', label: 'Focal length (mm)', type: 'number', min: 5, max: 2000, step: 5, def: 50 },
+    ],
+    size_: el => {
+      const L = el.params.length / 2;
+      const sag = (L * L) / (4 * Math.max(5, el.params.f));
+      return { w: Math.max(20, 2 * sag + 14), h: el.params.length + 6 };
+    },
+    svg(el) {
+      // true parabola x = -y²/(4f): vertex at the origin, opening toward the
+      // incoming beam, focus at (-f, 0). Shorter f -> visibly deeper curve.
+      const L = el.params.length / 2, f = Math.max(5, el.params.f);
+      const N = 26;
+      let dp = '';
+      for (let i = 0; i <= N; i++) {
+        const y = -L + (2 * L * i) / N;
+        const x = -(y * y) / (4 * f);
+        dp += (i ? ' L ' : 'M ') + x.toFixed(1) + ',' + y.toFixed(1);
+      }
+      let ticks = '';
+      for (let y = -L + 4; y < L - 3; y += 8) {
+        const x = -(y * y) / (4 * f);
+        ticks += `<line x1="${(x + 1.5).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x + 7).toFixed(1)}" y2="${(y + 5).toFixed(1)}" stroke="#888" stroke-width="1"/>`;
+      }
+      return `<path d="${dp}" fill="none" stroke="#444" stroke-width="3.5" stroke-linejoin="round"/>` + ticks;
+    },
+    surfaces(el) {
+      // real geometry: the parabola as a chain of small plane mirrors, so
+      // reflection off the actual curve sends a collimated beam to the focus
+      const L = el.params.length / 2, f = Math.max(5, el.params.f);
+      // more segments for deeper curves so marginal rays still hit the focus
+      const N = Math.min(64, Math.max(16, Math.round(L / 2 + (L * L) / (6 * f))));
+      const segs = [];
+      let py = -L, px = -(py * py) / (4 * f);
+      for (let i = 1; i <= N; i++) {
+        const y = -L + (2 * L * i) / N;
+        const x = -(y * y) / (4 * f);
+        segs.push({ x1: px, y1: py, x2: x, y2: y, kind: 'mirror' });
+        px = x; py = y;
+      }
+      return segs;
+    },
+  },
+
+  // ---------------- Lenses ----------------
+  lens: {
+    label: 'Lens', category: 'Lenses', size: { w: 18, h: 56 },
+    params: [
+      { key: 'f', label: 'Focal length (mm)', type: 'number', min: -3000, max: 3000, step: 5, def: 100 },
+      { key: 'dia', label: 'Diameter', type: 'optsize', def: 25.4 },
+    ],
+    size_: el => ({ w: 18, h: el.params.dia + 6 }),
+    svg(el) { return lensShape(0, el.params.dia / 2, el.params.f); },
+    surfaces(el) {
+      const h = el.params.dia / 2;
+      return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'lens', data: { f: el.params.f } }];
+    },
+  },
+
+  telescope: {
+    label: 'Telescope (lens pair)', category: 'Lenses', size: { w: 174, h: 62 },
+    size_: el => ({ w: Math.max(30, el.params.f1 + el.params.f2) + 26, h: (el.params.dia || 25.4) + 10 }),
+    params: [
+      { key: 'f1', label: 'Lens 1 focal (mm)', type: 'number', min: 5, max: 3000, step: 5, def: 100 },
+      { key: 'f2', label: 'Lens 2 focal (mm)', type: 'number', min: -3000, max: 3000, step: 5, def: 50 },
+      { key: 'dia', label: 'Lens diameter', type: 'optsize', def: 25.4 },
+    ],
+    svg(el) {
+      const p = el.params, s = Math.max(5, p.f1 + p.f2), h = (p.dia || 25.4) / 2;
+      return `<line x1="${-s / 2}" y1="0" x2="${s / 2}" y2="0" stroke="#b6bdc6" stroke-width="1" stroke-dasharray="4 4"/>` +
+        lensShape(-s / 2, h, p.f1) + lensShape(s / 2, h, p.f2);
+    },
+    surfaces(el) {
+      const p = el.params, s = Math.max(5, p.f1 + p.f2), h = (p.dia || 25.4) / 2;
+      return [
+        { x1: -s / 2, y1: -h, x2: -s / 2, y2: h, kind: 'lens', data: { f: p.f1 } },
+        { x1: s / 2, y1: -h, x2: s / 2, y2: h, kind: 'lens', data: { f: p.f2 } },
+      ];
+    },
+  },
+
+  objective: {
+    label: 'Objective', category: 'Lenses', size: { w: 36, h: 40 },
+    params: [{ key: 'f', label: 'Focal length (mm)', type: 'number', min: 1, max: 500, step: 1, def: 20 }],
+    svg() {
+      return `<path d="M -16,-9 L 6,-17 L 16,-17 L 16,17 L 6,17 L -16,9 Z" fill="#8d98a5" stroke="#4d565f" stroke-width="1.5"/>` +
+        `<line x1="6" y1="-17" x2="6" y2="17" stroke="#4d565f" stroke-width="1"/>` +
+        `<rect x="-17.5" y="-9.5" width="3" height="19" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1"/>`;
+    },
+    surfaces(el) {
+      return [{ x1: -16, y1: -10, x2: -16, y2: 10, kind: 'lens', data: { f: el.params.f } }];
+    },
+  },
+
+  // ---------------- Filters & splitters ----------------
+  dichroic: {
+    label: 'Dichroic mirror', category: 'Filters & Splitters', size: { w: 14, h: 56 },
+    params: [
+      { key: 'dtype', label: 'Type', type: 'select', def: 'longpass', options: [['longpass', 'Longpass (transmit long λ)'], ['shortpass', 'Shortpass (transmit short λ)'], ['bandpass', 'Bandpass']] },
+      { key: 'cutoff', label: 'Cutoff (nm)', type: 'number', min: 150, max: 8000, step: 5, def: 550, show: p => p.dtype !== 'bandpass' },
+      { key: 'center', label: 'Band center (nm)', type: 'number', min: 150, max: 8000, step: 5, def: 550, show: p => p.dtype === 'bandpass' },
+      { key: 'band', label: 'Band width (nm)', type: 'number', min: 1, max: 2000, step: 5, def: 50, show: p => p.dtype === 'bandpass' },
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+    ],
+    size_: el => ({ w: 14, h: el.params.length + 6 }),
+    svg(el) {
+      const L = el.params.length / 2;
+      return `<rect x="-3" y="${-L}" width="6" height="${el.params.length}" fill="#dfeef7" stroke="#5d7f96" stroke-width="1.5"/>` +
+        `<line x1="-3" y1="${-L}" x2="-3" y2="${L}" stroke="#b04ad0" stroke-width="2"/>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2, p = el.params;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'dichroic', data: { dtype: p.dtype, cutoff: p.cutoff, center: p.center, band: p.band } }];
+    },
+  },
+
+  filter: {
+    label: 'Filter', category: 'Filters & Splitters', size: { w: 12, h: 42 },
+    params: [
+      { key: 'ftype', label: 'Type', type: 'select', def: 'bandpass', options: [['bandpass', 'Bandpass'], ['longpass', 'Longpass'], ['shortpass', 'Shortpass'], ['nd', 'Neutral density']] },
+      { key: 'cutoff', label: 'Cutoff (nm)', type: 'number', min: 150, max: 8000, step: 5, def: 500, show: p => p.ftype === 'longpass' || p.ftype === 'shortpass' },
+      { key: 'center', label: 'Band center (nm)', type: 'number', min: 150, max: 8000, step: 5, def: 525, show: p => p.ftype === 'bandpass' },
+      { key: 'band', label: 'Band width (nm)', type: 'number', min: 1, max: 2000, step: 5, def: 40, show: p => p.ftype === 'bandpass' },
+      { key: 'trans', label: 'Transmission (0–1)', type: 'number', min: 0, max: 1, step: 0.05, def: 0.5, show: p => p.ftype === 'nd' },
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+    ],
+    size_: el => ({ w: 12, h: el.params.length + 6 }),
+    svg(el) {
+      const L = el.params.length / 2;
+      const fill = el.params.ftype === 'nd' ? '#9aa0a6' : '#bfe3c9';
+      return `<rect x="-2.5" y="${-L}" width="5" height="${el.params.length}" fill="${fill}" stroke="#557" stroke-width="1.5"/>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2, p = el.params;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'filter', data: { ftype: p.ftype, cutoff: p.cutoff, center: p.center, band: p.band, trans: p.trans } }];
+    },
+  },
+
+  bs: {
+    label: 'Beamsplitter', category: 'Filters & Splitters', size: { w: 30, h: 30 },
+    size_: el => ({ w: (el.params.size || 26) + 4, h: (el.params.size || 26) + 4 }),
+    params: [
+      { key: 'ratio', label: 'Transmission (0–1)', type: 'number', min: 0, max: 1, step: 0.05, def: 0.5 },
+      { key: 'size', label: 'Cube size', type: 'optsize', def: 25.4 },
+    ],
+    svg(el) {
+      const s = (el.params.size || 26) / 2;
+      return `<rect x="${-s}" y="${-s}" width="${2 * s}" height="${2 * s}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>` +
+        `<line x1="${-s}" y1="${s}" x2="${s}" y2="${-s}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
+    },
+    surfaces(el) {
+      const s = (el.params.size || 26) / 2;
+      return [{ x1: -s, y1: s, x2: s, y2: -s, kind: 'split', data: { ratio: el.params.ratio } }];
+    },
+  },
+
+  // ---------------- Polarization ----------------
+  polarizer: {
+    label: 'Polarizer', category: 'Polarization', size: { w: 24, h: 56 },
+    size_: el => ({ w: 24, h: el.params.length + 6 }),
+    params: [
+      { key: 'pangle', label: 'Axis angle (°)', type: 'number', min: 0, max: 180, step: 5, def: 0 },
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+    ],
+    svg(el) {
+      const L = el.params.length / 2, a = el.params.pangle;
+      return `<rect x="-2.5" y="${-L}" width="5" height="${el.params.length}" fill="#cfd8e3" stroke="#54606e" stroke-width="1.4"/>` +
+        `<g transform="rotate(${-a})"><circle r="8.5" fill="#fff" stroke="#54606e" stroke-width="1.2"/>` +
+        `<line x1="0" y1="-6" x2="0" y2="6" stroke="#54606e" stroke-width="1.6"/>` +
+        `<path d="M 0,-8 L -2.4,-4 L 2.4,-4 Z M 0,8 L -2.4,4 L 2.4,4 Z" fill="#54606e"/></g>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'polarizer', data: { a: el.params.pangle } }];
+    },
+  },
+
+  hwp: {
+    label: 'λ/2 waveplate', category: 'Polarization', size: { w: 18, h: 56 },
+    size_: el => ({ w: 18, h: el.params.length + 6 }),
+    params: [
+      { key: 'a', label: 'Fast axis (°)', type: 'number', min: 0, max: 180, step: 5, def: 22.5 },
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+    ],
+    svg(el) {
+      const L = el.params.length / 2;
+      return `<rect x="-2.5" y="${-L}" width="5" height="${el.params.length}" fill="#f3e3c3" stroke="#a08340" stroke-width="1.4"/>` +
+        `<text x="9" y="0" text-anchor="middle" dominant-baseline="central" font-size="8.5" fill="#7a6430" transform="rotate(${sideTextRot(el)} 9 0)">λ/2</text>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'wp', data: { a: el.params.a, half: true } }];
+    },
+  },
+
+  qwp: {
+    label: 'λ/4 waveplate', category: 'Polarization', size: { w: 18, h: 56 },
+    size_: el => ({ w: 18, h: el.params.length + 6 }),
+    params: [
+      { key: 'a', label: 'Fast axis (°)', type: 'number', min: 0, max: 180, step: 5, def: 45 },
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+    ],
+    svg(el) {
+      const L = el.params.length / 2;
+      return `<rect x="-2.5" y="${-L}" width="5" height="${el.params.length}" fill="#e8d5ef" stroke="#8a5fa8" stroke-width="1.4"/>` +
+        `<text x="9" y="0" text-anchor="middle" dominant-baseline="central" font-size="8.5" fill="#6a4a80" transform="rotate(${sideTextRot(el)} 9 0)">λ/4</text>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'wp', data: { a: el.params.a, half: false } }];
+    },
+  },
+
+  pbs: {
+    label: 'Polarizing BS', category: 'Polarization', size: { w: 30, h: 30 },
+    size_: el => ({ w: (el.params.size || 26) + 4, h: (el.params.size || 26) + 4 }),
+    params: [{ key: 'size', label: 'Cube size', type: 'optsize', def: 25.4 }],
+    svg(el) {
+      const s = (el.params.size || 26) / 2;
+      return `<rect x="${-s}" y="${-s}" width="${2 * s}" height="${2 * s}" fill="#d5e3f0" stroke="#3f6a92" stroke-width="1.6"/>` +
+        `<line x1="${-s}" y1="${s}" x2="${s}" y2="${-s}" stroke="#3f6a92" stroke-width="1.6"/>` +
+        `<text x="0" y="${s * 0.45}" text-anchor="middle" font-size="${Math.min(9, s * 0.55)}" fill="#3f6a92" font-weight="600">PBS</text>`;
+    },
+    surfaces(el) {
+      const s = (el.params.size || 26) / 2;
+      return [{ x1: -s, y1: s, x2: s, y2: -s, kind: 'pbs' }];
+    },
+  },
+
+  isolator: {
+    label: 'Optical isolator', category: 'Polarization', size: { w: 50, h: 26 },
+    params: [],
+    svg() {
+      return `<rect x="-23" y="-11" width="46" height="22" rx="11" fill="#6b7280" stroke="#3f4650" stroke-width="1.5"/>` +
+        `<path d="M -12,0 L 10,0 M 10,0 L 3,-5 M 10,0 L 3,5" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+    },
+    surfaces: () => [{ x1: 0, y1: -11, x2: 0, y2: 11, kind: 'isolator' }],
+  },
+
+  // ---------------- Dispersive & apertures ----------------
+  grating: {
+    label: 'Diffraction grating', category: 'Dispersive & Apertures', size: { w: 16, h: 56 },
+    params: [
+      { key: 'lines', label: 'Lines / mm', type: 'number', min: 50, max: 3600, step: 50, def: 600 },
+      { key: 'orders', label: 'Orders (e.g. -1,0,1)', type: 'text', def: '1' },
+      { key: 'transmissive', label: 'Transmissive', type: 'checkbox', def: false },
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+    ],
+    size_: el => ({ w: 16, h: el.params.length + 6 }),
+    svg(el) {
+      const L = el.params.length / 2;
+      let ticks = '';
+      for (let y = -L + 3; y <= L - 3; y += 5) ticks += `<line x1="0" y1="${y}" x2="4" y2="${y}" stroke="#333" stroke-width="1"/>`;
+      return `<rect x="0" y="${-L}" width="6" height="${el.params.length}" fill="#e8e0f0" stroke="#5d5575" stroke-width="1.5"/>` + ticks;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2, p = el.params;
+      const orders = String(p.orders).split(',').map(s => parseInt(s.trim(), 10)).filter(n => isFinite(n));
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'grating', data: { d: 1e6 / p.lines, orders: orders.length ? orders : [1], transmissive: p.transmissive } }];
+    },
+  },
+
+  slit: {
+    label: 'Slit', category: 'Beam Block', size: { w: 10, h: 56 },
+    params: [
+      { key: 'gap', label: 'Gap (mm)', type: 'number', min: 0.5, max: 60, step: 0.5, def: 8 },
+      { key: 'length', label: 'Plate size', type: 'optsize', def: 50.8 },
+    ],
+    size_: el => ({ w: 10, h: el.params.length + 6 }),
+    svg(el) {
+      const L = el.params.length / 2, g = el.params.gap / 2;
+      return `<rect x="-2.5" y="${-L}" width="5" height="${L - g}" fill="#333"/>` +
+        `<rect x="-2.5" y="${g}" width="5" height="${L - g}" fill="#333"/>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2, g = el.params.gap / 2;
+      return [
+        { x1: 0, y1: -L, x2: 0, y2: -g, kind: 'absorb' },
+        { x1: 0, y1: g, x2: 0, y2: L, kind: 'absorb' },
+      ];
+    },
+  },
+
+  prism: {
+    label: 'Prism', category: 'Dispersive & Apertures', size: { w: 44, h: 44 },
+    size_: el => ({ w: el.params.psize * 1.5, h: el.params.psize * 1.3 }),
+    params: [
+      { key: 'apex', label: 'Apex angle (°)', type: 'number', min: 10, max: 80, step: 5, def: 60 },
+      { key: 'psize', label: 'Size', type: 'optsize', def: 25.4 },
+    ],
+    svg(el) {
+      const h = el.params.psize / 2;
+      return `<path d="M 0,${-h} L ${-h * 0.72},${h * 0.62} L ${h * 0.72},${h * 0.62} Z" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
+    },
+    surfaces(el) {
+      const h = el.params.psize / 2;
+      return [{ x1: 0, y1: -h, x2: 0, y2: h * 0.62, kind: 'prism', data: { apex: el.params.apex } }];
+    },
+  },
+
+  diffuser: {
+    label: 'Diffuser', category: 'Dispersive & Apertures', size: { w: 14, h: 56 },
+    size_: el => ({ w: 14, h: el.params.length + 6 }),
+    params: [
+      { key: 'div', label: 'Divergence (°)', type: 'number', min: 0.5, max: 40, step: 0.5, def: 8 },
+      { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
+    ],
+    svg(el) {
+      const L = el.params.length / 2;
+      let rough = `M -3,${-L}`;
+      for (let y = -L; y < L - 1; y += 3) rough += ` L ${-3 - (y % 6 === 0 ? 1.8 : 0.4)},${y + 1.5}`;
+      rough += ` L -3,${L}`;
+      return `<rect x="-3" y="${-L}" width="6" height="${el.params.length}" fill="#eceef1" stroke="#6b7280" stroke-width="1.3"/>` +
+        `<path d="${rough}" fill="none" stroke="#6b7280" stroke-width="1"/>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'diffuser', data: { div: el.params.div } }];
+    },
+  },
+
+  // ---------------- Wavefront shaping ----------------
+  slm: {
+    label: 'SLM', category: 'Wavefront Shaping', size: { w: 30, h: 50 },
+    params: [
+      { key: 'transmissive', label: 'Transmissive', type: 'checkbox', def: false },
+      { key: 'length', label: 'Active size (mm)', type: 'number', min: 10, max: 100, step: 2, def: 40 },
+      { key: 'zeroOrder', label: '0th-order reflection', type: 'checkbox', def: false },
+      { key: 'zeroFrac', label: '0th-order fraction (0–1)', type: 'number', min: 0.01, max: 0.9, step: 0.01, def: 0.1, show: p => p.zeroOrder },
+      layersParam,
+    ],
+    size_: el => ({ w: 30, h: el.params.length + 10 }),
+    svg(el) {
+      const L = el.params.length / 2;
+      let px = '';
+      for (let y = -L + 2; y < L - 1; y += 5) px += `<line x1="-11" y1="${y}" x2="-7" y2="${y}" stroke="#4ac0b0" stroke-width="2.5"/>`;
+      return `<rect x="-9" y="${-L - 3}" width="20" height="${el.params.length + 6}" rx="2" fill="#3a4750" stroke="#222b31" stroke-width="1.5"/>` + px +
+        `<text x="3" y="0" text-anchor="middle" dominant-baseline="central" font-size="8.5" font-weight="600" fill="#fff" transform="rotate(${sideTextRot(el)} 3 0)">SLM</text>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      const body = el.params.transmissive ? [] : shaperBody(-9, 11, L, L + 3);
+      return [{
+        x1: -9, y1: -L, x2: -9, y2: L, kind: 'shaper',
+        data: {
+          layers: el.params.layers || [], length: el.params.length, transmissive: !!el.params.transmissive,
+          zeroOrder: !!el.params.zeroOrder, zeroFrac: el.params.zeroFrac || 0.1,
+        },
+      }, ...body];
+    },
+  },
+
+  dmd: {
+    label: 'DMD', category: 'Wavefront Shaping', size: { w: 30, h: 50 },
+    params: [
+      { key: 'length', label: 'Active size (mm)', type: 'number', min: 10, max: 100, step: 2, def: 40 },
+      { key: 'zeroOrder', label: '0th-order reflection', type: 'checkbox', def: false },
+      { key: 'zeroFrac', label: '0th-order fraction (0–1)', type: 'number', min: 0.01, max: 0.9, step: 0.01, def: 0.1, show: p => p.zeroOrder },
+      layersParam,
+    ],
+    size_: el => ({ w: 30, h: el.params.length + 10 }),
+    svg(el) {
+      const L = el.params.length / 2;
+      let mm = '';
+      for (let y = -L + 4; y < L - 2; y += 6) mm += `<line x1="-11" y1="${y + 2}" x2="-7" y2="${y - 2}" stroke="#cfd6dd" stroke-width="1.6"/>`;
+      return `<rect x="-9" y="${-L - 3}" width="20" height="${el.params.length + 6}" rx="2" fill="#2e3a42" stroke="#1b2329" stroke-width="1.5"/>` + mm +
+        `<text x="3" y="0" text-anchor="middle" dominant-baseline="central" font-size="8.5" font-weight="600" fill="#fff" transform="rotate(${sideTextRot(el)} 3 0)">DMD</text>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{
+        x1: -9, y1: -L, x2: -9, y2: L, kind: 'shaper',
+        data: {
+          layers: el.params.layers || [], length: el.params.length, transmissive: false,
+          zeroOrder: !!el.params.zeroOrder, zeroFrac: el.params.zeroFrac || 0.1,
+        },
+      }, ...shaperBody(-9, 11, L, L + 3)];
+    },
+  },
+
+  dm: {
+    label: 'Deformable mirror', category: 'Wavefront Shaping', size: { w: 22, h: 56 },
+    params: [
+      { key: 'length', label: 'Aperture (mm)', type: 'number', min: 10, max: 100, step: 2, def: 50 },
+      layersParam,
+    ],
+    size_: el => ({ w: 22, h: el.params.length + 6 }),
+    svg(el) {
+      const L = el.params.length / 2;
+      // wavy membrane
+      const nW = Math.max(3, Math.round(el.params.length / 12));
+      const step = el.params.length / nW;
+      let d = `M 0,${-L}`, side = 1;
+      for (let i = 0; i < nW; i++) {
+        const y = -L + i * step;
+        d += ` Q ${3 * side},${y + step / 2} 0,${y + step}`;
+        side = -side;
+      }
+      let act = '';
+      for (let y = -L + 2; y < L - 4; y += 7) act += `<rect x="4" y="${y}" width="4" height="4" fill="#8d98a5"/>`;
+      return `<rect x="8" y="${-L}" width="4" height="${el.params.length}" fill="#4d565f"/>` + act +
+        `<path d="${d}" fill="none" stroke="#444" stroke-width="2.5"/>`;
+    },
+    surfaces(el) {
+      const L = el.params.length / 2;
+      return [{
+        x1: 0, y1: -L, x2: 0, y2: L, kind: 'shaper',
+        data: { layers: el.params.layers || [], length: el.params.length, transmissive: false },
+      }, ...shaperBody(0, 12, L, L)];
+    },
+  },
+
+  // ---------------- Detectors ----------------
+  detector: {
+    label: 'Photodetector', category: 'Detectors', size: { w: 40, h: 30 },
+    params: [],
+    svg(el) {
+      return boxSVG(36, 26, '#4b5563', '#2b333d', 'PD', null, isFlipped(el)) +
+        `<rect x="-19.5" y="-9" width="3" height="18" fill="#93c5fd" stroke="#2b333d" stroke-width="1"/>`;
+    },
+    surfaces: () => rectAbsorb(38, 26),
+  },
+
+  pmt: {
+    label: 'PMT', category: 'Detectors', size: { w: 54, h: 30 },
+    params: [],
+    svg(el) {
+      return `<rect x="-25" y="-13" width="50" height="26" rx="13" fill="#4b5563" stroke="#2b333d" stroke-width="1.5"/>` +
+        `<rect x="-27" y="-9" width="4" height="18" fill="#93c5fd" stroke="#2b333d" stroke-width="1"/>` +
+        `<text x="2" y="0" ${isFlipped(el) ? 'transform="rotate(180 2 0)"' : ''} text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="600" fill="#fff">PMT</text>`;
+    },
+    surfaces: () => rectAbsorb(52, 26),
+  },
+
+  camera: {
+    label: 'Camera', category: 'Detectors', size: { w: 44, h: 34 },
+    size_: el => ({ w: 44, h: (el.params.ch || 30) + 4 }),
+    params: [{ key: 'ch', label: 'Sensor height (mm)', type: 'number', min: 20, max: 150, step: 2, def: 30 }],
+    svg(el) {
+      const h = el.params.ch || 30;
+      return boxSVG(40, h, '#4b5563', '#2b333d', 'CAM', null, isFlipped(el)) +
+        `<rect x="-24" y="${-(h - 16) / 2}" width="5" height="${h - 16}" fill="#333" stroke="#2b333d"/>`;
+    },
+    surfaces: el => rectAbsorb(44, el.params.ch || 30),
+  },
+
+  eye: {
+    label: 'Human eye', category: 'Detectors', size: { w: 36, h: 36 },
+    params: [],
+    svg() {
+      return `<circle r="15" fill="#fff" stroke="#4d565f" stroke-width="1.5"/>` +
+        // cornea bulge over the pupil
+        `<path d="M -14.2,-7 Q -21,0 -14.2,7" fill="rgba(160,200,240,0.45)" stroke="#4a7fa8" stroke-width="1.2"/>` +
+        // iris above and below the pupil
+        `<path d="M -14.5,-9 L -10.5,-5.5" stroke="#7a5230" stroke-width="2.4" stroke-linecap="round"/>` +
+        `<path d="M -14.5,9 L -10.5,5.5" stroke="#7a5230" stroke-width="2.4" stroke-linecap="round"/>` +
+        // crystalline lens
+        `<ellipse cx="-8.5" cy="0" rx="3" ry="6.5" fill="#cfe4f5" stroke="#4a7fa8" stroke-width="1"/>` +
+        // retina
+        `<path d="M 7,-13 A 15 15 0 0 1 7,13" fill="none" stroke="#c86a6a" stroke-width="2.5"/>`;
+    },
+    surfaces() {
+      // the pupil acts as an ideal lens that focuses collimated light onto
+      // the retina; the rest of the eyeball absorbs
+      return [
+        { x1: -15, y1: -6, x2: -15, y2: 6, kind: 'lens', data: { f: 28 } },
+        { x1: -15, y1: -15, x2: -15, y2: -6, kind: 'absorb' },
+        { x1: -15, y1: 6, x2: -15, y2: 15, kind: 'absorb' },
+        { x1: -15, y1: -15, x2: 15, y2: -15, kind: 'absorb' },
+        { x1: -15, y1: 15, x2: 15, y2: 15, kind: 'absorb' },
+        { x1: 15, y1: -15, x2: 15, y2: 15, kind: 'absorb' },
+      ];
+    },
+  },
+
+  beamdump: {
+    label: 'Beam dump', category: 'Beam Block', size: { w: 24, h: 26 },
+    params: [],
+    svg() {
+      return `<path d="M -10,-11 L 10,-11 L 10,11 L -10,11 Z M -10,-11 L 4,0 L -10,11" fill="#26292e" stroke="#111" stroke-width="1.5"/>`;
+    },
+    surfaces: () => rectAbsorb(20, 22),
+  },
+
+  // ---------------- Modulators & misc ----------------
+  aom: {
+    label: 'AOM', category: 'Modulators', size: { w: 44, h: 30 },
+    params: [
+      { key: 'deflect', label: 'Deflection (°)', type: 'number', min: -45, max: 45, step: 0.5, def: 4 },
+      { key: 'zero', label: 'Keep 0th order', type: 'checkbox', def: false },
+      { key: 'eff', label: 'Efficiency (0–1)', type: 'number', min: 0, max: 1, step: 0.05, def: 0.85 },
+      { key: 'modulate', label: 'Modulate on/off', type: 'checkbox', def: false },
+      { key: 'chopPeriod', label: 'Chunk period (mm)', type: 'number', min: 4, max: 200, step: 2, def: 30, show: p => p.modulate },
+      { key: 'chopDuty', label: 'On fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5, show: p => p.modulate },
+    ],
+    svg(el) { return boxSVG(40, 26, '#c9b458', '#8a7a2e', 'AOM', '#3d3616', isFlipped(el)); },
+    surfaces(el) {
+      const p = el.params;
+      return [{
+        x1: 0, y1: -13, x2: 0, y2: 13, kind: 'aom',
+        data: { deflect: p.deflect, zero: p.zero, eff: p.eff, chop: p.modulate ? { period: p.chopPeriod, duty: p.chopDuty } : null },
+      }];
+    },
+  },
+
+  eom: {
+    label: 'EOM', category: 'Modulators', size: { w: 48, h: 28 },
+    params: [
+      { key: 'modulate', label: 'Modulate on/off', type: 'checkbox', def: false },
+      { key: 'chopPeriod', label: 'Chunk period (mm)', type: 'number', min: 4, max: 200, step: 2, def: 30, show: p => p.modulate },
+      { key: 'chopDuty', label: 'On fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5, show: p => p.modulate },
+    ],
+    svg(el) { return boxSVG(44, 24, '#b8c9a3', '#66794a', 'EOM', '#2f3a20', isFlipped(el)); },
+    surfaces(el) {
+      const p = el.params;
+      if (!p.modulate) return [];
+      return [{ x1: 0, y1: -12, x2: 0, y2: 12, kind: 'chop', data: { period: p.chopPeriod, duty: p.chopDuty } }];
+    },
+  },
+
+  chopper: {
+    label: 'Chopper', category: 'Modulators', size: { w: 40, h: 40 },
+    params: [
+      { key: 'modulate', label: 'Modulate on/off', type: 'checkbox', def: true },
+      { key: 'chopPeriod', label: 'Chunk period (mm)', type: 'number', min: 4, max: 200, step: 2, def: 40, show: p => p.modulate },
+      { key: 'chopDuty', label: 'On fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5, show: p => p.modulate },
+    ],
+    svg() {
+      let blades = '';
+      for (let i = 0; i < 6; i++) {
+        const a0 = i * 60, a1 = a0 + 32;
+        const r = 18, x0 = r * Math.cos(a0 * Math.PI / 180), y0 = r * Math.sin(a0 * Math.PI / 180),
+          x1 = r * Math.cos(a1 * Math.PI / 180), y1 = r * Math.sin(a1 * Math.PI / 180);
+        blades += `<path d="M 0,0 L ${x0},${y0} A ${r} ${r} 0 0 1 ${x1},${y1} Z" fill="#8d98a5"/>`;
+      }
+      return blades + `<circle r="3.5" fill="#4d565f"/><circle r="18.5" fill="none" stroke="#4d565f" stroke-width="1" stroke-dasharray="2 3"/>`;
+    },
+    surfaces(el) {
+      const p = el.params;
+      if (!p.modulate) return [];
+      return [{ x1: 0, y1: -19, x2: 0, y2: 19, kind: 'chop', data: { period: p.chopPeriod, duty: p.chopDuty } }];
+    },
+  },
+
+  crystal: {
+    label: 'Crystal', category: 'Nonlinear Optics', size: { w: 36, h: 26 },
+    params: [
+      { key: 'convert', label: 'Convert λ', type: 'select', def: 'none', options: [['none', 'None'], ['shg', 'SHG (λ/2)'], ['thg', 'THG (λ/3)'], ['sc', 'Supercontinuum (white)'], ['opo', 'OPO (signal + idler)'], ['custom', 'Custom output λ']] },
+      { key: 'outWl', label: 'Output λ (nm)', type: 'number', min: 100, max: 12000, step: 1, def: 532, show: p => p.convert === 'custom' },
+      { key: 'pumpWl', label: 'Pump λ (nm)', type: 'number', min: 100, max: 3000, step: 1, def: 532, show: p => p.convert === 'opo' },
+      { key: 'signalWl', label: 'Signal λ (nm)', type: 'number', min: 100, max: 11000, step: 1, def: 800, show: p => p.convert === 'opo' },
+      { key: 'transmitPump', label: 'Transmit residual pump', type: 'checkbox', def: true, show: p => p.convert === 'opo' },
+    ],
+    svg(el) {
+      const isOpo = el.params.convert === 'opo';
+      return `<path d="M -12,-11 L 16,-11 L 12,11 L -16,11 Z" fill="${isOpo ? '#d8e8f5' : '#e4d5f2'}" stroke="${isOpo ? '#4a7fa8' : '#8a5fb0'}" stroke-width="1.5"/>`;
+    },
+    surfaces(el) {
+      const p = el.params;
+      if (p.convert === 'none') return [];
+      return [{ x1: 0, y1: -11, x2: 0, y2: 11, kind: 'transmit', data: { convert: p.convert, outWl: p.outWl, pumpWl: p.pumpWl, signalWl: p.signalWl, transmitPump: p.transmitPump } }];
+    },
+  },
+
+  glassrod: {
+    label: 'Glass rod', category: 'Dispersive & Apertures', size: { w: 64, h: 14 },
+    params: [
+      { key: 'rodlen', label: 'Length (mm)', type: 'number', min: 20, max: 300, step: 5, def: 60 },
+      { key: 'dia', label: 'Diameter', type: 'optsize', def: 12.7 },
+    ],
+    size_: el => ({ w: el.params.rodlen + 4, h: (el.params.dia || 10) + 4 }),
+    svg(el) {
+      const L = el.params.rodlen / 2, d = el.params.dia || 10;
+      return `<rect x="${-L}" y="${-d / 2}" width="${el.params.rodlen}" height="${d}" rx="${Math.min(4, d / 3)}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
+    },
+    surfaces: () => [],
+  },
+
+  // ---------------- Microscopy ----------------
+  sample: {
+    label: 'Sample', category: 'Microscopy', size: { w: 14, h: 40 },
+    params: sampleModeParams(),
+    svg(el) {
+      const p = el.params;
+      const c = p.mode === 'fluor' ? wavelengthToColor(p.fluorWl) : p.mode === 'cars' ? wavelengthToColor(p.carsWl) : '#e2758f';
+      return `<rect x="-3" y="-17" width="6" height="34" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.2"/>` +
+        `<circle cx="0" cy="0" r="4" fill="${c}" opacity="0.85"/>`;
+    },
+    surfaces: el => sampleSurfaces(el, 17),
+  },
+
+  stage: {
+    label: 'Sample holder', category: 'Microscopy', size: { w: 22, h: 56 },
+    params: sampleModeParams(),
+    svg(el) {
+      const p = el.params;
+      const c = p.mode === 'fluor' ? wavelengthToColor(p.fluorWl) : p.mode === 'cars' ? wavelengthToColor(p.carsWl) : '#e2758f';
+      return `<path d="M 8,-25 L -6,-25 L -6,25 L 8,25" fill="none" stroke="#4d565f" stroke-width="4"/>` +
+        `<rect x="-2" y="-19" width="5" height="38" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.2"/>` +
+        `<circle cx="0.5" cy="0" r="4" fill="${c}" opacity="0.85"/>`;
+    },
+    surfaces: el => sampleSurfaces(el, 19),
+  },
+
+  microscope: {
+    label: 'Microscope', category: 'Microscopy', size: { w: 74, h: 54 },
+    params: [],
+    svg(el) { return boxSVG(70, 50, '#e8eaee', '#7a828c', 'Microscope', '#3d444d', isFlipped(el)); },
+    surfaces: () => rectAbsorb(70, 50),
+  },
+
+  // ---------------- Imaging ----------------
+  objarrow: {
+    label: 'Object', category: 'Sources', size: { w: 20, h: 60 },
+    size_: el => ({ w: 20, h: 2 * el.params.height + 10 }),
+    imaging: true,
+    params: [
+      { key: 'height', label: 'Height (mm)', type: 'number', min: 2, max: 150, step: 1, def: 22 },
+      { key: 'shape', label: 'Shape', type: 'select', def: 'arrow', options: [['arrow', 'Arrow'], ['F', 'Letter F'], ['tree', 'Tree']] },
+      { key: 'raysMode', label: 'Rays from tip', type: 'select', def: 'fan', options: [['fan', 'Show ray fan'], ['none', 'No rays']] },
+      { key: 'spread', label: 'Fan angle (°)', type: 'number', min: 1, max: 40, step: 1, def: 10, show: p => p.raysMode === 'fan' },
+      { key: 'nrays', label: 'Rays', type: 'number', min: 2, max: 9, step: 1, def: 3, show: p => p.raysMode === 'fan' },
+      { key: 'showImage', label: 'Draw image formed', type: 'checkbox', def: true },
+      { ...P.wavelength, def: 620 },
+      P.autoColor, P.color,
+    ],
+    svg(el) {
+      const p = el.params, h = p.height;
+      const c = p.autoColor === false && p.color ? p.color : wavelengthToColor(p.wavelength);
+      const sh = OBJ_SHAPES[p.shape] || OBJ_SHAPES.arrow;
+      let s = `<line x1="-7" y1="0" x2="7" y2="0" stroke="#888" stroke-width="1.2"/>`;
+      for (const ln of sh.lines) {
+        s += `<polyline points="${ln.map(q => `${(q[0] * h).toFixed(1)},${(q[1] * h).toFixed(1)}`).join(' ')}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+      }
+      for (const pg of sh.polys) {
+        s += `<polygon points="${pg.map(q => `${(q[0] * h).toFixed(1)},${(q[1] * h).toFixed(1)}`).join(' ')}" fill="${c}"/>`;
+      }
+      return s;
+    },
+    source(el) {
+      const p = el.params;
+      if (p.raysMode !== 'fan') return [];
+      const n = Math.max(2, Math.round(p.nrays)), out = [];
+      // fan from the arrow tip, aimed slightly toward the axis so the rays
+      // reconverge at the image tip after the lens
+      const tilt = Math.atan2(p.height * 0.25, 100);
+      for (let i = 0; i < n; i++) {
+        const a = tilt + (-p.spread / 2 + p.spread * i / (n - 1)) * Math.PI / 180;
+        out.push({ x: 1, y: -p.height, dx: Math.cos(a), dy: Math.sin(a) });
+      }
+      return out;
+    },
+    surfaces: () => [],
+  },
+
+  probe: {
+    label: 'Beam probe (?)', category: 'Annotations', size: { w: 24, h: 24 },
+    noLabel: true,
+    params: [
+      { key: 'prop', label: 'Show', type: 'select', def: 'spectrum', options: [['spectrum', 'Spectrum plot'], ['pol', 'Polarization'], ['wl', 'Wavelength label']] },
+    ],
+    svg(el) {
+      return `<circle r="4.5" fill="none" stroke="#e07020" stroke-width="1.6"/>` +
+        `<line x1="0" y1="-8" x2="0" y2="8" stroke="#e07020" stroke-width="1"/>` +
+        `<line x1="-8" y1="0" x2="8" y2="0" stroke="#e07020" stroke-width="1"/>` +
+        `<line x1="3.5" y1="-3.5" x2="14" y2="-14" stroke="#e07020" stroke-width="1"/>` +
+        probeCard(el, probeAt(el.x, el.y));
+    },
+    surfaces: () => [],
+  },
+
+  arrowann: {
+    label: 'Arrow', category: 'Annotations', size: el => ({ w: el.params.len + 8, h: 20 }),
+    params: [
+      { key: 'len', label: 'Length (mm)', type: 'number', min: 10, max: 400, step: 5, def: 60 },
+      { key: 'width', label: 'Line width', type: 'number', min: 0.5, max: 8, step: 0.5, def: 2 },
+      { key: 'fill', label: 'Color', type: 'color', def: '#333333' },
+    ],
+    svg(el) {
+      const p = el.params, L = p.len / 2, w = p.width;
+      const hl = 6 + 3 * w, hw = 3 + 1.5 * w;
+      return `<line x1="${-L}" y1="0" x2="${(L - hl + 1).toFixed(1)}" y2="0" stroke="${p.fill}" stroke-width="${w}" stroke-linecap="round"/>` +
+        `<path d="M ${L},0 L ${L - hl},${-hw} L ${L - hl},${hw} Z" fill="${p.fill}"/>`;
+    },
+    surfaces: () => [],
+  },
+
+  // ---------------- Custom ----------------
+  box: {
+    label: 'Custom box', category: 'Custom', size: el => ({ w: el.params.w + 4, h: el.params.h + 4 }),
+    params: [
+      { key: 'text', label: 'Label', type: 'text', def: 'Device' },
+      { key: 'w', label: 'Width (mm)', type: 'number', min: 10, max: 400, step: 5, def: 70 },
+      { key: 'h', label: 'Height (mm)', type: 'number', min: 10, max: 400, step: 5, def: 40 },
+      { key: 'behavior', label: 'Beam behavior', type: 'select', def: 'block', options: [['block', 'Blocks beam'], ['pass', 'Beam passes through']] },
+      { key: 'fill', label: 'Fill', type: 'color', def: '#eef0f3' },
+    ],
+    svg(el) {
+      const p = el.params;
+      return boxSVG(p.w, p.h, p.fill, '#7a828c', p.text, '#3d444d', isFlipped(el));
+    },
+    surfaces(el) {
+      return el.params.behavior === 'block' ? rectAbsorb(el.params.w, el.params.h) : [];
+    },
+  },
+
+  blocker: {
+    label: 'Invisible blocker', category: 'Beam Block', size: el => ({ w: el.params.w + 4, h: el.params.h + 4 }),
+    hideInExport: true,
+    params: [
+      { key: 'w', label: 'Width (mm)', type: 'number', min: 4, max: 400, step: 2, def: 16 },
+      { key: 'h', label: 'Height (mm)', type: 'number', min: 4, max: 400, step: 2, def: 60 },
+    ],
+    svg(el) {
+      const p = el.params;
+      return `<rect x="${-p.w / 2}" y="${-p.h / 2}" width="${p.w}" height="${p.h}" rx="2" fill="rgba(208,96,96,0.07)" stroke="#d89c9c" stroke-width="1" stroke-dasharray="4 3"/>` +
+        `<text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="9" fill="#c98080">✂</text>`;
+    },
+    surfaces(el) {
+      return rectAbsorb(el.params.w, el.params.h);
+    },
+  },
+
+  textlabel: {
+    label: 'Text label', category: 'Annotations', size: el => ({ w: Math.max(30, String(el.params.text).length * el.params.fontSize * 0.6), h: el.params.fontSize + 10 }),
+    params: [
+      { key: 'text', label: 'Text', type: 'text', def: 'Label' },
+      { key: 'fontSize', label: 'Size (pt)', type: 'number', min: 6, max: 72, step: 1, def: 14 },
+      { key: 'fill', label: 'Color', type: 'color', def: '#333333' },
+    ],
+    noLabel: true,
+    svg(el) {
+      const p = el.params;
+      return `<text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="${p.fontSize}" fill="${p.fill}">${esc(p.text)}</text>`;
+    },
+    surfaces: () => [],
+  },
+};
+
+// concave lens: identical optics to 'lens', concave default focal length
+registry.lensc = {
+  ...registry.lens,
+  label: 'Concave lens',
+  params: registry.lens.params.map(p => (p.key === 'f' ? { ...p, def: -100 } : p)),
+};
+
+export const categories = [
+  'Annotations',
+  'Sources',
+  'Mirrors',
+  'Lenses',
+  'Filters & Splitters',
+  'Dispersive & Apertures',
+  'Polarization',
+  'Beam Block',
+  'Wavefront Shaping',
+  'Detectors',
+  'Modulators',
+  'Nonlinear Optics',
+  'Microscopy',
+  'Custom',
+];
+
+export function getSize(el) {
+  const d = registry[el.type];
+  if (d.size_ && typeof d.size_ === 'function') return d.size_(el);
+  if (typeof d.size === 'function') return d.size(el);
+  return d.size;
+}
+
+// element label, drawn OUTSIDE the rotated group: always upright, positioned
+// around the element's rotated bounding box (labelPos: b/t/l/r)
+export function labelSVG(el) {
+  if (!el.showLabel || !el.label) return '';
+  const sz = getSize(el);
+  const a = (el.rot || 0) * Math.PI / 180;
+  const ex = (Math.abs(sz.w * Math.cos(a)) + Math.abs(sz.h * Math.sin(a))) / 2;
+  const ey = (Math.abs(sz.w * Math.sin(a)) + Math.abs(sz.h * Math.cos(a))) / 2;
+  const pos = el.labelPos || 'b';
+  let x = el.x, y = el.y, anchor = 'middle', base = '';
+  if (pos === 'b') y += ey + 13;
+  else if (pos === 't') y -= ey + 7;
+  else if (pos === 'l') { x -= ex + 7; anchor = 'end'; base = 'dominant-baseline="central"'; }
+  else { x += ex + 7; anchor = 'start'; base = 'dominant-baseline="central"'; }
+  return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" ${base} font-size="11" fill="#444">${esc(el.label)}</text>`;
+}
+
+export function createElement(type, x = 0, y = 0) {
+  const d = registry[type];
+  const params = {};
+  for (const p of d.params || []) params[p.key] = Array.isArray(p.def) ? JSON.parse(JSON.stringify(p.def)) : p.def;
+  return { id: uid(), type, x, y, rot: 0, label: '', showLabel: false, params };
+}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Optics Sketch — 2D optical setup builder</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="toolbar">
+    <span class="brand">Optics&nbsp;Sketch</span>
+    <span class="sep"></span>
+    <select id="exampleSel" title="Load a pre-made example setup">
+      <option value="">Examples…</option>
+    </select>
+    <span class="sep"></span>
+    <button id="btnNew" title="New sketch">New</button>
+    <button id="btnOpen" title="Open .json sketch">Open</button>
+    <button id="btnSave" title="Save sketch as .json">Save</button>
+    <span class="sep"></span>
+    <button id="btnUndo" title="Undo (⌘Z)">↩︎ Undo</button>
+    <button id="btnRedo" title="Redo (⇧⌘Z)">↪︎ Redo</button>
+    <span class="sep"></span>
+    <button id="btnBeam" title="Draw a manual beam: click waypoints, double-click to finish">✏️ Draw beam</button>
+    <button id="btnFiber" title="Draw an optical fiber patch cable: click waypoints, double-click to finish">〰 Fiber</button>
+    <button id="btnGrid" title="Toggle table hole grid">Grid</button>
+    <button id="btnSnap" class="active" title="Toggle snapping">Snap</button>
+    <button id="btnFocal" class="active" title="Show focal points of lenses and curved mirrors">ƒ marks</button>
+    <span class="sep"></span>
+    <button id="btnZoomOut" title="Zoom out">−</button>
+    <button id="btnZoomIn" title="Zoom in">+</button>
+    <button id="btnZoomFit" title="Fit sketch in view">Fit</button>
+    <span class="spacer"></span>
+    <button id="btnSVG" class="primary" title="Export vector SVG">Export SVG</button>
+    <button id="btnPNG" title="Export PNG (3×)">Export PNG</button>
+    <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  </header>
+  <main>
+    <aside id="palette"></aside>
+    <div id="canvasWrap">
+      <svg id="canvas"></svg>
+      <div id="status"></div>
+    </div>
+    <aside id="inspector"></aside>
+  </main>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
