@@ -1,7 +1,8 @@
 // Right-hand inspector: edit properties of the selected element or manual beam.
 
 import { state, changed, pushUndo, findSelected } from './state.js';
-import { registry, newShaperLayer, MAX_SHAPER_LAYERS } from './elements.js';
+import { registry, newShaperLayer, MAX_SHAPER_LAYERS, getElementMeta } from './elements.js';
+import { detectorReading } from './raytrace.js';
 import { esc } from './util.js';
 
 let panel;
@@ -14,6 +15,54 @@ function field(labelText, inputHTML) {
 }
 
 const LAYER_TYPES = [['lensarray', 'Lens array'], ['grating', 'Grating'], ['steer', 'Beam steer'], ['speckle', 'Speckle / diffuser']];
+const DETECTORS = new Set(['detector', 'pmt', 'camera']);
+
+function inspectorHead(def, meta) {
+  const noteClass = meta.tier === 'diagram' ? ' diagram' : '';
+  return `<div class="inspector-head">
+    <div class="inspector-title-row"><h3>${esc(def.label)}</h3><span class="cap-badge ${meta.tier}">${esc(meta.status)}</span></div>
+    <div class="inspector-desc">${esc(meta.description)}</div>
+    ${meta.note ? `<div class="inspector-note${noteClass}">${esc(meta.note)}</div>` : ''}
+  </div>`;
+}
+
+function measurementHTML(el) {
+  if (!DETECTORS.has(el.type)) return '';
+  const rd = detectorReading(el.id);
+  if (!rd) {
+    return `<div class="measurement-card no-signal" data-measurements>
+      <div class="measurement-status"><span class="signal-light"></span>No light on sensor</div>
+      <div class="measurement-foot">Aim a traced beam at the component's front face to see a qualitative reading.</div>
+    </div>`;
+  }
+  const signal = rd.signal >= 10 ? '>999%' : `${Math.round(rd.signal * 100)}%`;
+  const spectral = rd.bandMax - rd.bandMin > 2
+    ? `${Math.round(rd.bandMin)}–${Math.round(rd.bandMax)} nm`
+    : `${Math.round(rd.wavelength)} nm`;
+  const spot = rd.samples > 1 ? `${rd.spotSpan.toFixed(1)} mm` : 'Point hit';
+  return `<div class="measurement-card" data-measurements>
+    <div class="measurement-status"><span class="signal-light" style="background:${rd.color}"></span>Receiving light</div>
+    <dl class="measurement-grid">
+      <dt>Relative signal</dt><dd>${signal}</dd>
+      <dt>Spectrum</dt><dd>${spectral}</dd>
+      <dt>Polarization</dt><dd>${esc(rd.polarization)}</dd>
+      <dt>Spot span</dt><dd>${spot}</dd>
+      <dt>Ray samples</dt><dd>${rd.samples}</dd>
+    </dl>
+    <div class="measurement-foot">Relative ray weight from the qualitative tracer—not calibrated optical power.</div>
+  </div>`;
+}
+
+export function refreshMeasurements() {
+  if (!panel || state.selection?.kind !== 'element') return;
+  const sel = findSelected();
+  if (!sel || !DETECTORS.has(sel.type)) return;
+  const current = panel.querySelector('[data-measurements]');
+  if (!current) return;
+  const holder = document.createElement('div');
+  holder.innerHTML = measurementHTML(sel);
+  current.replaceWith(holder.firstElementChild);
+}
 
 function layersHTML(layers) {
   let h = `<div class="lsechead">Optical function — overlay up to ${MAX_SHAPER_LAYERS} structures</div>`;
@@ -45,7 +94,8 @@ export function renderInspector() {
   undoArmed = false;
   if (state.selection?.kind === 'multi') {
     const n = state.selection.els.length + state.selection.beams.length;
-    panel.innerHTML = `<h3>${n} objects selected</h3>
+    panel.innerHTML = `<div class="inspector-head"><div class="inspector-title-row"><h3>${n} objects selected</h3><span class="cap-badge simulated">Group</span></div>
+      <div class="inspector-desc">Move, duplicate, or remove this selection as one unit.</div></div>
       <div class="hint">Drag any selected object to move the group.<br>
       Shift-click adds or removes objects.<br>⌫ deletes all · ⌘D duplicates all.</div>
       <div class="btnrow"><button type="button" id="inspDup">Duplicate</button><button type="button" id="inspDel" class="danger">Delete</button></div>`;
@@ -54,24 +104,25 @@ export function renderInspector() {
     return;
   }
   if (!sel) {
-    panel.innerHTML = `<div class="hint">Nothing selected.<br><br>
-      Click an element in the palette, then click the canvas to place it.<br><br>
-      <b>Shortcuts</b><br>
-      R / ⇧R — rotate ±45°<br>
-      ⌘D — duplicate · ⌫ — delete<br>
-      Arrows — nudge (⇧ = table hole)<br>
-      Scroll — pan · ⌘/ctrl-scroll — zoom<br>
-      Space-drag — pan</div>`;
+    panel.innerHTML = `<div class="empty-inspector">
+      <div class="empty-kicker">Quick start</div><h3>Build a light path</h3>
+      <ol class="quick-steps"><li>Choose a source from the library.</li><li>Place optics in the beam.</li><li>Add a detector and select it to read the signal.</li></ol>
+      <div class="insp-section"><div class="insp-section-title">Useful controls</div>
+      <div class="hint"><b>/</b> search components<br><b>R / ⇧R</b> rotate ±45°<br><b>⌘D</b> duplicate · <b>⌫</b> delete<br><b>Arrows</b> nudge · <b>Space-drag</b> pan<br><b>⌘/ctrl-scroll</b> zoom</div></div></div>`;
     return;
   }
 
   if (state.selection.kind === 'element') {
     const def = registry[sel.type];
-    let h = `<h3>${esc(def.label)}</h3>`;
+    const meta = getElementMeta(sel.type, sel.params);
+    let h = inspectorHead(def, meta) + measurementHTML(sel);
+    h += `<section class="insp-section"><div class="insp-section-title">Position</div>`;
     h += field('X (mm)', `<input type="number" step="1" data-k="x" value="${Math.round(sel.x * 10) / 10}">`);
     h += field('Y (mm)', `<input type="number" step="1" data-k="y" value="${Math.round(sel.y * 10) / 10}">`);
     h += field('Angle (°)', `<input type="number" step="1" data-k="rot" value="${Math.round((sel.rot || 0) * 10) / 10}">`);
+    h += `</section>`;
     if (!def.noLabel) {
+      h += `<section class="insp-section"><div class="insp-section-title">Appearance</div>`;
       h += field('Label', `<input type="text" data-k="label" value="${esc(sel.label || '')}">`);
       h += field('Show label', `<input type="checkbox" data-k="showLabel" ${sel.showLabel ? 'checked' : ''}>`);
       if (sel.showLabel) {
@@ -79,7 +130,9 @@ export function renderInspector() {
         h += field('Label position', `<select data-k="labelPos">` +
           [['b', 'Below'], ['t', 'Above'], ['l', 'Left'], ['r', 'Right']].map(([v, l]) => `<option value="${v}" ${v === lp ? 'selected' : ''}>${l}</option>`).join('') + `</select>`);
       }
+      h += `</section>`;
     }
+    if ((def.params || []).length) h += `<section class="insp-section"><div class="insp-section-title">Optical behavior</div>`;
     for (const p of def.params || []) {
       if (p.show && !p.show(sel.params)) continue;
       const v = sel.params[p.key];
@@ -108,6 +161,7 @@ export function renderInspector() {
         if (!isStd) h += field('↳ size (mm)', `<input type="number" data-p="${p.key}" min="1" max="500" step="0.5" value="${v}">`);
       }
     }
+    if ((def.params || []).length) h += `</section>`;
     h += `<div class="btnrow"><button type="button" id="inspDup">Duplicate</button><button type="button" id="inspDel" class="danger">Delete</button></div>`;
     panel.innerHTML = h;
   } else {
@@ -242,5 +296,5 @@ function applyInput(inp, rebuild = false) {
   changed();
   if (rebuild && (key === 'propagate' || key === 'outMode' || key === 'showLabel')) { renderInspector(); return; }
   // conditional params (show/hide) need a panel rebuild — only on 'change' to not steal focus
-  if (rebuild && ['dtype', 'ftype', 'beamMode', 'autoColor', 'convert', 'bwMode', 'raysMode', 'zeroOrder', 'modulate', 'mode'].includes(pkey)) renderInspector();
+  if (rebuild && ['dtype', 'ftype', 'beamMode', 'autoColor', 'convert', 'bwMode', 'raysMode', 'zeroOrder', 'modulate', 'mode', 'transmitExc'].includes(pkey)) renderInspector();
 }

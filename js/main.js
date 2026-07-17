@@ -1,36 +1,90 @@
 // App bootstrap: palette, toolbar, keyboard shortcuts.
 
 import { state, changed, onChange, pushUndo, undo, redo, canUndo, canRedo, findSelected, serialize, parseSketch, replaceScene, loadAutosave } from './state.js';
-import { registry, categories, createElement } from './elements.js';
+import { registry, categories, createElement, getElementMeta } from './elements.js';
 import { initCanvas, renderAll, startPlacing, startBeamTool, cancelTool, isPlacing, rotatePlacing, finishBeam, zoomBy, zoomFit, setSelectionCallback } from './canvas.js';
-import { initInspector, renderInspector } from './inspector.js';
+import { initInspector, renderInspector, refreshMeasurements } from './inspector.js';
 import { exportSVG, exportPNG } from './export.js';
 import { examples } from './examples.js';
-import { download } from './util.js';
+import { download, esc } from './util.js';
 
 const $ = id => document.getElementById(id);
 
 // ---------- palette ----------
 function buildPalette() {
   const pal = $('palette');
-  let h = '';
+  let h = `<div class="library-head">
+    <div class="library-title-row"><span class="library-title">Component library</span><span id="libraryCount" class="library-count"></span></div>
+    <div class="palette-search-wrap"><input id="paletteSearch" type="search" placeholder="Search components…" autocomplete="off" aria-label="Search components"><span class="search-shortcut">/</span></div>
+    <div class="capability-legend" aria-label="Component capability legend">
+      <span><i class="cap-dot simulated"></i>Simulated</span>
+      <span><i class="cap-dot configurable"></i>Setup</span>
+      <span><i class="cap-dot diagram"></i>Diagram</span>
+    </div>
+  </div><div id="paletteGroups">`;
+  let total = 0;
+  const initiallyOpen = new Set(['Sources', 'Mirrors', 'Lenses']);
   for (const cat of categories) {
-    h += `<div class="cat">${cat}</div><div class="catgrid">`;
-    for (const [type, def] of Object.entries(registry)) {
-      if (def.category !== cat) continue;
+    const entries = Object.entries(registry).filter(([, def]) => def.category === cat);
+    if (!entries.length) continue;
+    h += `<details class="palette-group" data-category="${esc(cat)}" ${initiallyOpen.has(cat) ? 'open' : ''}>
+      <summary>${esc(cat)}<span class="group-count">${entries.length}</span></summary><div class="catlist">`;
+    for (const [type, def] of entries) {
       const el = createElement(type);
       const sz = typeof def.size === 'function' ? def.size(el) : (def.size_ ? def.size_(el) : def.size);
       const vb = Math.max(sz.w, sz.h) + 12;
-      h += `<button type="button" class="palitem" data-type="${type}" title="${def.label}">
+      const meta = getElementMeta(type, el.params);
+      const search = `${def.label} ${cat} ${meta.status} ${meta.description}`.toLowerCase();
+      h += `<button type="button" class="palitem" data-type="${type}" data-search="${esc(search)}" title="${esc(meta.description)}">
         <svg viewBox="${-vb / 2} ${-vb / 2} ${vb} ${vb}">${def.svg(el)}</svg>
-        <span>${def.label}</span></button>`;
+        <span class="pal-copy"><span class="pal-label">${esc(def.label)}</span><span class="pal-desc">${esc(meta.description)}</span></span>
+        <i class="cap-dot ${meta.tier}" title="${esc(meta.status)}" aria-label="${esc(meta.status)}"></i></button>`;
+      total++;
     }
-    h += `</div>`;
+    h += `</div></details>`;
   }
+  h += `</div><div id="paletteEmpty" class="palette-empty">No matching component.<br>Try a device, behavior, or category.</div>`;
   pal.innerHTML = h;
+  $('libraryCount').textContent = `${total} components`;
   pal.querySelectorAll('.palitem').forEach(item => {
     item.addEventListener('click', () => startPlacing(item.dataset.type));
   });
+
+  const search = $('paletteSearch');
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    const terms = q.split(/\s+/).filter(Boolean);
+    let visible = 0;
+    pal.querySelectorAll('.palette-group').forEach(group => {
+      let groupVisible = 0;
+      group.querySelectorAll('.palitem').forEach(item => {
+        const haystack = item.dataset.search;
+        const words = haystack.split(/[^a-z0-9λ]+/).filter(Boolean);
+        const match = !q || terms.every(term => term.length <= 3 ? words.includes(term) : haystack.includes(term));
+        item.hidden = !match;
+        if (match) { visible++; groupVisible++; }
+      });
+      group.hidden = groupVisible === 0;
+      if (q && groupVisible) group.open = true;
+    });
+    $('libraryCount').textContent = q ? `${visible} of ${total}` : `${total} components`;
+    $('paletteEmpty').classList.toggle('is-visible', visible === 0);
+  });
+}
+
+function syncToolMode(detail = { mode: 'select' }) {
+  const active = detail.mode !== 'select';
+  const mode = $('toolMode');
+  const canvas = $('canvas');
+  canvas.classList.toggle('tool-active', active);
+  mode.classList.toggle('is-visible', active);
+  document.querySelectorAll('.palitem').forEach(item => item.classList.toggle('is-active', detail.mode === 'place' && item.dataset.type === detail.type));
+  $('btnBeam').classList.toggle('active', detail.mode === 'beam');
+  $('btnFiber').classList.toggle('active', detail.mode === 'fiber');
+  if (!active) { mode.textContent = ''; return; }
+  mode.textContent = detail.mode === 'place'
+    ? `Place ${detail.label} · click to drop · R rotate · Shift keeps placing · Esc cancels`
+    : `${detail.label} · click waypoints · double-click or Enter finishes · Esc cancels`;
 }
 
 // ---------- selection / deletion ----------
@@ -141,6 +195,8 @@ function bindKeys() {
     if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
     const meta = e.metaKey || e.ctrlKey;
 
+    if (e.key === '/') { e.preventDefault(); $('paletteSearch')?.focus(); return; }
+
     if (meta && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); renderInspector(); return; }
     if (meta && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); return; }
     if (e.key === 'Escape') {
@@ -250,17 +306,19 @@ function bindToolbar() {
 // inspector panel buttons dispatch these
 document.addEventListener('optics:delete', deleteSelected);
 document.addEventListener('optics:duplicate', duplicateSelected);
+document.addEventListener('optics:toolchange', e => syncToolMode(e.detail));
 
 // ---------- boot ----------
 window.addEventListener('DOMContentLoaded', () => {
   initCanvas($('canvas'), $('status'));
   initInspector($('inspector'));
   buildPalette();
+  syncToolMode();
   bindToolbar();
   bindExamples();
   bindKeys();
   setSelectionCallback(renderInspector);
-  onChange(() => { renderAll(); syncToolbar(); });
+  onChange(() => { renderAll(); syncToolbar(); refreshMeasurements(); });
 
   if (!loadAutosave(registry)) {
     // starter scene: laser -> lens -> beamsplitter -> two detection arms

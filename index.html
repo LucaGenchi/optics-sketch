@@ -8,31 +8,33 @@
 </head>
 <body>
   <header id="toolbar" role="toolbar" aria-label="Sketch tools">
-    <span class="brand">Optics&nbsp;Sketch</span>
-    <span class="sep"></span>
-    <select id="exampleSel" title="Load a pre-made example setup">
-      <option value="">Examples…</option>
-    </select>
-    <span class="sep"></span>
-    <button type="button" id="btnNew" title="New sketch">New</button>
-    <button type="button" id="btnOpen" title="Open .json sketch">Open</button>
-    <button type="button" id="btnSave" title="Save sketch as .json">Save</button>
-    <span class="sep"></span>
-    <button type="button" id="btnUndo" title="Undo (⌘Z)">↩︎ Undo</button>
-    <button type="button" id="btnRedo" title="Redo (⇧⌘Z)">↪︎ Redo</button>
-    <span class="sep"></span>
-    <button type="button" id="btnBeam" title="Draw a manual beam: click waypoints, double-click to finish">✏️ Draw beam</button>
-    <button type="button" id="btnFiber" title="Draw an optical fiber patch cable: click waypoints, double-click to finish">〰 Fiber</button>
-    <button type="button" id="btnGrid" class="active" aria-pressed="true" title="Toggle table hole grid">Grid</button>
-    <button type="button" id="btnSnap" class="active" aria-pressed="true" title="Toggle snapping">Snap</button>
-    <button type="button" id="btnFocal" class="active" aria-pressed="true" title="Show focal points of lenses and curved mirrors">ƒ marks</button>
-    <span class="sep"></span>
-    <button type="button" id="btnZoomOut" title="Zoom out">−</button>
-    <button type="button" id="btnZoomIn" title="Zoom in">+</button>
-    <button type="button" id="btnZoomFit" title="Fit sketch in view">Fit</button>
+    <div class="brandblock">
+      <span class="brand">Optics Sketch</span>
+      <span class="model-badge">Qualitative ray tracing</span>
+    </div>
+    <div class="toolgroup examples-group">
+      <select id="exampleSel" aria-label="Load a pre-made example setup" title="Load a pre-made example setup">
+        <option value="">Examples…</option>
+      </select>
+    </div>
+    <div class="toolgroup file-group" aria-label="File actions">
+      <button type="button" id="btnNew" title="New sketch">New</button>
+      <button type="button" id="btnOpen" title="Open .json sketch">Open</button>
+      <button type="button" id="btnSave" title="Save sketch as .json">Save</button>
+    </div>
+    <div class="toolgroup history-group" aria-label="History">
+      <button type="button" id="btnUndo" title="Undo (⌘Z)" aria-label="Undo">↩︎</button>
+      <button type="button" id="btnRedo" title="Redo (⇧⌘Z)" aria-label="Redo">↪︎</button>
+    </div>
+    <div class="toolgroup draw-group" aria-label="Drawing tools">
+      <button type="button" id="btnBeam" title="Draw a manual beam: click waypoints, double-click to finish">Draw beam</button>
+      <button type="button" id="btnFiber" title="Draw an optical fiber patch cable: click waypoints, double-click to finish">Fiber</button>
+    </div>
     <span class="spacer"></span>
-    <button type="button" id="btnSVG" class="primary" title="Export vector SVG">Export SVG</button>
-    <button type="button" id="btnPNG" title="Export PNG (3×)">Export PNG</button>
+    <div class="toolgroup export-group" aria-label="Export actions">
+      <button type="button" id="btnSVG" class="primary" title="Export vector SVG">Export SVG</button>
+      <button type="button" id="btnPNG" title="Export PNG (3×)">PNG</button>
+    </div>
     <input type="file" id="fileInput" accept=".json,application/json" hidden>
   </header>
   <main>
@@ -40,6 +42,16 @@
     <div id="canvasWrap">
       <!-- biome-ignore lint/a11y/noNoninteractiveTabindex: this SVG is the app's interactive pointer and keyboard workspace -->
       <svg id="canvas" role="application" aria-label="Optical setup canvas" tabindex="0"></svg>
+      <div id="toolMode" role="status" aria-live="polite"></div>
+      <div id="viewControls" class="canvas-controls" aria-label="Canvas view controls">
+        <button type="button" id="btnGrid" class="active" aria-pressed="true" title="Toggle table hole grid">Grid</button>
+        <button type="button" id="btnSnap" class="active" aria-pressed="true" title="Toggle snapping">Snap</button>
+        <button type="button" id="btnFocal" class="active" aria-pressed="true" title="Show focal points of lenses and curved mirrors">ƒ</button>
+        <span class="control-divider"></span>
+        <button type="button" id="btnZoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+        <button type="button" id="btnZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+        <button type="button" id="btnZoomFit" title="Fit sketch in view">Fit</button>
+      </div>
       <div id="status"></div>
     </div>
     <aside id="inspector" aria-label="Properties"></aside>

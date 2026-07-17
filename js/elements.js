@@ -7,7 +7,7 @@
 
 import { esc, toWorld, wavelengthToColor } from './util.js';
 import { uid } from './util.js';
-import { probeAt } from './raytrace.js';
+import { detectorReading, probeAt } from './raytrace.js';
 
 // true when the element's rotation would render baked-in text upside down
 function isFlipped(el) {
@@ -30,6 +30,26 @@ function rectAbsorb(w, h) {
     { x1: x, y1: y, x2: -x, y2: y, kind: 'absorb' },
     { x1: -x, y1: y, x2: -x, y2: -y, kind: 'absorb' },
   ];
+}
+
+// One-sided detector housing: light is measured at the front face and the
+// remaining enclosure simply absorbs it. This lets detectors provide a useful
+// readout without pretending the qualitative tracer reports calibrated power.
+function detectorSurfaces(w, h, detectorType) {
+  const x = w / 2, y = h / 2;
+  return [
+    { x1: -x, y1: -y, x2: -x, y2: y, kind: 'detector', data: { aperture: h, detectorType } },
+    { x1: -x, y1: -y, x2: x, y2: -y, kind: 'absorb' },
+    { x1: x, y1: -y, x2: x, y2: y, kind: 'absorb' },
+    { x1: x, y1: y, x2: -x, y2: y, kind: 'absorb' },
+  ];
+}
+
+function signalLamp(el, x, y) {
+  const rd = detectorReading(el.id);
+  const on = rd && rd.signal > 0.001;
+  return `<circle cx="${x}" cy="${y}" r="3.1" fill="${on ? rd.color : '#88919b'}" opacity="${on ? 1 : 0.45}" ` +
+    `stroke="#fff" stroke-width="0.8"/>`;
 }
 
 function boxSVG(w, h, fill, stroke, text, textFill, flip) {
@@ -786,9 +806,10 @@ export const registry = {
     params: [],
     svg(el) {
       return boxSVG(36, 26, '#4b5563', '#2b333d', 'PD', null, isFlipped(el)) +
-        `<rect x="-19.5" y="-9" width="3" height="18" fill="#93c5fd" stroke="#2b333d" stroke-width="1"/>`;
+        `<rect x="-19.5" y="-9" width="3" height="18" fill="#93c5fd" stroke="#2b333d" stroke-width="1"/>` +
+        signalLamp(el, 11, -8);
     },
-    surfaces: () => rectAbsorb(38, 26),
+    surfaces: () => detectorSurfaces(38, 26, 'Photodetector'),
   },
 
   pmt: {
@@ -797,9 +818,10 @@ export const registry = {
     svg(el) {
       return `<rect x="-25" y="-13" width="50" height="26" rx="13" fill="#4b5563" stroke="#2b333d" stroke-width="1.5"/>` +
         `<rect x="-27" y="-9" width="4" height="18" fill="#93c5fd" stroke="#2b333d" stroke-width="1"/>` +
-        `<text x="2" y="0" ${isFlipped(el) ? 'transform="rotate(180 2 0)"' : ''} text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="600" fill="#fff">PMT</text>`;
+        `<text x="2" y="0" ${isFlipped(el) ? 'transform="rotate(180 2 0)"' : ''} text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="600" fill="#fff">PMT</text>` +
+        signalLamp(el, 16, -7);
     },
-    surfaces: () => rectAbsorb(52, 26),
+    surfaces: () => detectorSurfaces(52, 26, 'PMT'),
   },
 
   camera: {
@@ -809,9 +831,10 @@ export const registry = {
     svg(el) {
       const h = el.params.ch || 30;
       return boxSVG(40, h, '#4b5563', '#2b333d', 'CAM', null, isFlipped(el)) +
-        `<rect x="-24" y="${-(h - 16) / 2}" width="5" height="${h - 16}" fill="#333" stroke="#2b333d"/>`;
+        `<rect x="-24" y="${-(h - 16) / 2}" width="5" height="${h - 16}" fill="#333" stroke="#2b333d"/>` +
+        signalLamp(el, 13, -h / 2 + 7);
     },
-    surfaces: el => rectAbsorb(44, el.params.ch || 30),
+    surfaces: el => detectorSurfaces(44, el.params.ch || 30, 'Camera sensor'),
   },
 
   eye: {
@@ -976,7 +999,9 @@ export const registry = {
     label: 'Microscope', category: 'Microscopy', size: { w: 74, h: 54 },
     params: [],
     svg(el) { return boxSVG(70, 50, '#e8eaee', '#7a828c', 'Microscope', '#3d444d', isFlipped(el)); },
-    surfaces: () => rectAbsorb(70, 50),
+    // A visual assembly placeholder until a microscope is represented by its
+    // constituent objective, tube lens, sample, and detector elements.
+    surfaces: () => [],
   },
 
   // ---------------- Imaging ----------------
@@ -1116,6 +1141,95 @@ registry.lensc = {
   label: 'Concave lens',
   params: registry.lens.params.map(p => (p.key === 'f' ? { ...p, def: -100 } : p)),
 };
+
+// User-facing capability metadata. The distinction is deliberately explicit:
+// simulated elements affect traced rays, configurable elements need an active
+// mode, and diagram-only elements are honest visual annotations/placeholders.
+const ELEMENT_HELP = {
+  laser: 'Emits a monochromatic, broadband, or sized collimated beam.',
+  led: 'Emits a configurable fan of rays from an LED source.',
+  lamp: 'Emits a configurable fan from a generic point source.',
+  objarrow: 'Traces object-tip rays and draws the image formed by lenses.',
+  mirror: 'Reflects rays with configurable size and reflectivity.',
+  galvo: 'Reflects rays at its chosen static angle; scanning is not animated yet.',
+  cmirrorx: 'Diverges reflected rays with a paraxial focal-length model.',
+  cmirror: 'Focuses reflected rays with a paraxial focal-length model.',
+  oap: 'Reflects from segmented parabolic geometry toward the configured focus.',
+  lens: 'Bends rays with a thin-lens, paraxial focal-length model.',
+  lensc: 'Diverges rays with a negative thin-lens focal length.',
+  telescope: 'Applies two thin lenses separated by their focal lengths.',
+  objective: 'Applies a compact focusing thin-lens model.',
+  dichroic: 'Transmits or reflects wavelength bands around its configured cutoff.',
+  filter: 'Passes a spectral band or attenuates intensity as a neutral-density filter.',
+  bs: 'Splits incident light into transmitted and reflected branches.',
+  grating: 'Creates selected diffraction orders using the grating equation.',
+  prism: 'Applies qualitative wavelength-dependent angular dispersion.',
+  diffuser: 'Spreads incident light into a configurable angular fan.',
+  glassrod: 'Visual glass-rod placeholder; refraction through its two faces is not modeled yet.',
+  polarizer: 'Applies a linear polarization axis and Malus-law attenuation.',
+  hwp: 'Rotates linear polarization around the configured fast axis.',
+  qwp: 'Converts compatible linear polarization to a circular state.',
+  pbs: 'Separates orthogonal polarization states into two paths.',
+  isolator: 'Passes light in one direction and blocks reverse propagation.',
+  slit: 'Blocks rays outside the configured aperture gap.',
+  beamdump: 'Absorbs incident rays.',
+  blocker: 'Absorbs rays but stays hidden in exported figures.',
+  slm: 'Reflects by default and can overlay lens-array, grating, steering, or speckle functions.',
+  dmd: 'Reflects by default and can overlay configurable wavefront structures.',
+  dm: 'Reflects by default and can overlay configurable wavefront structures.',
+  detector: 'Measures qualitative ray signal, spectrum, polarization, and spot span.',
+  pmt: 'Measures qualitative ray signal, spectrum, polarization, and spot span.',
+  camera: 'Measures rays reaching the front sensor plane; image reconstruction comes later.',
+  eye: 'Focuses collimated rays through a fixed ideal lens onto an absorbing retina.',
+  aom: 'Deflects light, optionally retains zero order, and can show amplitude modulation.',
+  eom: 'Passes light until amplitude modulation is enabled.',
+  chopper: 'Applies a visible periodic on/off pattern to the beam.',
+  crystal: 'Converts wavelength when an SHG, THG, supercontinuum, OPO, or custom mode is selected.',
+  sample: 'Can transmit, block, fluoresce, or generate a selected nonlinear signal.',
+  stage: 'A sample holder with the same configurable signal-generation behavior.',
+  microscope: 'Visual microscope placeholder; build simulated microscopes from objectives and lenses.',
+  probe: 'Reads spectrum, wavelength, or polarization from the nearest traced beam.',
+  arrowann: 'Diagram annotation; does not interact with rays.',
+  textlabel: 'Diagram annotation; does not interact with rays.',
+  box: 'Generic enclosure with explicit pass-through or beam-blocking behavior.',
+};
+
+const DIAGRAM_ONLY = new Set(['glassrod', 'microscope', 'arrowann', 'textlabel']);
+const SHAPERS = new Set(['slm', 'dmd', 'dm']);
+
+export function getElementMeta(type, params = {}) {
+  let tier = DIAGRAM_ONLY.has(type) ? 'diagram' : 'simulated';
+  let note = '';
+
+  if (type === 'eom' && !params.modulate) {
+    tier = 'configurable';
+    note = 'Enable “Modulate on/off” to make the EOM alter the displayed beam.';
+  } else if (type === 'crystal' && (!params.convert || params.convert === 'none')) {
+    tier = 'configurable';
+    note = 'Choose a conversion mode to generate an output wavelength.';
+  } else if ((type === 'sample' || type === 'stage')
+      && (!params.mode || params.mode === 'none') && params.transmitExc !== false) {
+    tier = 'configurable';
+    note = 'Choose a generated signal or disable excitation transmission to activate an optical effect.';
+  } else if (SHAPERS.has(type) && (!Array.isArray(params.layers) || params.layers.length === 0)) {
+    tier = 'configurable';
+    note = 'Currently a plain reflector. Add an optical structure to shape the wavefront.';
+  } else if (type === 'glassrod') {
+    note = 'Refraction and material dispersion are planned for the later physics pass.';
+  } else if (type === 'microscope') {
+    note = 'This visual placeholder no longer blocks rays. Use objective and lens elements for a simulated path.';
+  } else if (type === 'arrowann' || type === 'textlabel') {
+    note = 'Annotations are intentionally visual and never change traced rays.';
+  }
+
+  const labels = { simulated: 'Simulated', configurable: 'Needs setup', diagram: 'Diagram only' };
+  return {
+    tier,
+    status: labels[tier],
+    description: ELEMENT_HELP[type] || 'Optical workbench component.',
+    note,
+  };
+}
 
 export const categories = [
   'Annotations',

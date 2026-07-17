@@ -8,6 +8,54 @@ import { toWorld, rotPt, dot, sub, add, mul, norm, perp, wavelengthToColor, D2R,
 
 // polylines from the most recent traceAll, kept for beam probes
 let lastPaths = [];
+let detectorHits = new Map();
+
+function recordDetectorHit(ray, hit) {
+  const id = hit.surface.el?.id;
+  if (!id) return;
+  if (!detectorHits.has(id)) detectorHits.set(id, []);
+  detectorHits.get(id).push({
+    power: Number.isFinite(ray.power) ? ray.power : ray.intensity,
+    intensity: ray.intensity,
+    wl: ray.wl,
+    bw: ray.bw || 0,
+    pol: ray.pol,
+    u: hit.u,
+    aperture: hit.surface.data.aperture || 0,
+  });
+}
+
+// Qualitative measurement at a one-sided detector face. `signal` is relative
+// ray weight, intentionally not calibrated optical power.
+export function detectorReading(elementId) {
+  const hits = detectorHits.get(elementId) || [];
+  if (!hits.length) return null;
+  const signal = hits.reduce((sum, h) => sum + Math.max(0, h.power || 0), 0);
+  const weight = signal || hits.length;
+  const wavelength = hits.reduce((sum, h) => sum + h.wl * (h.power || 1), 0) / weight;
+  const bandMin = Math.min(...hits.map(h => h.wl - h.bw / 2));
+  const bandMax = Math.max(...hits.map(h => h.wl + h.bw / 2));
+  const us = hits.map(h => h.u);
+  const aperture = Math.max(...hits.map(h => h.aperture || 0));
+  const spotSpan = aperture * (Math.max(...us) - Math.min(...us));
+  const numericPol = hits.filter(h => typeof h.pol === 'number').map(h => h.pol);
+  let polarization = 'Unpolarized';
+  if (hits.every(h => h.pol === 'c')) polarization = 'Circular';
+  else if (numericPol.length === hits.length) {
+    const lo = Math.min(...numericPol), hi = Math.max(...numericPol);
+    polarization = hi - lo < 0.5 ? `Linear ${Math.round((lo + hi) / 2)}°` : 'Mixed linear';
+  } else if (hits.some(h => h.pol !== undefined)) polarization = 'Mixed';
+  return {
+    signal,
+    samples: hits.length,
+    wavelength,
+    bandMin,
+    bandMax,
+    polarization,
+    spotSpan,
+    color: wavelengthToColor(wavelength),
+  };
+}
 
 // sample the beam nearest to (x,y): returns {wl, bw, pol, intensity} or null
 export function probeAt(x, y, tol = 16) {
@@ -85,7 +133,10 @@ function fiberEmissionRays(c) {
   const o = add(e, mul(dir, 2));
   const cfg = b['out' + outEnd] || { mode: b.outMode || 'diverge', na: b.na, focal: b.focal, dia: b.outDia };
   const K = 9, rays = [];
-  const common = { wl: c.wl, bw: c.bw || 0, speckle: false, intensity: Math.min(1, c.intensity) };
+  const common = {
+    wl: c.wl, bw: c.bw || 0, speckle: false, intensity: Math.min(1, c.intensity),
+    power: Number.isFinite(c.power) ? c.power / K : undefined,
+  };
   if (cfg.mode === 'focus') {
     const f = Math.max(2, cfg.focal || 20), ap = Math.max(1, cfg.dia || 6);
     const pn = perp(dir);
@@ -259,6 +310,7 @@ function interact(ray, hit) {
 
   switch (k) {
     case 'absorb': return [];
+    case 'detector': return [];
     case 'mirror': {
       // partial reflectivity (cavity mirrors / output couplers): reflect R,
       // transmit 1-R. The transmitted ray leaves the cavity, so multi-bounce
@@ -558,10 +610,11 @@ function traceRays(rays0, surfaces, couplings) {
         break;
       }
       r.pts.push({ x: hit.p.x, y: hit.p.y });
+      if (hit.surface.kind === 'detector') recordDetectorHit(r, hit);
       if (hit.surface.kind === 'fiberin') {
         const fb = hit.surface.data.beam;
         if (couplings && fb.propagate) {
-          couplings.push({ beam: fb, end: hit.surface.data.end, wl: r.wl, bw: r.bw, intensity: r.intensity });
+          couplings.push({ beam: fb, end: hit.surface.data.end, wl: r.wl, bw: r.bw, intensity: r.intensity, power: r.power });
         }
         break; // the connector absorbs the incoming beam either way
       }
@@ -575,6 +628,9 @@ function traceRays(rays0, surfaces, couplings) {
         && !(c0.chopped && !r.chopped)
         && !('pol' in c0 && c0.pol !== r.pol); // pol change splits so probes read per-segment
       if (single) {
+        if (c0.intensity !== undefined && r.intensity > 0 && Number.isFinite(r.power)) {
+          r.power *= c0.intensity / r.intensity;
+        }
         r.x = hit.p.x; r.y = hit.p.y;
         r.dx = c0.d.x; r.dy = c0.d.y;
         if (c0.intensity !== undefined) r.intensity = c0.intensity;
@@ -593,6 +649,9 @@ function traceRays(rays0, surfaces, couplings) {
           evan: c.evan || false,
           pol: 'pol' in c ? c.pol : r.pol,
           intensity: c.intensity !== undefined ? c.intensity : r.intensity,
+          power: Number.isFinite(r.power)
+            ? r.power * (c.intensity !== undefined && r.intensity > 0 ? c.intensity / r.intensity : 1)
+            : undefined,
           sample: r.sample,
           pts: [{ x: ox, y: oy }],
           sig: r.sig + '/' + (c.tag || 'w'),
@@ -706,6 +765,7 @@ export function traceAll(elements, beams = []) {
   const drawables = [];
   const couplings = [];
   lastPaths = [];
+  detectorHits = new Map();
 
   for (const el of elements) {
     const def = registry[el.type];
@@ -722,7 +782,7 @@ export function traceAll(elements, beams = []) {
       return {
         x: o.x, y: o.y, dx: d.x, dy: d.y, wl: srcWl, bw: srcBw, speckle: false,
         pol: typeof p.pol === 'number' ? p.pol : undefined,
-        intensity: 1, sample: r.sample !== undefined ? r.sample : null,
+        intensity: 1, power: 1 / Math.max(1, K), sample: r.sample !== undefined ? r.sample : null,
       };
     });
     const paths = traceRays(rays0, surfaces, couplings);
