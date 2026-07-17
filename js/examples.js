@@ -118,7 +118,7 @@ export const examples = [
       elements: [
         tl('Prism dispersion — deviation D(λ) from n(λ): red bends less, blue bends more', 400, 110, 14, '#333'),
         mk('laser', 100, 200, 0, { bwMode: 'sc' }, { label: 'white light (supercontinuum)', showLabel: true }),
-        mk('prism', 400, 206, 0, { apex: 60, psize: 50 }, { label: 'prism, apex 60°', showLabel: true, labelPos: 't' }),
+        mk('prism', 400, 206, 0, { apex: 55, psize: 50 }, { label: 'prism, apex 55°', showLabel: true, labelPos: 't' }),
         mk('box', 660, 405, 129, { text: '', w: 10, h: 150, behavior: 'block', fill: '#f2f3f5' }, { label: 'screen', showLabel: true, labelPos: 'r' }),
       ],
       beams: [],

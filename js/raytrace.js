@@ -444,18 +444,34 @@ function interact(ray, hit) {
     case 'refract': {
       const materialId = s.el?.id || null;
       const inside = materialId !== null && ray.medium === materialId;
-      const dispersiveIor = data.material === 'bk7' ? 1.5046 + 4680 / (ray.wl * ray.wl) : data.ior;
-      const materialIor = Math.min(2.5, Math.max(1.01, dispersiveIor || 1.52));
-      const n1 = inside ? (ray.ior || materialIor) : (ray.ior || 1);
-      const n2 = inside ? 1 : materialIor;
-      const transmitted = refract(d, n, n1, n2);
-      if (!transmitted) return [{ d: reflect(d, n) }];
-      return [{
-        d: transmitted,
-        medium: inside ? null : materialId,
-        ior: n2,
-        intensity: ray.intensity * Math.min(1, Math.max(0, data.transmission ?? 1)),
-      }];
+      // BK7-like glass is dispersive: a broadband ray must be sampled across
+      // its bandwidth so each wavelength refracts by its own n(λ) and the
+      // beam actually fans out (e.g. white light through a prism). A fixed
+      // user-set index (glass rods) has no dispersion to sample.
+      const dispersive = data.material === 'bk7' && ray.bw > 0;
+      const wls = dispersive ? wlSamples(ray) : [ray.wl];
+      const out = [];
+      for (let i = 0; i < wls.length; i++) {
+        const wl = wls[i];
+        const dispersiveIor = data.material === 'bk7' ? 1.5046 + 4680 / (wl * wl) : data.ior;
+        const materialIor = Math.min(2.5, Math.max(1.01, dispersiveIor || 1.52));
+        const n1 = inside ? (ray.ior || materialIor) : (ray.ior || 1);
+        const n2 = inside ? 1 : materialIor;
+        const transmitted = refract(d, n, n1, n2);
+        const tag = wls.length > 1 ? 'w' + i : undefined;
+        if (!transmitted) {
+          out.push({ d: reflect(d, n), wl, bw: dispersive ? 0 : ray.bw, intensity: ray.intensity / wls.length, tag });
+          continue;
+        }
+        out.push({
+          d: transmitted, wl, bw: dispersive ? 0 : ray.bw,
+          medium: inside ? null : materialId,
+          ior: n2,
+          intensity: ray.intensity * Math.min(1, Math.max(0, data.transmission ?? 1)) / wls.length,
+          tag,
+        });
+      }
+      return out;
     }
     case 'dichroic': {
       if (!ray.bw) return dichroicTransmits(ray.wl, data) ? [{ d }] : [{ d: reflect(d, n) }];
@@ -510,25 +526,6 @@ function interact(ray, hit) {
           });
           if (m === 0 && wls.length > 1) break; // 0th order is undispersed
         }
-      }
-      return out;
-    }
-    case 'prism': {
-      // simplified dispersive prism: minimum-deviation angle with a
-      // Cauchy glass model n(λ) = 1.5046 + 4680/λ²  (BK7-like)
-      const A = (data.apex || 60) * D2R;
-      const sgn = dot(d, n) >= 0 ? 1 : -1;
-      const out = [];
-      const wls = wlSamples(ray);
-      for (let i = 0; i < wls.length; i++) {
-        const ng = 1.5046 + 4680 / (wls[i] * wls[i]);
-        const sa = ng * Math.sin(A / 2);
-        const dev = sa < 1 ? 2 * Math.asin(sa) - A : (ng - 1) * A;
-        out.push({
-          d: rotv(d, -sgn * dev), wl: wls[i], bw: 0,
-          intensity: ray.intensity / wls.length,
-          tag: wls.length > 1 ? 'p' + i : null,
-        });
       }
       return out;
     }
