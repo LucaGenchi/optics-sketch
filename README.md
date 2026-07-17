@@ -4,7 +4,8 @@ A 2D optical-setup sketch builder for scientific illustrations, with live ray tr
 
 **➡ Try it in your browser: https://lucagenchi.github.io/optics-sketch/**
 
-Drag optical elements onto a virtual optical table (top view), set their parameters
+Search or browse optical elements, select one, and place it on a virtual optical table
+(top view). Set its parameters
 (focal lengths, wavelengths, transmission bands, angles...), and the beam paths are
 ray-traced live: mirrors fold, lenses focus, dichroics split by wavelength, gratings
 and prisms disperse, samples fluoresce, fibers re-emit. Export publication-ready
@@ -20,6 +21,10 @@ figures as SVG or PNG.
   optical functions, modulators (AOM/EOM/chopper), nonlinear crystals (SHG, THG,
   supercontinuum, OPO), fibers with per-end output specs, detectors, a focusing
   human eye, and free annotations (arrows, labels, beam probes).
+- **Honest capability states**: the component library and inspector distinguish
+  simulated elements, elements that need setup, and diagram-only placeholders.
+- **Qualitative detector readouts**: photodetectors, PMTs, and cameras report
+  relative ray signal, spectrum, polarization, and spot span at their front face.
 - **Physics that responds**: thin-lens/paraxial transfer, spectral band arithmetic at
   filters, Malus's law, grating equation, Cauchy prism dispersion, cavity round trips
   with partial mirrors, image formation with magnification (arrow / letter F / tree

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { registry, createElement, getSize } from '../js/elements.js';
+import { registry, createElement, getElementMeta, getSize } from '../js/elements.js';
 import { examples } from '../js/examples.js';
 import { buildSVG, exportPNG, exportSVG } from '../js/export.js';
-import { traceAll } from '../js/raytrace.js';
+import { detectorReading, traceAll } from '../js/raytrace.js';
 import { state } from '../js/state.js';
 import { distinctPoints } from '../js/util.js';
 
@@ -53,6 +53,46 @@ test('grating order parsing is deduplicated and bounded', () => {
   const orders = registry.grating.surfaces(grating)[0].data.orders;
   assert.equal(orders.length, 21);
   assert.equal(new Set(orders).size, orders.length);
+});
+
+test('component metadata distinguishes simulated, setup-dependent, and diagram-only elements', () => {
+  assert.equal(getElementMeta('lens', createElement('lens').params).tier, 'simulated');
+  assert.equal(getElementMeta('glassrod', createElement('glassrod').params).tier, 'diagram');
+  const eom = createElement('eom');
+  assert.equal(getElementMeta('eom', eom.params).tier, 'configurable');
+  eom.params.modulate = true;
+  assert.equal(getElementMeta('eom', eom.params).tier, 'simulated');
+  assert.deepEqual(registry.microscope.surfaces(createElement('microscope')), []);
+});
+
+test('detectors report qualitative signal, spectrum, polarization, and spot span', () => {
+  const laser = createElement('laser', 0, 0);
+  laser.params.beamMode = 'beam';
+  laser.params.beamWidth = 8;
+  laser.params.wavelength = 488;
+  laser.params.pol = 30;
+  const detector = createElement('detector', 250, 0);
+  traceAll([laser, detector]);
+  const reading = detectorReading(detector.id);
+  assert.ok(reading);
+  assert.ok(Math.abs(reading.signal - 1) < 1e-9);
+  assert.equal(reading.samples, 25);
+  assert.equal(Math.round(reading.wavelength), 488);
+  assert.equal(reading.polarization, 'Linear 30°');
+  assert.ok(reading.spotSpan > 7);
+
+  detector.y = 200;
+  traceAll([laser, detector]);
+  assert.equal(detectorReading(detector.id), null);
+});
+
+test('detector signal follows upstream attenuation', () => {
+  const laser = createElement('laser', 0, 0);
+  const splitter = createElement('bs', 150, 0);
+  splitter.params.ratio = 0.35;
+  const detector = createElement('detector', 300, 0);
+  traceAll([laser, splitter, detector]);
+  assert.ok(Math.abs(detectorReading(detector.id).signal - 0.35) < 1e-9);
 });
 
 test('all built-in examples trace and export without invalid geometry', () => {

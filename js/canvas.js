@@ -249,11 +249,16 @@ let drawing = null;  // manual beam in progress {pts:[], cursor}
 let placing = null;  // {el, pos}
 let spaceDown = false;
 
+function notifyTool(detail = { mode: 'select' }) {
+  document.dispatchEvent(new CustomEvent('optics:toolchange', { detail }));
+}
+
 export function startPlacing(type) {
   drawing = null;
   placing = { el: createElement(type), pos: null };
   state.tool = 'place:' + type;
-  setStatus(`Placing ${registry[type].label} — click to drop, Esc to cancel, R to rotate`);
+  setStatus('');
+  notifyTool({ mode: 'place', type, label: registry[type].label });
   renderAll();
 }
 
@@ -261,7 +266,8 @@ export function startBeamTool(kind = 'beam') {
   placing = null;
   state.tool = 'beam';
   drawing = { pts: [], cursor: null, kindType: kind };
-  setStatus((kind === 'fiber' ? 'Fiber' : 'Beam') + ' tool — click waypoints, double-click / Enter to finish, Esc to cancel');
+  setStatus('');
+  notifyTool({ mode: kind, label: kind === 'fiber' ? 'Optical fiber' : 'Manual beam' });
   renderAll();
 }
 
@@ -269,6 +275,7 @@ export function cancelTool() {
   placing = null; drawing = null;
   state.tool = 'select';
   setStatus('');
+  notifyTool();
   renderAll();
 }
 
@@ -296,6 +303,7 @@ export function finishBeam() {
     state.selection = { kind: 'beam', id: beam.id };
     drawing = null; state.tool = 'select';
     setStatus('');
+    notifyTool();
     changed(); onSelectionChange();
   } else {
     cancelTool();
@@ -339,7 +347,7 @@ function onDown(e) {
     state.selection = { kind: 'element', id: el.id };
     const type = el.type;
     placing = e.shiftKey ? { el: createElement(type), pos: { x: snapPos(w.x), y: snapPos(w.y) } } : null;
-    if (!placing) { state.tool = 'select'; setStatus(''); }
+    if (!placing) { state.tool = 'select'; setStatus(''); notifyTool(); }
     changed(); onSelectionChange();
     return;
   }
