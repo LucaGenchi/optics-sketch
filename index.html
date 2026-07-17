@@ -52,6 +52,20 @@
         <button type="button" id="btnZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
         <button type="button" id="btnZoomFit" title="Fit sketch in view">Fit</button>
       </div>
+      <div id="pulseControls" class="pulse-controls is-idle" role="toolbar" aria-label="Pulse playback controls">
+        <button type="button" id="btnPulsePlay" title="Play pulse animation" aria-label="Play pulse animation">▶</button>
+        <button type="button" id="btnPulseReset" title="Reset pulse clock" aria-label="Reset pulse clock">↺</button>
+        <select id="pulseDisplay" aria-label="Pulse display scale" aria-describedby="pulseScaleNote" title="Detector timing is physical in both modes; physical packet widths may be enlarged for visibility">
+          <option value="schematic">Schematic packets</option>
+          <option value="physical">Physical spacing</option>
+        </select>
+        <select id="pulseSpeed" aria-label="Simulation time speed">
+          <option value="1">1 ns/s</option>
+          <option value="10" selected>10 ns/s</option>
+          <option value="100">100 ns/s</option>
+        </select>
+        <span id="pulseScaleNote" class="pulse-scale-note">packets schematic · timing physical</span>
+      </div>
       <div id="status"></div>
     </div>
     <aside id="inspector" aria-label="Properties"></aside>

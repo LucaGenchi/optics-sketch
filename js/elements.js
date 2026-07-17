@@ -2,8 +2,9 @@
 // Local coordinates: element centered at (0,0); default optical propagation is along +x.
 // def = { label, category, size:{w,h}|fn(el), params:[...], svg(el)->string,
 //         surfaces(el)->[{x1,y1,x2,y2,kind,data}], source(el)->[rays] }
-// Surface kinds handled by the tracer: mirror, lens, cmirror, dichroic, filter,
-// split, grating, absorb, transmit (data may change wavelength / deflect).
+// Surface kinds handled by the tracer: mirror, lens, cmirror, refract,
+// dichroic, filter, split, grating, absorb, transmit (data may change
+// wavelength / deflect).
 
 import { esc, toWorld, wavelengthToColor } from './util.js';
 import { uid } from './util.js';
@@ -35,10 +36,10 @@ function rectAbsorb(w, h) {
 // One-sided detector housing: light is measured at the front face and the
 // remaining enclosure simply absorbs it. This lets detectors provide a useful
 // readout without pretending the qualitative tracer reports calibrated power.
-function detectorSurfaces(w, h, detectorType) {
+function detectorSurfaces(w, h, detectorType, detectorData = {}) {
   const x = w / 2, y = h / 2;
   return [
-    { x1: -x, y1: -y, x2: -x, y2: y, kind: 'detector', data: { aperture: h, detectorType } },
+    { x1: -x, y1: -y, x2: -x, y2: y, kind: 'detector', data: { aperture: h, detectorType, ...detectorData } },
     { x1: -x, y1: -y, x2: x, y2: -y, kind: 'absorb' },
     { x1: x, y1: -y, x2: x, y2: y, kind: 'absorb' },
     { x1: x, y1: y, x2: -x, y2: y, kind: 'absorb' },
@@ -174,6 +175,8 @@ function sampleModeParams() {
     { key: 'fluorWl', label: 'Emission λ (nm)', type: 'number', min: 200, max: 1200, step: 5, def: 520, show: p => p.mode === 'fluor' },
     { key: 'carsWl', label: 'CARS λ (nm)', type: 'number', min: 200, max: 1200, step: 5, def: 660, show: p => p.mode === 'cars' },
     { key: 'transmitExc', label: 'Transmit excitation', type: 'checkbox', def: true },
+    { key: 'transmission', label: 'Excitation transmission', type: 'number', min: 0, max: 1, step: 0.05, def: 0.8, show: p => p.transmitExc },
+    { key: 'signalEff', label: 'Signal efficiency', type: 'number', min: 0, max: 1, step: 0.05, def: 0.1, show: p => p.mode !== 'none' },
   ];
 }
 function sampleSurfaces(el, h) {
@@ -183,12 +186,14 @@ function sampleSurfaces(el, h) {
   const transmit = p.transmitExc !== undefined ? p.transmitExc : m !== 'block';
   if (m === 'trans' || m === 'block' || m === undefined) m = 'none';
   if (m === 'fluor') {
-    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'fluor', data: { wl: p.fluorWl, transmitExc: transmit } }];
+    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'fluor', data: { wl: p.fluorWl, transmitExc: transmit, transmission: p.transmission, efficiency: p.signalEff } }];
   }
   if (m === 'shg' || m === 'thg' || m === 'cars') {
-    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'transmit', data: { convert: m, outWl: p.carsWl, transmitExc: transmit } }];
+    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'transmit', data: { convert: m, outWl: p.carsWl, transmitExc: transmit, transmission: p.transmission, efficiency: p.signalEff } }];
   }
-  return transmit ? [] : rectAbsorb(8, 2 * h);
+  return transmit
+    ? [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'attenuate', data: { transmission: p.transmission } }]
+    : rectAbsorb(8, 2 * h);
 }
 
 // lens outline at x=cx: biconvex for f>=0, biconcave for f<0
@@ -198,6 +203,19 @@ function lensShape(cx, h, f) {
     ? `M ${cx},${-h} Q ${cx + 9},0 ${cx},${h} Q ${cx - 9},0 ${cx},${-h} Z`
     : `M ${cx - 6},${-h} Q ${cx},${-h + inset} ${cx + 6},${-h} L ${cx + 6},${h} Q ${cx},${h - inset} ${cx - 6},${h} Z`;
   return `<path d="${d}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
+}
+
+function prismGeometry(el) {
+  const height = Math.max(5, el.params.psize || 25.4);
+  const apex = Math.min(80, Math.max(10, el.params.apex || 60)) * Math.PI / 180;
+  const halfBase = height * Math.tan(apex / 2);
+  return {
+    top: { x: 0, y: -height / 2 },
+    left: { x: -halfBase, y: height / 2 },
+    right: { x: halfBase, y: height / 2 },
+    width: 2 * halfBase,
+    height,
+  };
 }
 
 // laser body height grows with the beam width so a thick beam never
@@ -238,13 +256,19 @@ export const registry = {
       { key: 'bwMode', label: 'Spectrum', type: 'select', def: 'mono', options: [['mono', 'Monochromatic'], ['band', 'Broadband'], ['sc', 'Supercontinuum (white)']] },
       { key: 'bandwidth', label: 'Bandwidth (nm)', type: 'number', min: 1, max: 400, step: 5, def: 40, show: p => p.bwMode === 'band' },
       { key: 'pol', label: 'Polarization (°)', type: 'number', min: 0, max: 180, step: 5, def: 0 },
+      { key: 'temporalMode', label: 'Emission', type: 'select', def: 'cw', options: [['cw', 'Continuous wave'], ['pulsed', 'Pulsed']] },
+      { key: 'repRateMHz', label: 'Repetition rate (MHz)', type: 'number', min: 0.001, max: 1000000, step: 1, def: 80, show: p => p.temporalMode === 'pulsed' },
+      { key: 'pulseWidthFs', label: 'Pulse duration (fs)', type: 'number', min: 1, max: 1000000000, step: 10, def: 100, show: p => p.temporalMode === 'pulsed' },
+      { key: 'pulsePhaseNs', label: 'Emission offset (ns)', type: 'number', min: -1000000, max: 1000000, step: 0.1, def: 0, show: p => p.temporalMode === 'pulsed' },
       P.autoColor, P.color,
     ],
     svg(el) {
       const h = laserH(el), hh = h / 2;
       const ap = el.params.beamMode === 'beam' ? Math.min(hh - 4, el.params.beamWidth / 2 + 3) : 6;
+      const pulsed = el.params.temporalMode === 'pulsed';
       return `<rect x="-46" y="${-hh}" width="92" height="${h}" rx="4" fill="#3a3f46" stroke="#22252a" stroke-width="1.5"/>` +
-        `<text x="0" y="0" ${isFlipped(el) ? 'transform="rotate(180)"' : ''} text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="700" letter-spacing="1.5" fill="#fff">LASER</text>` +
+        `<text x="0" y="${pulsed ? -3 : 0}" ${isFlipped(el) ? 'transform="rotate(180)"' : ''} text-anchor="middle" dominant-baseline="central" font-size="${pulsed ? 10 : 12}" font-weight="700" letter-spacing="1.5" fill="#fff">LASER</text>` +
+        (pulsed ? `<g stroke="#8fd3ff" stroke-width="1.2" opacity="0.95"><path d="M -17,8 L -12,8 L -10,3 L -8,11 L -6,8 L -1,8"/><path d="M 3,8 L 8,8 L 10,3 L 12,11 L 14,8 L 19,8"/></g>` : '') +
         `<rect x="46" y="${-ap}" width="5" height="${2 * ap}" fill="#666" stroke="#444" stroke-width="1"/>`;
     },
     surfaces: el => rectAbsorb(92, laserH(el)),
@@ -333,17 +357,21 @@ export const registry = {
 
   galvo: {
     label: 'Galvo mirror', category: 'Mirrors', size: { w: 30, h: 40 },
-    params: [{ key: 'length', label: 'Mirror size (mm)', type: 'number', min: 6, max: 60, step: 2, def: 20 }],
+    params: [
+      { key: 'length', label: 'Mirror size (mm)', type: 'number', min: 6, max: 60, step: 2, def: 20 },
+      { key: 'commandAngle', label: 'Command angle (°)', type: 'number', min: -30, max: 30, step: 0.5, def: 0 },
+    ],
     svg(el) {
       const L = el.params.length / 2;
       return `<circle r="4.5" fill="#777" stroke="#444" stroke-width="1.2"/>` +
-        `<line x1="0" y1="${-L}" x2="0" y2="${L}" stroke="#444" stroke-width="3"/>` +
+        `<g transform="rotate(${el.params.commandAngle || 0})"><line x1="0" y1="${-L}" x2="0" y2="${L}" stroke="#444" stroke-width="3"/></g>` +
         `<path d="M -9,${-L - 3} A ${L + 5} ${L + 5} 0 0 1 9,${-L - 3}" fill="none" stroke="#999" stroke-width="1.2" stroke-dasharray="3 2"/>` +
         `<path d="M -9,${L + 3} A ${L + 5} ${L + 5} 0 0 0 9,${L + 3}" fill="none" stroke="#999" stroke-width="1.2" stroke-dasharray="3 2"/>`;
     },
     surfaces(el) {
       const L = el.params.length / 2;
-      return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'mirror' }];
+      const a = (el.params.commandAngle || 0) * Math.PI / 180;
+      return [{ x1: L * Math.sin(a), y1: -L * Math.cos(a), x2: -L * Math.sin(a), y2: L * Math.cos(a), kind: 'mirror' }];
     },
   },
 
@@ -673,18 +701,23 @@ export const registry = {
 
   prism: {
     label: 'Prism', category: 'Dispersive & Apertures', size: { w: 44, h: 44 },
-    size_: el => ({ w: el.params.psize * 1.5, h: el.params.psize * 1.3 }),
+    size_: el => { const g = prismGeometry(el); return { w: g.width + 6, h: g.height + 6 }; },
     params: [
       { key: 'apex', label: 'Apex angle (°)', type: 'number', min: 10, max: 80, step: 5, def: 60 },
       { key: 'psize', label: 'Size', type: 'optsize', def: 25.4 },
     ],
     svg(el) {
-      const h = el.params.psize / 2;
-      return `<path d="M 0,${-h} L ${-h * 0.72},${h * 0.62} L ${h * 0.72},${h * 0.62} Z" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
+      const g = prismGeometry(el);
+      return `<path d="M ${g.top.x},${g.top.y} L ${g.left.x},${g.left.y} L ${g.right.x},${g.right.y} Z" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
     },
     surfaces(el) {
-      const h = el.params.psize / 2;
-      return [{ x1: 0, y1: -h, x2: 0, y2: h * 0.62, kind: 'prism', data: { apex: el.params.apex } }];
+      const { left, top, right } = prismGeometry(el);
+      const data = { material: 'bk7', transmission: 0.98 };
+      return [
+        { x1: left.x, y1: left.y, x2: top.x, y2: top.y, kind: 'refract', data },
+        { x1: top.x, y1: top.y, x2: right.x, y2: right.y, kind: 'refract', data },
+        { x1: right.x, y1: right.y, x2: left.x, y2: left.y, kind: 'refract', data },
+      ];
     },
   },
 
@@ -744,9 +777,16 @@ export const registry = {
     label: 'DMD', category: 'Wavefront Shaping', size: { w: 30, h: 50 },
     params: [
       { key: 'length', label: 'Active size (mm)', type: 'number', min: 10, max: 100, step: 2, def: 40 },
-      { key: 'zeroOrder', label: '0th-order reflection', type: 'checkbox', def: false },
-      { key: 'zeroFrac', label: '0th-order fraction (0–1)', type: 'number', min: 0.01, max: 0.9, step: 0.01, def: 0.1, show: p => p.zeroOrder },
-      layersParam,
+      { key: 'tilt', label: 'Micromirror tilt (°)', type: 'number', min: 1, max: 20, step: 0.5, def: 12 },
+      { key: 'pitch', label: 'Pattern pitch (mm)', type: 'number', min: 1, max: 40, step: 0.5, def: 8 },
+      { key: 'duty', label: 'ON fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5 },
+      { key: 'routeOff', label: 'Show OFF order', type: 'checkbox', def: false },
+      // Retain the original layer-based DMD fields in saved sketches. They are
+      // hidden for newly created binary-pattern DMDs but remain active when a
+      // legacy sketch contains optical-function layers.
+      { key: 'zeroOrder', label: 'Legacy 0th order', type: 'checkbox', def: false, show: () => false },
+      { key: 'zeroFrac', label: 'Legacy 0th-order fraction', type: 'number', min: 0.01, max: 0.9, step: 0.01, def: 0.1, show: () => false },
+      { ...layersParam, show: () => false },
     ],
     size_: el => ({ w: 30, h: el.params.length + 10 }),
     svg(el) {
@@ -758,11 +798,20 @@ export const registry = {
     },
     surfaces(el) {
       const L = el.params.length / 2;
+      if (Array.isArray(el.params.layers) && el.params.layers.length) {
+        return [{
+          x1: -9, y1: -L, x2: -9, y2: L, kind: 'shaper',
+          data: {
+            layers: el.params.layers, length: el.params.length, transmissive: false,
+            zeroOrder: !!el.params.zeroOrder, zeroFrac: el.params.zeroFrac || 0.1,
+          },
+        }, ...shaperBody(-9, 11, L, L + 3)];
+      }
       return [{
-        x1: -9, y1: -L, x2: -9, y2: L, kind: 'shaper',
+        x1: -9, y1: -L, x2: -9, y2: L, kind: 'dmd',
         data: {
-          layers: el.params.layers || [], length: el.params.length, transmissive: false,
-          zeroOrder: !!el.params.zeroOrder, zeroFrac: el.params.zeroFrac || 0.1,
+          length: el.params.length, tilt: el.params.tilt, pitch: el.params.pitch,
+          duty: el.params.duty, routeOff: el.params.routeOff,
         },
       }, ...shaperBody(-9, 11, L, L + 3)];
     },
@@ -772,7 +821,9 @@ export const registry = {
     label: 'Deformable mirror', category: 'Wavefront Shaping', size: { w: 22, h: 56 },
     params: [
       { key: 'length', label: 'Aperture (mm)', type: 'number', min: 10, max: 100, step: 2, def: 50 },
-      layersParam,
+      { key: 'f', label: 'Defocus focal length (mm)', type: 'number', min: -3000, max: 3000, step: 5, def: 200 },
+      { key: 'steer', label: 'Tip / tilt (°)', type: 'number', min: -30, max: 30, step: 0.5, def: 0 },
+      { ...layersParam, show: () => false },
     ],
     size_: el => ({ w: 22, h: el.params.length + 6 }),
     svg(el) {
@@ -793,16 +844,22 @@ export const registry = {
     },
     surfaces(el) {
       const L = el.params.length / 2;
+      if (Array.isArray(el.params.layers) && el.params.layers.length) {
+        return [{
+          x1: 0, y1: -L, x2: 0, y2: L, kind: 'shaper',
+          data: { layers: el.params.layers, length: el.params.length, transmissive: false },
+        }, ...shaperBody(0, 12, L, L)];
+      }
       return [{
-        x1: 0, y1: -L, x2: 0, y2: L, kind: 'shaper',
-        data: { layers: el.params.layers || [], length: el.params.length, transmissive: false },
+        x1: 0, y1: -L, x2: 0, y2: L, kind: 'dm',
+        data: { f: el.params.f, steer: el.params.steer },
       }, ...shaperBody(0, 12, L, L)];
     },
   },
 
   // ---------------- Detectors ----------------
   detector: {
-    label: 'Photodetector', category: 'Detectors', size: { w: 40, h: 30 },
+    label: 'Photodetector', category: 'Detectors', readoutKind: 'detector', size: { w: 40, h: 30 },
     params: [],
     svg(el) {
       return boxSVG(36, 26, '#4b5563', '#2b333d', 'PD', null, isFlipped(el)) +
@@ -813,33 +870,42 @@ export const registry = {
   },
 
   pmt: {
-    label: 'PMT', category: 'Detectors', size: { w: 54, h: 30 },
-    params: [],
+    label: 'PMT', category: 'Detectors', readoutKind: 'pmt', size: { w: 54, h: 30 },
+    params: [
+      { key: 'gain', label: 'Qualitative gain', type: 'number', min: 1, max: 1000, step: 1, def: 10 },
+      { key: 'saturation', label: 'Output saturation', type: 'number', min: 1, max: 10000, step: 10, def: 100 },
+    ],
     svg(el) {
       return `<rect x="-25" y="-13" width="50" height="26" rx="13" fill="#4b5563" stroke="#2b333d" stroke-width="1.5"/>` +
         `<rect x="-27" y="-9" width="4" height="18" fill="#93c5fd" stroke="#2b333d" stroke-width="1"/>` +
         `<text x="2" y="0" ${isFlipped(el) ? 'transform="rotate(180 2 0)"' : ''} text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="600" fill="#fff">PMT</text>` +
         signalLamp(el, 16, -7);
     },
-    surfaces: () => detectorSurfaces(52, 26, 'PMT'),
+    surfaces: el => detectorSurfaces(52, 26, 'PMT', { gain: el.params.gain, saturation: el.params.saturation }),
   },
 
   camera: {
-    label: 'Camera', category: 'Detectors', size: { w: 44, h: 34 },
+    label: 'Camera', category: 'Detectors', readoutKind: 'camera', size: { w: 44, h: 34 },
     size_: el => ({ w: 44, h: (el.params.ch || 30) + 4 }),
-    params: [{ key: 'ch', label: 'Sensor height (mm)', type: 'number', min: 20, max: 150, step: 2, def: 30 }],
+    params: [
+      { key: 'ch', label: 'Sensor height (mm)', type: 'number', min: 20, max: 150, step: 2, def: 30 },
+      { key: 'pixels', label: '1D pixels', type: 'number', min: 8, max: 64, step: 1, def: 16 },
+    ],
     svg(el) {
       const h = el.params.ch || 30;
       return boxSVG(40, h, '#4b5563', '#2b333d', 'CAM', null, isFlipped(el)) +
         `<rect x="-24" y="${-(h - 16) / 2}" width="5" height="${h - 16}" fill="#333" stroke="#2b333d"/>` +
         signalLamp(el, 13, -h / 2 + 7);
     },
-    surfaces: el => detectorSurfaces(44, el.params.ch || 30, 'Camera sensor'),
+    surfaces: el => detectorSurfaces(44, el.params.ch || 30, 'Camera sensor', { pixels: el.params.pixels }),
   },
 
   eye: {
-    label: 'Human eye', category: 'Detectors', size: { w: 36, h: 36 },
-    params: [],
+    label: 'Human eye', category: 'Detectors', readoutKind: 'retina', size: { w: 36, h: 36 },
+    params: [
+      { key: 'pupil', label: 'Pupil diameter (mm)', type: 'number', min: 2, max: 12, step: 0.5, def: 12 },
+      { key: 'focus', label: 'Lens focal length (mm)', type: 'number', min: 20, max: 35, step: 0.5, def: 30 },
+    ],
     svg() {
       return `<circle r="15" fill="#fff" stroke="#4d565f" stroke-width="1.5"/>` +
         // cornea bulge over the pupil
@@ -852,16 +918,17 @@ export const registry = {
         // retina
         `<path d="M 7,-13 A 15 15 0 0 1 7,13" fill="none" stroke="#c86a6a" stroke-width="2.5"/>`;
     },
-    surfaces() {
+    surfaces(el) {
       // the pupil acts as an ideal lens that focuses collimated light onto
       // the retina; the rest of the eyeball absorbs
+      const h = Math.min(6, Math.max(1, el.params.pupil / 2));
       return [
-        { x1: -15, y1: -6, x2: -15, y2: 6, kind: 'lens', data: { f: 28 } },
-        { x1: -15, y1: -15, x2: -15, y2: -6, kind: 'absorb' },
-        { x1: -15, y1: 6, x2: -15, y2: 15, kind: 'absorb' },
+        { x1: -15, y1: -h, x2: -15, y2: h, kind: 'lens', data: { f: el.params.focus } },
+        { x1: -15, y1: -15, x2: -15, y2: -h, kind: 'absorb' },
+        { x1: -15, y1: h, x2: -15, y2: 15, kind: 'absorb' },
         { x1: -15, y1: -15, x2: 15, y2: -15, kind: 'absorb' },
         { x1: -15, y1: 15, x2: 15, y2: 15, kind: 'absorb' },
-        { x1: 15, y1: -15, x2: 15, y2: 15, kind: 'absorb' },
+        { x1: 15, y1: -13, x2: 15, y2: 13, kind: 'detector', data: { aperture: 26, detectorType: 'Retina' } },
       ];
     },
   },
@@ -880,18 +947,23 @@ export const registry = {
     label: 'AOM', category: 'Modulators', size: { w: 44, h: 30 },
     params: [
       { key: 'deflect', label: 'Deflection (°)', type: 'number', min: -45, max: 45, step: 0.5, def: 4 },
+      { key: 'rfMHz', label: 'RF frequency (MHz)', type: 'number', min: -10000, max: 10000, step: 1, def: 80 },
       { key: 'zero', label: 'Keep 0th order', type: 'checkbox', def: false },
       { key: 'eff', label: 'Efficiency (0–1)', type: 'number', min: 0, max: 1, step: 0.05, def: 0.85 },
-      { key: 'modulate', label: 'Modulate on/off', type: 'checkbox', def: false },
-      { key: 'chopPeriod', label: 'Chunk period (mm)', type: 'number', min: 4, max: 200, step: 2, def: 30, show: p => p.modulate },
+      { key: 'modulate', label: 'Gate RF on/off', type: 'checkbox', def: false },
+      { key: 'modFreqMHz', label: 'Gate frequency (MHz)', type: 'number', min: 0.000001, max: 1000, step: 0.001, def: 1, show: p => p.modulate },
       { key: 'chopDuty', label: 'On fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5, show: p => p.modulate },
+      { key: 'phaseNs', label: 'Gate offset (ns)', type: 'number', min: -1000000, max: 1000000, step: 0.1, def: 0, show: p => p.modulate },
     ],
     svg(el) { return boxSVG(40, 26, '#c9b458', '#8a7a2e', 'AOM', '#3d3616', isFlipped(el)); },
     surfaces(el) {
       const p = el.params;
       return [{
         x1: 0, y1: -13, x2: 0, y2: 13, kind: 'aom',
-        data: { deflect: p.deflect, zero: p.zero, eff: p.eff, chop: p.modulate ? { period: p.chopPeriod, duty: p.chopDuty } : null },
+        data: {
+          deflect: p.deflect, rfMHz: p.rfMHz, zero: p.zero, eff: p.eff,
+          gate: p.modulate ? { frequencyMHz: p.modFreqMHz, duty: p.chopDuty, phaseNs: p.phaseNs } : null,
+        },
       }];
     },
   },
@@ -899,15 +971,15 @@ export const registry = {
   eom: {
     label: 'EOM', category: 'Modulators', size: { w: 48, h: 28 },
     params: [
-      { key: 'modulate', label: 'Modulate on/off', type: 'checkbox', def: false },
-      { key: 'chopPeriod', label: 'Chunk period (mm)', type: 'number', min: 4, max: 200, step: 2, def: 30, show: p => p.modulate },
-      { key: 'chopDuty', label: 'On fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5, show: p => p.modulate },
+      { key: 'modulate', label: 'Apply voltage', type: 'checkbox', def: false },
+      { key: 'a', label: 'Crystal axis (°)', type: 'number', min: 0, max: 180, step: 5, def: 0, show: p => p.modulate },
+      { key: 'retardance', label: 'Retardance (°)', type: 'number', min: -720, max: 720, step: 5, def: 90, show: p => p.modulate },
     ],
     svg(el) { return boxSVG(44, 24, '#b8c9a3', '#66794a', 'EOM', '#2f3a20', isFlipped(el)); },
     surfaces(el) {
       const p = el.params;
       if (!p.modulate) return [];
-      return [{ x1: 0, y1: -12, x2: 0, y2: 12, kind: 'chop', data: { period: p.chopPeriod, duty: p.chopDuty } }];
+      return [{ x1: 0, y1: -12, x2: 0, y2: 12, kind: 'retarder', data: { a: p.a, retardance: p.retardance } }];
     },
   },
 
@@ -915,8 +987,9 @@ export const registry = {
     label: 'Chopper', category: 'Modulators', size: { w: 40, h: 40 },
     params: [
       { key: 'modulate', label: 'Modulate on/off', type: 'checkbox', def: true },
-      { key: 'chopPeriod', label: 'Chunk period (mm)', type: 'number', min: 4, max: 200, step: 2, def: 40, show: p => p.modulate },
+      { key: 'frequencyMHz', label: 'Chop frequency (MHz)', type: 'number', min: 0.000001, max: 1000, step: 0.001, def: 1, show: p => p.modulate },
       { key: 'chopDuty', label: 'On fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5, show: p => p.modulate },
+      { key: 'phaseNs', label: 'Gate offset (ns)', type: 'number', min: -1000000, max: 1000000, step: 0.1, def: 0, show: p => p.modulate },
     ],
     svg() {
       let blades = '';
@@ -931,7 +1004,7 @@ export const registry = {
     surfaces(el) {
       const p = el.params;
       if (!p.modulate) return [];
-      return [{ x1: 0, y1: -19, x2: 0, y2: 19, kind: 'chop', data: { period: p.chopPeriod, duty: p.chopDuty } }];
+      return [{ x1: 0, y1: -19, x2: 0, y2: 19, kind: 'chop', data: { frequencyMHz: p.frequencyMHz, duty: p.chopDuty, phaseNs: p.phaseNs } }];
     },
   },
 
@@ -942,7 +1015,8 @@ export const registry = {
       { key: 'outWl', label: 'Output λ (nm)', type: 'number', min: 100, max: 12000, step: 1, def: 532, show: p => p.convert === 'custom' },
       { key: 'pumpWl', label: 'Pump λ (nm)', type: 'number', min: 100, max: 3000, step: 1, def: 532, show: p => p.convert === 'opo' },
       { key: 'signalWl', label: 'Signal λ (nm)', type: 'number', min: 100, max: 11000, step: 1, def: 800, show: p => p.convert === 'opo' },
-      { key: 'transmitPump', label: 'Transmit residual pump', type: 'checkbox', def: true, show: p => p.convert === 'opo' },
+      { key: 'efficiency', label: 'Conversion efficiency', type: 'number', min: 0, max: 1, step: 0.05, def: 0.5, show: p => p.convert !== 'none' },
+      { key: 'transmitPump', label: 'Transmit residual pump', type: 'checkbox', def: true, show: p => p.convert !== 'none' },
     ],
     svg(el) {
       const isOpo = el.params.convert === 'opo';
@@ -951,7 +1025,7 @@ export const registry = {
     surfaces(el) {
       const p = el.params;
       if (p.convert === 'none') return [];
-      return [{ x1: 0, y1: -11, x2: 0, y2: 11, kind: 'transmit', data: { convert: p.convert, outWl: p.outWl, pumpWl: p.pumpWl, signalWl: p.signalWl, transmitPump: p.transmitPump } }];
+      return [{ x1: 0, y1: -11, x2: 0, y2: 11, kind: 'transmit', data: { convert: p.convert, outWl: p.outWl, pumpWl: p.pumpWl, signalWl: p.signalWl, efficiency: p.efficiency, transmitPump: p.transmitPump } }];
     },
   },
 
@@ -960,13 +1034,26 @@ export const registry = {
     params: [
       { key: 'rodlen', label: 'Length (mm)', type: 'number', min: 20, max: 300, step: 5, def: 60 },
       { key: 'dia', label: 'Diameter', type: 'optsize', def: 12.7 },
+      { key: 'ior', label: 'Refractive index', type: 'number', min: 1.01, max: 2.5, step: 0.01, def: 1.52 },
     ],
     size_: el => ({ w: el.params.rodlen + 4, h: (el.params.dia || 10) + 4 }),
     svg(el) {
       const L = el.params.rodlen / 2, d = el.params.dia || 10;
       return `<rect x="${-L}" y="${-d / 2}" width="${el.params.rodlen}" height="${d}" rx="${Math.min(4, d / 3)}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
     },
-    surfaces: () => [],
+    surfaces(el) {
+      const x = el.params.rodlen / 2, y = (el.params.dia || 10) / 2;
+      const data = { ior: el.params.ior || 1.52, transmission: 0.96 };
+      // All four faces are dielectric boundaries. The tracer tracks whether a
+      // ray is inside this rod, so it refracts on entry/exit and reflects when
+      // total internal reflection occurs at a side wall.
+      return [
+        { x1: -x, y1: -y, x2: x, y2: -y, kind: 'refract', data },
+        { x1: x, y1: -y, x2: x, y2: y, kind: 'refract', data },
+        { x1: x, y1: y, x2: -x, y2: y, kind: 'refract', data },
+        { x1: -x, y1: y, x2: -x, y2: -y, kind: 'refract', data },
+      ];
+    },
   },
 
   // ---------------- Microscopy ----------------
@@ -984,7 +1071,11 @@ export const registry = {
 
   stage: {
     label: 'Sample holder', category: 'Microscopy', size: { w: 22, h: 56 },
-    params: sampleModeParams(),
+    params: [
+      { key: 'containsSample', label: 'Sample installed', type: 'checkbox', def: false },
+      { key: 'aperture', label: 'Clear aperture', type: 'optsize', def: 25.4 },
+      ...sampleModeParams().map(spec => ({ ...spec, show: p => p.containsSample && (!spec.show || spec.show(p)) })),
+    ],
     svg(el) {
       const p = el.params;
       const c = p.mode === 'fluor' ? wavelengthToColor(p.fluorWl) : p.mode === 'cars' ? wavelengthToColor(p.carsWl) : '#e2758f';
@@ -992,16 +1083,41 @@ export const registry = {
         `<rect x="-2" y="-19" width="5" height="38" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.2"/>` +
         `<circle cx="0.5" cy="0" r="4" fill="${c}" opacity="0.85"/>`;
     },
-    surfaces: el => sampleSurfaces(el, 19),
+    surfaces(el) {
+      const clear = Math.min(19, Math.max(1, (el.params.aperture || 25.4) / 2));
+      const mount = [
+        { x1: -6, y1: -25, x2: -6, y2: -clear, kind: 'absorb' },
+        { x1: -6, y1: clear, x2: -6, y2: 25, kind: 'absorb' },
+      ];
+      return el.params.containsSample ? [...mount, ...sampleSurfaces(el, clear)] : mount;
+    },
   },
 
   microscope: {
     label: 'Microscope', category: 'Microscopy', size: { w: 74, h: 54 },
-    params: [],
+    params: [
+      { key: 'objectiveF', label: 'Objective focal (mm)', type: 'number', min: 2, max: 100, step: 1, def: 10 },
+      { key: 'tubeF', label: 'Tube lens focal (mm)', type: 'number', min: 5, max: 300, step: 5, def: 40 },
+      { key: 'aperture', label: 'Clear aperture', type: 'optsize', def: 50.8 },
+    ],
     svg(el) { return boxSVG(70, 50, '#e8eaee', '#7a828c', 'Microscope', '#3d444d', isFlipped(el)); },
-    // A visual assembly placeholder until a microscope is represented by its
-    // constituent objective, tube lens, sample, and detector elements.
-    surfaces: () => [],
+    surfaces(el) {
+      const x = 35, y = 25, h = Math.min(y, (el.params.aperture || 25.4) / 2);
+      // A compact objective + tube-lens assembly. The default focal lengths
+      // add to the 50 mm separation, producing an afocal 4x beam expansion;
+      // changing either value gives the same live thin-lens behavior as the
+      // standalone optics.
+      return [
+        { x1: -25, y1: -h, x2: -25, y2: h, kind: 'lens', data: { f: el.params.objectiveF } },
+        { x1: 25, y1: -h, x2: 25, y2: h, kind: 'lens', data: { f: el.params.tubeF } },
+        { x1: -x, y1: -y, x2: x, y2: -y, kind: 'absorb' },
+        { x1: x, y1: y, x2: -x, y2: y, kind: 'absorb' },
+        { x1: -x, y1: -y, x2: -x, y2: -h, kind: 'absorb' },
+        { x1: -x, y1: h, x2: -x, y2: y, kind: 'absorb' },
+        { x1: x, y1: -y, x2: x, y2: -h, kind: 'absorb' },
+        { x1: x, y1: h, x2: x, y2: y, kind: 'absorb' },
+      ];
+    },
   },
 
   // ---------------- Imaging ----------------
@@ -1146,12 +1262,12 @@ registry.lensc = {
 // simulated elements affect traced rays, configurable elements need an active
 // mode, and diagram-only elements are honest visual annotations/placeholders.
 const ELEMENT_HELP = {
-  laser: 'Emits a monochromatic, broadband, or sized collimated beam.',
+  laser: 'Emits a CW or pulsed monochromatic, broadband, or sized collimated beam.',
   led: 'Emits a configurable fan of rays from an LED source.',
   lamp: 'Emits a configurable fan from a generic point source.',
   objarrow: 'Traces object-tip rays and draws the image formed by lenses.',
   mirror: 'Reflects rays with configurable size and reflectivity.',
-  galvo: 'Reflects rays at its chosen static angle; scanning is not animated yet.',
+  galvo: 'Reflects rays from a configurable commanded mirror angle.',
   cmirrorx: 'Diverges reflected rays with a paraxial focal-length model.',
   cmirror: 'Focuses reflected rays with a paraxial focal-length model.',
   oap: 'Reflects from segmented parabolic geometry toward the configured focus.',
@@ -1163,39 +1279,39 @@ const ELEMENT_HELP = {
   filter: 'Passes a spectral band or attenuates intensity as a neutral-density filter.',
   bs: 'Splits incident light into transmitted and reflected branches.',
   grating: 'Creates selected diffraction orders using the grating equation.',
-  prism: 'Applies qualitative wavelength-dependent angular dispersion.',
+  prism: 'Refracts through all three drawn BK7-like boundaries with wavelength-dependent dispersion.',
   diffuser: 'Spreads incident light into a configurable angular fan.',
-  glassrod: 'Visual glass-rod placeholder; refraction through its two faces is not modeled yet.',
+  glassrod: 'Refracts at every glass-air boundary and supports total internal reflection.',
   polarizer: 'Applies a linear polarization axis and Malus-law attenuation.',
   hwp: 'Rotates linear polarization around the configured fast axis.',
-  qwp: 'Converts compatible linear polarization to a circular state.',
+  qwp: 'Applies quarter-wave retardance, producing linear, elliptical, or circular polarization from the input state.',
   pbs: 'Separates orthogonal polarization states into two paths.',
   isolator: 'Passes light in one direction and blocks reverse propagation.',
   slit: 'Blocks rays outside the configured aperture gap.',
   beamdump: 'Absorbs incident rays.',
   blocker: 'Absorbs rays but stays hidden in exported figures.',
   slm: 'Reflects by default and can overlay lens-array, grating, steering, or speckle functions.',
-  dmd: 'Reflects by default and can overlay configurable wavefront structures.',
-  dm: 'Reflects by default and can overlay configurable wavefront structures.',
+  dmd: 'Routes a configurable binary micromirror pattern into ON and optional OFF orders.',
+  dm: 'Applies continuous reflective tip, tilt, and paraxial defocus.',
   detector: 'Measures qualitative ray signal, spectrum, polarization, and spot span.',
-  pmt: 'Measures qualitative ray signal, spectrum, polarization, and spot span.',
-  camera: 'Measures rays reaching the front sensor plane; image reconstruction comes later.',
-  eye: 'Focuses collimated rays through a fixed ideal lens onto an absorbing retina.',
-  aom: 'Deflects light, optionally retains zero order, and can show amplitude modulation.',
-  eom: 'Passes light until amplitude modulation is enabled.',
-  chopper: 'Applies a visible periodic on/off pattern to the beam.',
-  crystal: 'Converts wavelength when an SHG, THG, supercontinuum, OPO, or custom mode is selected.',
-  sample: 'Can transmit, block, fluoresce, or generate a selected nonlinear signal.',
-  stage: 'A sample holder with the same configurable signal-generation behavior.',
-  microscope: 'Visual microscope placeholder; build simulated microscopes from objectives and lenses.',
+  pmt: 'Applies configurable qualitative gain and saturation to detected optical signal.',
+  camera: 'Bins incident rays into a configurable one-dimensional sensor profile.',
+  eye: 'Focuses through a configurable pupil and reports the qualitative retinal signal and spot.',
+  aom: 'Deflects and frequency-shifts first-order light with efficiency, zero-order, and temporal RF gating.',
+  eom: 'Applies voltage-controlled polarization retardance; an analyzer converts it to intensity modulation.',
+  chopper: 'Gates pulsed trains in time and applies duty-averaged transmission to CW light.',
+  crystal: 'Converts a configurable fraction of pump power into SHG, THG, supercontinuum, OPO, or custom output.',
+  sample: 'Attenuates excitation and can convert a bounded fraction into fluorescence or nonlinear signal.',
+  stage: 'Mechanically clips rays outside its clear aperture and optionally contains a simulated sample.',
+  microscope: 'Models a configurable objective, tube lens, clear aperture, and absorbing housing.',
   probe: 'Reads spectrum, wavelength, or polarization from the nearest traced beam.',
   arrowann: 'Diagram annotation; does not interact with rays.',
   textlabel: 'Diagram annotation; does not interact with rays.',
   box: 'Generic enclosure with explicit pass-through or beam-blocking behavior.',
 };
 
-const DIAGRAM_ONLY = new Set(['glassrod', 'microscope', 'arrowann', 'textlabel']);
-const SHAPERS = new Set(['slm', 'dmd', 'dm']);
+const DIAGRAM_ONLY = new Set(['arrowann', 'textlabel']);
+const SHAPERS = new Set(['slm']);
 
 export function getElementMeta(type, params = {}) {
   let tier = DIAGRAM_ONLY.has(type) ? 'diagram' : 'simulated';
@@ -1203,21 +1319,13 @@ export function getElementMeta(type, params = {}) {
 
   if (type === 'eom' && !params.modulate) {
     tier = 'configurable';
-    note = 'Enable “Modulate on/off” to make the EOM alter the displayed beam.';
+    note = 'Apply voltage to set a polarization retardance; use a downstream polarizer or PBS for amplitude modulation.';
   } else if (type === 'crystal' && (!params.convert || params.convert === 'none')) {
     tier = 'configurable';
     note = 'Choose a conversion mode to generate an output wavelength.';
-  } else if ((type === 'sample' || type === 'stage')
-      && (!params.mode || params.mode === 'none') && params.transmitExc !== false) {
-    tier = 'configurable';
-    note = 'Choose a generated signal or disable excitation transmission to activate an optical effect.';
   } else if (SHAPERS.has(type) && (!Array.isArray(params.layers) || params.layers.length === 0)) {
     tier = 'configurable';
     note = 'Currently a plain reflector. Add an optical structure to shape the wavefront.';
-  } else if (type === 'glassrod') {
-    note = 'Refraction and material dispersion are planned for the later physics pass.';
-  } else if (type === 'microscope') {
-    note = 'This visual placeholder no longer blocks rays. Use objective and lens elements for a simulated path.';
   } else if (type === 'arrowann' || type === 'textlabel') {
     note = 'Annotations are intentionally visual and never change traced rays.';
   }

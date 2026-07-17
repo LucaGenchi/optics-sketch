@@ -94,6 +94,13 @@ function normalizeElement(raw, definitions, used) {
   if ((raw.type === 'sample' || raw.type === 'stage') && (raw.params?.mode === 'trans' || raw.params?.mode === 'block')) {
     params.mode = 'none';
     params.transmitExc = raw.params.mode === 'trans';
+    // The legacy "trans" mode was lossless. Preserve that behavior instead
+    // of silently applying the newer sample's default attenuation.
+    if (raw.params.mode === 'trans') params.transmission = 1;
+  }
+  if (raw.type === 'stage' && raw.params?.containsSample === undefined
+      && raw.params?.mode && !['none', 'trans', 'block'].includes(raw.params.mode)) {
+    params.containsSample = true;
   }
   const rot = finite(raw.rot) ? ((raw.rot % 360) + 360) % 360 : 0;
   return {
@@ -128,7 +135,15 @@ function normalizeBeam(raw, used) {
   };
   if (kind === 'fiber') {
     const legacy = { mode: raw.outMode, na: raw.na, focal: raw.focal, dia: raw.outDia };
-    return { ...base, propagate: raw.propagate === true, out0: normalizeFiberOutput(raw.out0, legacy), out1: normalizeFiberOutput(raw.out1, legacy) };
+    return {
+      ...base,
+      propagate: raw.propagate === true,
+      inputNA: clamp(finite(raw.inputNA) ? raw.inputNA : 0.22, 0.01, 0.95),
+      groupIndex: clamp(finite(raw.groupIndex) ? raw.groupIndex : 1.468, 1, 2.2),
+      lossDbPerM: clamp(finite(raw.lossDbPerM) ? raw.lossDbPerM : 0.2, 0, 100),
+      out0: normalizeFiberOutput(raw.out0, legacy),
+      out1: normalizeFiberOutput(raw.out1, legacy),
+    };
   }
   return { ...base, dash: raw.dash === true, arrow: raw.arrow !== false };
 }

@@ -11,7 +11,10 @@ const file = (elements = [], beams = []) => JSON.stringify({ app: 'optics2d', ve
 test('sketch loading fills defaults and normalizes unsafe values', () => {
   const raw = createElement('laser', 10, 20);
   raw.rot = -90;
-  raw.params = { wavelength: 99, beamWidth: 999, color: 'red' };
+  raw.params = {
+    wavelength: 99, beamWidth: 999, color: 'red', temporalMode: 'pulsed',
+    repRateMHz: 1e12, pulseWidthFs: 0, pulsePhaseNs: 1e12,
+  };
   const scene = parseSketch(file([raw], [{
     id: 'fiber', kind: 'fiber', pts: [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 20, y: 0 }],
     width: 99, color: 'invalid', out0: { mode: 'focus', na: 2, focal: 1, dia: 99 },
@@ -23,11 +26,18 @@ test('sketch loading fills defaults and normalizes unsafe values', () => {
   assert.equal(laser.params.beamWidth, 60);
   assert.equal(laser.params.color, '#e02020');
   assert.equal(laser.params.autoColor, true);
+  assert.equal(laser.params.temporalMode, 'pulsed');
+  assert.equal(laser.params.repRateMHz, 1000000);
+  assert.equal(laser.params.pulseWidthFs, 1);
+  assert.equal(laser.params.pulsePhaseNs, 1000000);
 
   const fiber = scene.beams[0];
   assert.deepEqual(fiber.pts, [{ x: 0, y: 0 }, { x: 20, y: 0 }]);
   assert.equal(fiber.width, 20);
   assert.equal(fiber.color, '#e8a800');
+  assert.equal(fiber.inputNA, 0.22);
+  assert.equal(fiber.groupIndex, 1.468);
+  assert.equal(fiber.lossDbPerM, 0.2);
   assert.deepEqual(fiber.out0, { mode: 'focus', na: 0.95, focal: 2, dia: 30 });
 });
 
@@ -39,6 +49,19 @@ test('sketch loading rejects data that would crash the canvas', () => {
   assert.throws(() => parseSketch(file([{ type: 'laser', x: null, y: 0, params: {} }]), registry), /invalid coordinates/);
   assert.throws(() => parseSketch(file([], [{ kind: 'fiber', pts: [{ x: 0, y: 0 }, { x: 0, y: 0 }] }])), /distinct points/);
   assert.throws(() => parseSketch(JSON.stringify({ app: 'optics2d', version: 2, elements: [] }), registry), /Unsupported sketch version/);
+});
+
+test('legacy lasers without temporal fields remain continuous-wave sources', () => {
+  const laser = createElement('laser', 0, 0);
+  delete laser.params.temporalMode;
+  delete laser.params.repRateMHz;
+  delete laser.params.pulseWidthFs;
+  delete laser.params.pulsePhaseNs;
+  const [loaded] = parseSketch(file([laser]), registry).elements;
+  assert.equal(loaded.params.temporalMode, 'cw');
+  assert.equal(loaded.params.repRateMHz, 80);
+  assert.equal(loaded.params.pulseWidthFs, 100);
+  assert.equal(loaded.params.pulsePhaseNs, 0);
 });
 
 test('duplicate object ids are repaired during import', () => {
@@ -58,6 +81,24 @@ test('legacy sample block/pass modes retain their behavior', () => {
   assert.deepEqual(scene.elements.map(el => [el.params.mode, el.params.transmitExc]), [
     ['none', false], ['none', true],
   ]);
+  assert.equal(scene.elements[1].params.transmission, 1);
+});
+
+test('legacy layer-based DMD settings keep their zero-order branch', () => {
+  const dmd = createElement('dmd', 100, 0);
+  dmd.params = {
+    length: 40,
+    zeroOrder: true,
+    zeroFrac: 0.25,
+    layers: [{ type: 'steer', angle: 8 }],
+  };
+  const [loaded] = parseSketch(file([dmd]), registry).elements;
+  assert.equal(loaded.params.zeroOrder, true);
+  assert.equal(loaded.params.zeroFrac, 0.25);
+  assert.equal(loaded.params.layers.length, 1);
+  const data = registry.dmd.surfaces(loaded)[0].data;
+  assert.equal(data.zeroOrder, true);
+  assert.equal(data.zeroFrac, 0.25);
 });
 
 test('scene replacement remains undoable when requested by the caller', () => {

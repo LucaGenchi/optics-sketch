@@ -14,7 +14,8 @@ figures as SVG or PNG.
 ## Highlights
 
 - **Element palette**: lasers (line or sized beam, monochromatic / broadband /
-  supercontinuum), mirrors (flat with reflectivity, convex/concave, true parabolic,
+  supercontinuum, continuous-wave or pulsed), mirrors (flat with reflectivity,
+  convex/concave, true parabolic,
   galvo), lenses, telescopes, objectives, dichroics, filters, beamsplitters,
   polarization optics (polarizers, waveplates, PBS, isolator), gratings, prisms,
   diffusers, wavefront shapers (SLM, DMD, deformable mirror) with composable
@@ -22,9 +23,17 @@ figures as SVG or PNG.
   supercontinuum, OPO), fibers with per-end output specs, detectors, a focusing
   human eye, and free annotations (arrows, labels, beam probes).
 - **Honest capability states**: the component library and inspector distinguish
-  simulated elements, elements that need setup, and diagram-only placeholders.
+  simulated elements, elements that need setup, and intentionally diagram-only
+  annotations. An unset EOM, nonlinear crystal, or SLM is labeled as needing setup;
+  arrows and text labels never affect rays.
+- **Pulsed timing**: pulsed lasers animate wavelength-colored packets along the
+  traced path. Physical mode uses optical-path delay and the configured repetition
+  rate; schematic mode keeps packets visible at workbench scale while detector
+  delays remain physical. Playback can be paused, reset, and time-scaled.
 - **Qualitative detector readouts**: photodetectors, PMTs, and cameras report
-  relative ray signal, spectrum, polarization, and spot span at their front face.
+  relative ray signal, spectrum, polarization, and spot span at their front face;
+  pulsed paths add optical-path delay and path spread. PMTs include qualitative
+  gain/saturation, cameras provide a 1D sensor profile, and the eye reads its retina.
 - **Physics that responds**: thin-lens/paraxial transfer, spectral band arithmetic at
   filters, Malus's law, grating equation, Cauchy prism dispersion, cavity round trips
   with partial mirrors, image formation with magnification (arrow / letter F / tree
@@ -33,6 +42,16 @@ figures as SVG or PNG.
   camera + depth of field, Scheimpflug, vignetting...) and laboratory sketches
   (Michelson, Mach–Zehnder, laser cavity, OPO...).
 - **Sharing**: sketches save/load as `.json` files; figures export as SVG/PNG.
+
+## Simulation scope
+
+Optics Sketch is a qualitative geometric-optics workbench, not a calibrated optical
+design package. It models ray paths, bounded relative power, spectral bands, Stokes
+polarization, thin-lens elements, refractive boundaries, timed pulse trains, and
+simple detector responses. It does not model coherent carrier phase, interference,
+diffraction-limited propagation, material dispersion beyond the stated simplified
+models, or laboratory-specific calibration. Animated pulse packets are a canvas aid;
+SVG and PNG exports intentionally remain static and deterministic.
 
 ## Feedback
 
