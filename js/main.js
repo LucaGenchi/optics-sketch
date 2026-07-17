@@ -12,6 +12,8 @@ import { exportSVG, exportPNG } from './export.js';
 import { examples } from './examples.js';
 import { download, esc } from './util.js';
 
+const ARROW_TOOL_TYPE = 'arrowann'; // draw-arrow palette tile, keyed to the (hidden) legacy static-arrow element for icon + search text
+
 const $ = id => document.getElementById(id);
 
 // ---------- palette ----------
@@ -29,10 +31,27 @@ function buildPalette() {
   let total = 0;
   const initiallyOpen = new Set(['Sources', 'Mirrors', 'Lenses']);
   for (const cat of categories) {
-    const entries = Object.entries(registry).filter(([, def]) => def.category === cat);
-    if (!entries.length) continue;
+    const entries = Object.entries(registry).filter(([, def]) => def.category === cat && !def.hidden);
+    const drawArrowHere = cat === 'Annotations';
+    if (!entries.length && !drawArrowHere) continue;
     h += `<details class="palette-group" data-category="${esc(cat)}" ${initiallyOpen.has(cat) ? 'open' : ''}>
-      <summary>${esc(cat)}<span class="group-count">${entries.length}</span></summary><div class="catlist">`;
+      <summary>${esc(cat)}<span class="group-count">${entries.length + (drawArrowHere ? 1 : 0)}</span></summary><div class="catlist">`;
+    if (drawArrowHere) {
+      // freehand "draw arrow" tool lives here too — it's the same concept as
+      // the fixed-length Arrow annotation, just drawn point-by-point
+      const arrowEl = createElement(ARROW_TOOL_TYPE);
+      const arrowDef = registry[ARROW_TOOL_TYPE];
+      const sz = typeof arrowDef.size === 'function' ? arrowDef.size(arrowEl) : arrowDef.size;
+      const vb = Math.max(sz.w, sz.h) + 12;
+      const meta = getElementMeta(ARROW_TOOL_TYPE, arrowEl.params);
+      const desc = 'Draw a straight or multi-point arrow: click waypoints, double-click to finish.';
+      const search = `arrow draw beam annotation ${desc}`.toLowerCase();
+      h += `<button type="button" class="palitem" data-tool="drawarrow" data-type="${ARROW_TOOL_TYPE}" data-search="${esc(search)}" title="${esc(desc)}">
+        <svg viewBox="${-vb / 2} ${-vb / 2} ${vb} ${vb}">${arrowDef.svg(arrowEl)}</svg>
+        <span class="pal-copy"><span class="pal-label">Arrow</span><span class="pal-desc">${esc(desc)}</span></span>
+        <i class="cap-dot ${meta.tier}" title="${esc(meta.status)}" aria-label="${esc(meta.status)}"></i></button>`;
+      total++;
+    }
     for (const [type, def] of entries) {
       const el = createElement(type);
       const sz = typeof def.size === 'function' ? def.size(el) : (def.size_ ? def.size_(el) : def.size);
@@ -51,6 +70,7 @@ function buildPalette() {
   pal.innerHTML = h;
   $('libraryCount').textContent = `${total} components`;
   pal.querySelectorAll('.palitem').forEach(item => {
+    if (item.dataset.tool === 'drawarrow') { item.addEventListener('click', () => startBeamTool('beam')); return; }
     item.addEventListener('click', () => startPlacing(item.dataset.type));
   });
 
@@ -82,8 +102,9 @@ function syncToolMode(detail = { mode: 'select' }) {
   const canvas = $('canvas');
   canvas.classList.toggle('tool-active', active);
   mode.classList.toggle('is-visible', active);
-  document.querySelectorAll('.palitem').forEach(item => item.classList.toggle('is-active', detail.mode === 'place' && item.dataset.type === detail.type));
-  $('btnBeam').classList.toggle('active', detail.mode === 'beam');
+  document.querySelectorAll('.palitem').forEach(item => item.classList.toggle('is-active',
+    (detail.mode === 'place' && item.dataset.type === detail.type) ||
+    (detail.mode === 'beam' && item.dataset.tool === 'drawarrow')));
   $('btnFiber').classList.toggle('active', detail.mode === 'fiber');
   if (!active) { mode.textContent = ''; return; }
   mode.textContent = detail.mode === 'place'
@@ -314,7 +335,6 @@ function bindToolbar() {
   $('btnPNG').addEventListener('click', () => exportPNG(3));
   $('btnUndo').addEventListener('click', () => { undo(); renderInspector(); });
   $('btnRedo').addEventListener('click', () => { redo(); renderInspector(); });
-  $('btnBeam').addEventListener('click', () => startBeamTool('beam'));
   $('btnFiber').addEventListener('click', () => startBeamTool('fiber'));
   $('btnGrid').addEventListener('click', () => { state.showGrid = !state.showGrid; syncToolbar(); renderAll(); });
   $('btnSnap').addEventListener('click', () => { state.snap = !state.snap; syncToolbar(); });

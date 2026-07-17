@@ -196,12 +196,13 @@ function sampleSurfaces(el, h) {
     : rectAbsorb(8, 2 * h);
 }
 
-// lens outline at x=cx: biconvex for f>=0, biconcave for f<0
+// lens outline at x=cx: biconvex for f>=0, biconcave for f<0.
+// The refracting faces are the two VERTICAL surfaces the beam crosses, so
+// for a diverging lens those are the ones that curve inward (waist at mid).
 function lensShape(cx, h, f) {
-  const inset = Math.min(10, h * 0.65);
   const d = f >= 0
     ? `M ${cx},${-h} Q ${cx + 9},0 ${cx},${h} Q ${cx - 9},0 ${cx},${-h} Z`
-    : `M ${cx - 6},${-h} Q ${cx},${-h + inset} ${cx + 6},${-h} L ${cx + 6},${h} Q ${cx},${h - inset} ${cx - 6},${h} Z`;
+    : `M ${cx - 6},${-h} L ${cx + 6},${-h} Q ${cx},0 ${cx + 6},${h} L ${cx - 6},${h} Q ${cx},0 ${cx - 6},${-h} Z`;
   return `<path d="${d}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
 }
 
@@ -248,6 +249,7 @@ export const registry = {
   // ---------------- Sources ----------------
   laser: {
     label: 'Laser', category: 'Sources', size: { w: 104, h: 38 },
+    snapPt: { x: 52, y: 0 }, // beam exit aperture
     size_: el => ({ w: 104, h: laserH(el) + 4 }),
     params: [
       P.wavelength,
@@ -287,50 +289,34 @@ export const registry = {
     },
   },
 
-  led: {
-    label: 'LED', category: 'Sources', size: { w: 34, h: 30 },
+  pointsource: {
+    label: 'Point source', category: 'Sources', size: { w: 30, h: 30 },
     params: [
       P.wavelength,
-      { key: 'spread', label: 'Fan angle (°)', type: 'number', min: 0, max: 120, step: 5, def: 30 },
-      { key: 'nrays', label: 'Rays', type: 'number', min: 1, max: 11, step: 2, def: 5 },
+      { key: 'spread', label: 'Emission angle (°)', type: 'number', min: 10, max: 360, step: 10, def: 360 },
+      { key: 'nrays', label: 'Rays', type: 'number', min: 4, max: 32, step: 2, def: 12 },
       P.autoColor, P.color,
     ],
     svg(el) {
-      const c = el.params.autoColor ? wavelengthToColor(el.params.wavelength) : el.params.color;
-      return `<path d="M -14,-12 L 6,-12 A 12 12 0 0 1 6,12 L -14,12 Z" fill="${c}" stroke="#333" stroke-width="1.5" opacity="0.85"/>` +
-        `<line x1="-14" y1="-15" x2="-14" y2="15" stroke="#333" stroke-width="2"/>` +
-        `<text x="-3" y="0" text-anchor="middle" dominant-baseline="central" font-size="8" font-weight="700" fill="#fff">LED</text>`;
-    },
-    source(el) {
-      const { spread, nrays } = el.params, out = [];
-      const n = Math.max(1, Math.round(nrays));
-      for (let i = 0; i < n; i++) {
-        const a = n === 1 ? 0 : (-spread / 2 + spread * i / (n - 1)) * Math.PI / 180;
-        out.push({ x: 19, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
+      const c = el.params.autoColor === false && el.params.color ? el.params.color : wavelengthToColor(el.params.wavelength);
+      let spokes = '';
+      for (let i = 0; i < 8; i++) {
+        const a = (i * 45) * Math.PI / 180;
+        spokes += `<line x1="${(6 * Math.cos(a)).toFixed(1)}" y1="${(6 * Math.sin(a)).toFixed(1)}" x2="${(11 * Math.cos(a)).toFixed(1)}" y2="${(11 * Math.sin(a)).toFixed(1)}" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/>`;
       }
-      return out;
-    },
-  },
-
-  lamp: {
-    label: 'Light source', category: 'Sources', size: { w: 34, h: 34 },
-    params: [
-      P.wavelength,
-      { key: 'spread', label: 'Fan angle (°)', type: 'number', min: 0, max: 180, step: 5, def: 40 },
-      { key: 'nrays', label: 'Rays', type: 'number', min: 1, max: 11, step: 2, def: 3 },
-      P.autoColor, P.color,
-    ],
-    svg() {
-      return `<circle r="13" fill="#fff3c4" stroke="#333" stroke-width="1.5"/>` +
-        `<path d="M -5,-5 Q 0,5 5,-5" fill="none" stroke="#333" stroke-width="1.2"/>` +
-        `<line x1="-9" y1="-9" x2="-13" y2="-13" stroke="#333" stroke-width="1"/><line x1="-9" y1="9" x2="-13" y2="13" stroke="#333" stroke-width="1"/>`;
+      return `<circle r="4.5" fill="${c}" stroke="#333" stroke-width="1"/>` + spokes;
     },
     source(el) {
+      // isotropic evanescent emission (range ~5x a fluorescent specimen);
+      // rays collected by a nearby lens / objective / fiber tip propagate on
       const { spread, nrays } = el.params, out = [];
       const n = Math.max(1, Math.round(nrays));
+      const full = spread >= 360;
       for (let i = 0; i < n; i++) {
-        const a = n === 1 ? 0 : (-spread / 2 + spread * i / (n - 1)) * Math.PI / 180;
-        out.push({ x: 15, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
+        const a = (full
+          ? (i * 360 / n)
+          : (n === 1 ? 0 : -spread / 2 + spread * i / (n - 1))) * Math.PI / 180;
+        out.push({ x: 0, y: 0, dx: Math.cos(a), dy: Math.sin(a), evan: true, evanLen: 110 });
       }
       return out;
     },
@@ -497,6 +483,7 @@ export const registry = {
 
   objective: {
     label: 'Objective', category: 'Lenses', size: { w: 36, h: 40 },
+    snapPt: { x: -16, y: 0 }, // lens plane
     params: [{ key: 'f', label: 'Focal length (mm)', type: 'number', min: 1, max: 500, step: 1, def: 20 }],
     svg() {
       return `<path d="M -16,-9 L 6,-17 L 16,-17 L 16,17 L 6,17 L -16,9 Z" fill="#8d98a5" stroke="#4d565f" stroke-width="1.5"/>` +
@@ -745,6 +732,7 @@ export const registry = {
   // ---------------- Wavefront shaping ----------------
   slm: {
     label: 'SLM', category: 'Wavefront Shaping', size: { w: 30, h: 50 },
+    snapPt: { x: -9, y: 0 }, // active face
     params: [
       { key: 'transmissive', label: 'Transmissive', type: 'checkbox', def: false },
       { key: 'length', label: 'Active size (mm)', type: 'number', min: 10, max: 100, step: 2, def: 40 },
@@ -775,6 +763,7 @@ export const registry = {
 
   dmd: {
     label: 'DMD', category: 'Wavefront Shaping', size: { w: 30, h: 50 },
+    snapPt: { x: -9, y: 0 }, // active face
     params: [
       { key: 'length', label: 'Active size (mm)', type: 'number', min: 10, max: 100, step: 2, def: 40 },
       { key: 'tilt', label: 'Micromirror tilt (°)', type: 'number', min: 1, max: 20, step: 0.5, def: 12 },
@@ -860,6 +849,7 @@ export const registry = {
   // ---------------- Detectors ----------------
   detector: {
     label: 'Photodetector', category: 'Detectors', readoutKind: 'detector', size: { w: 40, h: 30 },
+    snapPt: { x: -19, y: 0 }, // entrance window
     params: [],
     svg(el) {
       return boxSVG(36, 26, '#4b5563', '#2b333d', 'PD', null, isFlipped(el)) +
@@ -871,6 +861,7 @@ export const registry = {
 
   pmt: {
     label: 'PMT', category: 'Detectors', readoutKind: 'pmt', size: { w: 54, h: 30 },
+    snapPt: { x: -25, y: 0 }, // entrance window
     params: [
       { key: 'gain', label: 'Qualitative gain', type: 'number', min: 1, max: 1000, step: 1, def: 10 },
       { key: 'saturation', label: 'Output saturation', type: 'number', min: 1, max: 10000, step: 10, def: 100 },
@@ -886,6 +877,7 @@ export const registry = {
 
   camera: {
     label: 'Camera', category: 'Detectors', readoutKind: 'camera', size: { w: 44, h: 34 },
+    snapPt: { x: -22, y: 0 }, // sensor face
     size_: el => ({ w: 44, h: (el.params.ch || 30) + 4 }),
     params: [
       { key: 'ch', label: 'Sensor height (mm)', type: 'number', min: 20, max: 150, step: 2, def: 30 },
@@ -902,6 +894,7 @@ export const registry = {
 
   eye: {
     label: 'Human eye', category: 'Detectors', readoutKind: 'retina', size: { w: 36, h: 36 },
+    snapPt: { x: -15, y: 0 }, // pupil
     params: [
       { key: 'pupil', label: 'Pupil diameter (mm)', type: 'number', min: 2, max: 12, step: 0.5, def: 12 },
       { key: 'focus', label: 'Lens focal length (mm)', type: 'number', min: 20, max: 35, step: 0.5, def: 30 },
@@ -1181,7 +1174,7 @@ export const registry = {
   },
 
   arrowann: {
-    label: 'Arrow', category: 'Annotations', size: el => ({
+    label: 'Arrow', category: 'Annotations', hidden: true, size: el => ({
       w: el.params.len + 8,
       h: Math.max(20, 2 * (3 + 1.5 * el.params.width) + 4),
     }),
@@ -1251,6 +1244,11 @@ export const registry = {
   },
 };
 
+// legacy aliases: LED and Light source were merged into the Point source
+// (hidden from the palette, old sketches keep working)
+registry.led = { ...registry.pointsource, label: 'LED (legacy)', hidden: true };
+registry.lamp = { ...registry.pointsource, label: 'Light source (legacy)', hidden: true };
+
 // concave lens: identical optics to 'lens', concave default focal length
 registry.lensc = {
   ...registry.lens,
@@ -1263,6 +1261,7 @@ registry.lensc = {
 // mode, and diagram-only elements are honest visual annotations/placeholders.
 const ELEMENT_HELP = {
   laser: 'Emits a CW or pulsed monochromatic, broadband, or sized collimated beam.',
+  pointsource: 'Emits isotropic light (360° by default) that fades over a short evanescent range unless captured by a nearby lens, objective, or fiber tip.',
   led: 'Emits a configurable fan of rays from an LED source.',
   lamp: 'Emits a configurable fan from a generic point source.',
   objarrow: 'Traces object-tip rays and draws the image formed by lenses.',

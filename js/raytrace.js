@@ -777,9 +777,12 @@ function traceRays(rays0, surfaces, couplings) {
       if (r.depth > MAX_DEPTH || r.intensity < MIN_INT) break;
       const hit = nearestHit({ x: r.x, y: r.y }, { x: r.dx, y: r.dy }, surfaces, r.last);
       if (r.evan) {
-        // evanescent (isotropic fluorescence): fades out within a short range
-        // unless a lens / objective / fiber tip nearby collects it
-        const CAPTURE = 120, EVAN_LEN = 22;
+        // evanescent (isotropic fluorescence, or a diagram point source):
+        // fades out within a short range unless a lens / objective / fiber
+        // tip nearby collects it. A ray can widen its own fade range (e.g.
+        // a point source's ~5x-fluorescence range) via r.evanLen.
+        const EVAN_LEN = r.evanLen || 22;
+        const CAPTURE = Math.max(120, EVAN_LEN * 1.5);
         const captured = hit && hit.t <= CAPTURE
           && (hit.surface.kind === 'lens' || hit.surface.kind === 'fiberin');
         if (!captured) {
@@ -1011,6 +1014,7 @@ export function traceScene(elements, beams = []) {
         pol: typeof p.pol === 'number' ? p.pol : undefined,
         stokes: typeof p.pol === 'number' ? linearStokes(p.pol) : null,
         pulse,
+        evan: r.evan || false, evanLen: r.evanLen,
         intensity: 1, power: 1 / Math.max(1, K), sample: r.sample !== undefined ? r.sample : null,
       };
     });

@@ -5,7 +5,7 @@ import { state, changed, pushUndo, findSelected } from './state.js';
 import { registry, getSize, getVisualBounds, createElement, labelSVG } from './elements.js';
 import { traceScene } from './raytrace.js';
 import { pulseMarkers } from './pulses.js';
-import { toLocal, toWorld, distToSegment, distinctPoints, manualBeamSVG } from './util.js';
+import { toLocal, toWorld, rotPt, distToSegment, distinctPoints, manualBeamSVG } from './util.js';
 
 let svg, viewport, gridLayer, beamLayer, pulseLayer, manualLayer, elementLayer, overlayLayer;
 let statusEl;
@@ -22,7 +22,7 @@ export function initCanvas(svgElement, statusElement) {
   statusEl = statusElement;
   svg.innerHTML = `
     <defs>
-      <pattern id="holes" width="${HOLE_PITCH}" height="${HOLE_PITCH}" patternUnits="userSpaceOnUse">
+      <pattern id="holes" x="${-HOLE_PITCH / 2}" y="${-HOLE_PITCH / 2}" width="${HOLE_PITCH}" height="${HOLE_PITCH}" patternUnits="userSpaceOnUse">
         <circle cx="${HOLE_PITCH / 2}" cy="${HOLE_PITCH / 2}" r="1.6" fill="#d3d8de"/>
       </pattern>
     </defs>
@@ -56,8 +56,21 @@ export function screenToWorld(sx, sy) {
 
 function snapPos(v) {
   if (!state.snap) return v;
-  const g = 5;
-  return Math.round(v / g) * g;
+  return Math.round(v / HOLE_PITCH) * HOLE_PITCH;
+}
+
+// Snap an element so that its OPTICALLY ACTIVE point (mirror face, lens
+// plane, laser aperture, detector window... def.snapPt, local coords) lands
+// exactly on a table hole — not just the element's center.
+function snapElPos(el, wx, wy) {
+  if (!state.snap) return { x: wx, y: wy };
+  const def = registry[el.type];
+  const spl = def && def.snapPt ? def.snapPt : { x: 0, y: 0 };
+  const sp = rotPt(spl.x, spl.y, el.rot || 0);
+  return {
+    x: Math.round((wx + sp.x) / HOLE_PITCH) * HOLE_PITCH - sp.x,
+    y: Math.round((wy + sp.y) / HOLE_PITCH) * HOLE_PITCH - sp.y,
+  };
 }
 
 // ---------- rendering ----------
@@ -343,6 +356,11 @@ let drag = null;     // {mode, ...}
 let drawing = null;  // manual beam in progress {pts:[], cursor}
 let placing = null;  // {el, pos}
 let spaceDown = false;
+// Manual double-click detection for finishing a beam/fiber. The native
+// 'dblclick' listener below is kept as a backup, but some input paths
+// (trackpad double-taps, remote/automated pointer events) don't reliably
+// synthesize a browser dblclick, so we also detect two close clicks here.
+let lastBeamClick = null; // {t, x, y} in screen coords
 
 function notifyTool(detail = { mode: 'select' }) {
   document.dispatchEvent(new CustomEvent('optics:toolchange', { detail }));
@@ -361,13 +379,15 @@ export function startBeamTool(kind = 'beam') {
   placing = null;
   state.tool = 'beam';
   drawing = { pts: [], cursor: null, kindType: kind };
+  lastBeamClick = null;
   setStatus('');
-  notifyTool({ mode: kind, label: kind === 'fiber' ? 'Optical fiber' : 'Manual beam' });
+  notifyTool({ mode: kind, label: kind === 'fiber' ? 'Optical fiber' : 'Arrow' });
   renderAll();
 }
 
 export function cancelTool() {
   placing = null; drawing = null;
+  lastBeamClick = null;
   state.tool = 'select';
   setStatus('');
   notifyTool();
@@ -438,11 +458,12 @@ function onDown(e) {
   if (placing) {
     pushUndo();
     const el = placing.el;
-    el.x = snapPos(w.x); el.y = snapPos(w.y);
+    const sp = snapElPos(el, w.x, w.y);
+    el.x = sp.x; el.y = sp.y;
     state.elements.push(el);
     state.selection = { kind: 'element', id: el.id };
     const type = el.type;
-    placing = e.shiftKey ? { el: createElement(type), pos: { x: snapPos(w.x), y: snapPos(w.y) } } : null;
+    placing = e.shiftKey ? { el: createElement(type), pos: { x: sp.x, y: sp.y } } : null;
     if (!placing) { state.tool = 'select'; setStatus(''); notifyTool(); }
     changed(); onSelectionChange();
     return;
@@ -452,6 +473,15 @@ function onDown(e) {
     const p = { x: snapPos(w.x), y: snapPos(w.y) };
     const prev = drawing.pts[drawing.pts.length - 1];
     if (!prev || Math.hypot(p.x - prev.x, p.y - prev.y) > 1e-6) drawing.pts.push(p);
+    // manual double-click detection: two clicks close in time and screen
+    // position finish the drawing even if the browser never fires a native
+    // 'dblclick' for this input path (see lastBeamClick declaration above)
+    const now = performance.now();
+    const isDoubleClick = lastBeamClick
+      && now - lastBeamClick.t < 450
+      && Math.hypot(e.clientX - lastBeamClick.x, e.clientY - lastBeamClick.y) < 8;
+    lastBeamClick = { t: now, x: e.clientX, y: e.clientY };
+    if (isDoubleClick) { lastBeamClick = null; finishBeam(); return; }
     renderAll();
     return;
   }
@@ -539,7 +569,7 @@ function onMove(e) {
   if (statusEl && !drag && !placing && state.tool === 'select') {
     statusEl.textContent = `x ${Math.round(w.x)} mm,  y ${Math.round(w.y)} mm`;
   }
-  if (placing) { placing.pos = { x: snapPos(w.x), y: snapPos(w.y) }; renderElements(); return; }
+  if (placing) { placing.pos = snapElPos(placing.el, w.x, w.y); renderElements(); return; }
   if (drawing) { drawing.cursor = { x: snapPos(w.x), y: snapPos(w.y) }; renderManual(); return; }
   if (!drag) return;
 
@@ -548,7 +578,7 @@ function onMove(e) {
     state.view.y = drag.vy + (e.clientY - drag.sy);
     renderAll();
   } else if (drag.mode === 'move') {
-    const x = snapPos(w.x + drag.ox), y = snapPos(w.y + drag.oy);
+    const { x, y } = snapElPos(drag.el, w.x + drag.ox, w.y + drag.oy);
     if (x === drag.el.x && y === drag.el.y) return;
     if (!drag.moved) { pushUndo(); drag.moved = true; }
     drag.el.x = x;
