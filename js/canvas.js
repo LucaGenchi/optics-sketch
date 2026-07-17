@@ -2,9 +2,9 @@
 // element placement, manual beam drawing/editing).
 
 import { state, changed, pushUndo, findSelected } from './state.js';
-import { registry, getSize, createElement, labelSVG } from './elements.js';
+import { registry, getSize, getVisualBounds, createElement, labelSVG } from './elements.js';
 import { traceAll } from './raytrace.js';
-import { toLocal, toWorld, distToSegment, esc, manualBeamSVG } from './util.js';
+import { toLocal, toWorld, distToSegment, distinctPoints, manualBeamSVG } from './util.js';
 
 let svg, viewport, gridLayer, beamLayer, manualLayer, elementLayer, overlayLayer;
 let statusEl;
@@ -250,6 +250,7 @@ let placing = null;  // {el, pos}
 let spaceDown = false;
 
 export function startPlacing(type) {
+  drawing = null;
   placing = { el: createElement(type), pos: null };
   state.tool = 'place:' + type;
   setStatus(`Placing ${registry[type].label} — click to drop, Esc to cancel, R to rotate`);
@@ -257,6 +258,7 @@ export function startPlacing(type) {
 }
 
 export function startBeamTool(kind = 'beam') {
+  placing = null;
   state.tool = 'beam';
   drawing = { pts: [], cursor: null, kindType: kind };
   setStatus((kind === 'fiber' ? 'Fiber' : 'Beam') + ' tool — click waypoints, double-click / Enter to finish, Esc to cancel');
@@ -272,20 +274,24 @@ export function cancelTool() {
 
 export function isPlacing() { return !!placing; }
 export function rotatePlacing(deg) {
-  if (placing) { placing.el.rot = ((placing.el.rot || 0) + deg) % 360; renderAll(); }
+  if (placing) {
+    placing.el.rot = ((((placing.el.rot || 0) + deg) % 360) + 360) % 360;
+    renderAll();
+  }
 }
 
 export function finishBeam() {
-  if (drawing && drawing.pts.length >= 2) {
+  const pts = distinctPoints(drawing?.pts);
+  if (drawing && pts.length >= 2) {
     pushUndo();
     const isFiber = drawing.kindType === 'fiber';
     const beam = isFiber
       ? {
-        id: 'b' + Math.random().toString(36).slice(2, 9), kind: 'fiber', pts: drawing.pts, color: '#e8a800', width: 4, propagate: false,
+        id: 'b' + Math.random().toString(36).slice(2, 9), kind: 'fiber', pts, color: '#e8a800', width: 4, propagate: false,
         out0: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
         out1: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
       }
-      : { id: 'b' + Math.random().toString(36).slice(2, 9), kind: 'beam', pts: drawing.pts, color: '#e02020', width: 2, dash: false, arrow: true };
+      : { id: 'b' + Math.random().toString(36).slice(2, 9), kind: 'beam', pts, color: '#e02020', width: 2, dash: false, arrow: true };
     state.beams.push(beam);
     state.selection = { kind: 'beam', id: beam.id };
     drawing = null; state.tool = 'select';
@@ -302,14 +308,21 @@ function bindPointer() {
   svg.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
   svg.addEventListener('dblclick', e => {
     if (state.tool === 'beam' && drawing) { e.preventDefault(); finishBeam(); }
   });
-  window.addEventListener('keydown', e => { if (e.code === 'Space' && e.target === document.body) { spaceDown = true; svg.style.cursor = 'grab'; e.preventDefault(); } });
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space' && (e.target === document.body || e.target === svg)) {
+      spaceDown = true; svg.style.cursor = 'grab'; e.preventDefault();
+    }
+  });
   window.addEventListener('keyup', e => { if (e.code === 'Space') { spaceDown = false; svg.style.cursor = ''; } });
+  window.addEventListener('blur', () => { spaceDown = false; svg.style.cursor = ''; });
 }
 
 function onDown(e) {
+  svg.focus({ preventScroll: true });
   if (e.button === 1 || spaceDown) {
     drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: state.view.x, vy: state.view.y };
     svg.setPointerCapture(e.pointerId);
@@ -325,14 +338,16 @@ function onDown(e) {
     state.elements.push(el);
     state.selection = { kind: 'element', id: el.id };
     const type = el.type;
-    placing = e.shiftKey ? { el: createElement(type), pos: { x: w.x, y: w.y } } : null;
+    placing = e.shiftKey ? { el: createElement(type), pos: { x: snapPos(w.x), y: snapPos(w.y) } } : null;
     if (!placing) { state.tool = 'select'; setStatus(''); }
     changed(); onSelectionChange();
     return;
   }
 
   if (state.tool === 'beam') {
-    drawing.pts.push({ x: snapPos(w.x), y: snapPos(w.y) });
+    const p = { x: snapPos(w.x), y: snapPos(w.y) };
+    const prev = drawing.pts[drawing.pts.length - 1];
+    if (!prev || Math.hypot(p.x - prev.x, p.y - prev.y) > 1e-6) drawing.pts.push(p);
     renderAll();
     return;
   }
@@ -380,16 +395,14 @@ function onDown(e) {
   const sel = findSelected();
   // rotation handle?
   if (hitRotHandle(sel, w)) {
-    pushUndo();
-    drag = { mode: 'rotate', el: sel };
+    drag = { mode: 'rotate', el: sel, moved: false };
     svg.setPointerCapture(e.pointerId);
     return;
   }
   // beam vertex?
   const vi = hitVertex(sel, w);
   if (vi >= 0) {
-    pushUndo();
-    drag = { mode: 'vertex', beam: sel, i: vi };
+    drag = { mode: 'vertex', beam: sel, i: vi, moved: false };
     svg.setPointerCapture(e.pointerId);
     return;
   }
@@ -431,28 +444,43 @@ function onMove(e) {
     state.view.y = drag.vy + (e.clientY - drag.sy);
     renderAll();
   } else if (drag.mode === 'move') {
+    const x = snapPos(w.x + drag.ox), y = snapPos(w.y + drag.oy);
+    if (x === drag.el.x && y === drag.el.y) return;
     if (!drag.moved) { pushUndo(); drag.moved = true; }
-    drag.el.x = snapPos(w.x + drag.ox);
-    drag.el.y = snapPos(w.y + drag.oy);
+    drag.el.x = x;
+    drag.el.y = y;
     renderAll();
   } else if (drag.mode === 'rotate') {
     let a = Math.atan2(w.y - drag.el.y, w.x - drag.el.x) * 180 / Math.PI + 90;
     if (!e.shiftKey) a = Math.round(a / 5) * 5;
-    drag.el.rot = ((a % 360) + 360) % 360;
+    a = ((a % 360) + 360) % 360;
+    if (a === drag.el.rot) return;
+    if (!drag.moved) { pushUndo(); drag.moved = true; }
+    drag.el.rot = a;
     renderAll();
   } else if (drag.mode === 'marquee') {
     drag.x1 = w.x; drag.y1 = w.y;
     renderAll();
   } else if (drag.mode === 'movemulti') {
-    if (!drag.moved) { pushUndo(); drag.moved = true; }
     const dx = snapPos(w.x - drag.sx), dy = snapPos(w.y - drag.sy);
+    if (dx === drag.dx && dy === drag.dy) return;
+    if (!drag.moved && dx === 0 && dy === 0) return;
+    if (!drag.moved) { pushUndo(); drag.moved = true; }
+    drag.dx = dx; drag.dy = dy;
     for (const it of drag.items) { it.el.x = it.x0 + dx; it.el.y = it.y0 + dy; }
     for (const it of drag.bitems) {
       it.b.pts.forEach((p, i) => { p.x = it.pts0[i].x + dx; p.y = it.pts0[i].y + dy; });
     }
     renderAll();
   } else if (drag.mode === 'vertex') {
-    drag.beam.pts[drag.i] = { x: snapPos(w.x), y: snapPos(w.y) };
+    const p = { x: snapPos(w.x), y: snapPos(w.y) };
+    const old = drag.beam.pts[drag.i];
+    if (p.x === old.x && p.y === old.y) return;
+    const before = drag.beam.pts[drag.i - 1], after = drag.beam.pts[drag.i + 1];
+    if ((before && Math.hypot(p.x - before.x, p.y - before.y) <= 1e-6)
+      || (after && Math.hypot(p.x - after.x, p.y - after.y) <= 1e-6)) return;
+    if (!drag.moved) { pushUndo(); drag.moved = true; }
+    drag.beam.pts[drag.i] = p;
     renderAll();
   } else if (drag.mode === 'movebeam') {
     const dx = w.x - drag.lx, dy = w.y - drag.ly;
@@ -467,6 +495,13 @@ function onMove(e) {
 
 function onUp(e) {
   if (!drag) return;
+  if (e.type === 'pointercancel') {
+    const wasChange = drag.moved === true && ['move', 'rotate', 'vertex', 'movebeam', 'movemulti'].includes(drag.mode);
+    drag = null;
+    renderAll();
+    if (wasChange) { changed(); onSelectionChange(); }
+    return;
+  }
   if (drag.mode === 'marquee') {
     const x0 = Math.min(drag.x0, drag.x1), x1 = Math.max(drag.x0, drag.x1);
     const y0 = Math.min(drag.y0, drag.y1), y1 = Math.max(drag.y0, drag.y1);
@@ -480,7 +515,7 @@ function onUp(e) {
     renderAll(); onSelectionChange();
     return;
   }
-  const wasChange = ['move', 'rotate', 'vertex', 'movebeam', 'movemulti'].includes(drag.mode);
+  const wasChange = drag.moved === true && ['move', 'rotate', 'vertex', 'movebeam', 'movemulti'].includes(drag.mode);
   drag = null;
   if (wasChange) { changed(); onSelectionChange(); }
 }
@@ -522,9 +557,8 @@ export function zoomFit() {
   if (rect.width < 50 || rect.height < 50) { requestAnimationFrame(zoomFit); return; }
   const pts = [];
   for (const el of state.elements) {
-    const sz = getSize(el);
-    const rmax = Math.hypot(sz.w, sz.h) / 2;
-    pts.push({ x: el.x - rmax, y: el.y - rmax }, { x: el.x + rmax, y: el.y + rmax });
+    const b = getVisualBounds(el);
+    if (b) pts.push({ x: b.x0, y: b.y0 }, { x: b.x1, y: b.y1 });
   }
   for (const b of state.beams) pts.push(...b.pts);
   if (!pts.length) { state.view = { x: 60, y: 40, z: 1 }; renderAll(); return; }

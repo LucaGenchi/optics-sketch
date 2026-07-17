@@ -32,9 +32,22 @@ export function distToSegment(p, a, b) {
   return len(sub(p, add(a, mul(ab, t))));
 }
 
+// Remove consecutive duplicate vertices. Double-click completion naturally
+// produces a repeated final pointer event; zero-length fiber end segments have
+// no direction and must not reach the ray tracer.
+export function distinctPoints(pts, epsilon = 1e-6) {
+  const out = [];
+  for (const p of pts || []) {
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    const prev = out[out.length - 1];
+    if (!prev || Math.hypot(p.x - prev.x, p.y - prev.y) > epsilon) out.push({ x: p.x, y: p.y });
+  }
+  return out;
+}
+
 // Approximate visible-spectrum color (Bruton), with sensible UV / IR fallbacks.
 export function wavelengthToColor(nm) {
-  if (!isFinite(nm)) return '#e02020';
+  if (!Number.isFinite(nm)) return '#e02020';
   if (nm < 380) return '#8b00d4';           // UV
   if (nm > 780) return nm > 1400 ? '#6e3b3b' : '#8b1a1a'; // IR / far IR
   let r = 0, g = 0, b = 0;

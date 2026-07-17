@@ -5,7 +5,7 @@
 // Surface kinds handled by the tracer: mirror, lens, cmirror, dichroic, filter,
 // split, grating, absorb, transmit (data may change wavelength / deflect).
 
-import { esc, wavelengthToColor } from './util.js';
+import { esc, toWorld, wavelengthToColor } from './util.js';
 import { uid } from './util.js';
 import { probeAt } from './raytrace.js';
 
@@ -39,6 +39,7 @@ function boxSVG(w, h, fill, stroke, text, textFill, flip) {
 
 function hatch(x, y1, y2, side, n) {
   // decorative hatching behind mirror-like surfaces
+  if (!Number.isFinite(n) || n < 1 || y2 <= y1) return '';
   let s = '';
   const step = (y2 - y1) / n;
   for (let i = 0; i <= n; i++) {
@@ -172,9 +173,10 @@ function sampleSurfaces(el, h) {
 
 // lens outline at x=cx: biconvex for f>=0, biconcave for f<0
 function lensShape(cx, h, f) {
+  const inset = Math.min(10, h * 0.65);
   const d = f >= 0
     ? `M ${cx},${-h} Q ${cx + 9},0 ${cx},${h} Q ${cx - 9},0 ${cx},${-h} Z`
-    : `M ${cx - 6},${-h} Q ${cx},${-h + 10} ${cx + 6},${-h} L ${cx + 6},${h} Q ${cx},${h - 10} ${cx - 6},${h} Z`;
+    : `M ${cx - 6},${-h} Q ${cx},${-h + inset} ${cx + 6},${-h} L ${cx + 6},${h} Q ${cx},${h - inset} ${cx - 6},${h} Z`;
   return `<path d="${d}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
 }
 
@@ -621,7 +623,7 @@ export const registry = {
     },
     surfaces(el) {
       const L = el.params.length / 2, p = el.params;
-      const orders = String(p.orders).split(',').map(s => parseInt(s.trim(), 10)).filter(n => isFinite(n));
+      const orders = [...new Set(String(p.orders).split(',').map(s => parseInt(s.trim(), 10)).filter(n => Number.isFinite(n)))].slice(0, 21);
       return [{ x1: 0, y1: -L, x2: 0, y2: L, kind: 'grating', data: { d: 1e6 / p.lines, orders: orders.length ? orders : [1], transmissive: p.transmissive } }];
     },
   },
@@ -634,12 +636,14 @@ export const registry = {
     ],
     size_: el => ({ w: 10, h: el.params.length + 6 }),
     svg(el) {
-      const L = el.params.length / 2, g = el.params.gap / 2;
+      const L = el.params.length / 2, g = Math.min(L, el.params.gap / 2);
+      if (g >= L) return '';
       return `<rect x="-2.5" y="${-L}" width="5" height="${L - g}" fill="#333"/>` +
         `<rect x="-2.5" y="${g}" width="5" height="${L - g}" fill="#333"/>`;
     },
     surfaces(el) {
-      const L = el.params.length / 2, g = el.params.gap / 2;
+      const L = el.params.length / 2, g = Math.min(L, el.params.gap / 2);
+      if (g >= L) return [];
       return [
         { x1: 0, y1: -L, x2: 0, y2: -g, kind: 'absorb' },
         { x1: 0, y1: g, x2: 0, y2: L, kind: 'absorb' },
@@ -1036,7 +1040,10 @@ export const registry = {
   },
 
   arrowann: {
-    label: 'Arrow', category: 'Annotations', size: el => ({ w: el.params.len + 8, h: 20 }),
+    label: 'Arrow', category: 'Annotations', size: el => ({
+      w: el.params.len + 8,
+      h: Math.max(20, 2 * (3 + 1.5 * el.params.width) + 4),
+    }),
     params: [
       { key: 'len', label: 'Length (mm)', type: 'number', min: 10, max: 400, step: 5, def: 60 },
       { key: 'width', label: 'Line width', type: 'number', min: 0.5, max: 8, step: 0.5, def: 2 },
@@ -1044,7 +1051,7 @@ export const registry = {
     ],
     svg(el) {
       const p = el.params, L = p.len / 2, w = p.width;
-      const hl = 6 + 3 * w, hw = 3 + 1.5 * w;
+      const hl = Math.min(p.len, 6 + 3 * w), hw = 3 + 1.5 * w;
       return `<line x1="${-L}" y1="0" x2="${(L - hl + 1).toFixed(1)}" y2="0" stroke="${p.fill}" stroke-width="${w}" stroke-linecap="round"/>` +
         `<path d="M ${L},0 L ${L - hl},${-hw} L ${L - hl},${hw} Z" fill="${p.fill}"/>`;
     },
@@ -1132,6 +1139,41 @@ export function getSize(el) {
   if (d.size_ && typeof d.size_ === 'function') return d.size_(el);
   if (typeof d.size === 'function') return d.size(el);
   return d.size;
+}
+
+// Axis-aligned world bounds for fitting/export. This includes common labels
+// and the probe's readout card, which extend beyond the element hit box.
+export function getVisualBounds(el, { includeLabel = true } = {}) {
+  const d = registry[el.type];
+  if (!d) return null;
+  const sz = getSize(el);
+  const a = (el.rot || 0) * Math.PI / 180;
+  const ex = (Math.abs(sz.w * Math.cos(a)) + Math.abs(sz.h * Math.sin(a))) / 2;
+  const ey = (Math.abs(sz.w * Math.sin(a)) + Math.abs(sz.h * Math.cos(a))) / 2;
+  let x0 = el.x - ex, x1 = el.x + ex, y0 = el.y - ey, y1 = el.y + ey;
+
+  if (el.type === 'probe') {
+    const corners = [[-10, -75], [160, -75], [-10, 15], [160, 15]].map(([x, y]) => toWorld(el, x, y));
+    x0 = Math.min(x0, ...corners.map(p => p.x)); x1 = Math.max(x1, ...corners.map(p => p.x));
+    y0 = Math.min(y0, ...corners.map(p => p.y)); y1 = Math.max(y1, ...corners.map(p => p.y));
+  }
+
+  if (includeLabel && el.showLabel && el.label) {
+    const width = Math.max(8, String(el.label).length * 6.2);
+    const pos = el.labelPos || 'b';
+    if (pos === 'b') {
+      const y = el.y + ey + 13;
+      x0 = Math.min(x0, el.x - width / 2); x1 = Math.max(x1, el.x + width / 2); y1 = Math.max(y1, y + 3);
+    } else if (pos === 't') {
+      const y = el.y - ey - 7;
+      x0 = Math.min(x0, el.x - width / 2); x1 = Math.max(x1, el.x + width / 2); y0 = Math.min(y0, y - 11);
+    } else if (pos === 'l') {
+      x0 = Math.min(x0, el.x - ex - 7 - width); y0 = Math.min(y0, el.y - 7); y1 = Math.max(y1, el.y + 7);
+    } else {
+      x1 = Math.max(x1, el.x + ex + 7 + width); y0 = Math.min(y0, el.y - 7); y1 = Math.max(y1, el.y + 7);
+    }
+  }
+  return { x0, y0, x1, y1 };
 }
 
 // element label, drawn OUTSIDE the rotated group: always upright, positioned

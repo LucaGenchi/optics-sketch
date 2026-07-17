@@ -1,5 +1,7 @@
 // App state, undo/redo, autosave.
 
+import { distinctPoints } from './util.js';
+
 export const state = {
   elements: [],   // optical elements
   beams: [],      // manual beams: {id, kind:'beam', pts:[{x,y}], color, width, dash, arrow}
@@ -14,11 +16,141 @@ export const state = {
 const undoStack = [], redoStack = [];
 const listeners = [];
 const AUTOSAVE_KEY = 'optics2d-autosave-v1';
+const COLOR = /^#[0-9a-f]{6}$/i;
+
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+const finite = v => typeof v === 'number' && Number.isFinite(v);
+const record = v => v && typeof v === 'object' && !Array.isArray(v);
+
+function freshId(prefix, candidate, used) {
+  let id = typeof candidate === 'string' && candidate ? candidate : '';
+  if (!id || used.has(id)) {
+    do { id = prefix + Math.random().toString(36).slice(2, 9); } while (used.has(id));
+  }
+  used.add(id);
+  return id;
+}
+
+function normalizeLayers(value) {
+  if (!Array.isArray(value)) return [];
+  const types = new Set(['lensarray', 'grating', 'steer', 'speckle']);
+  return value.slice(0, 4).filter(record).map(raw => {
+    const type = types.has(raw.type) ? raw.type : 'lensarray';
+    const n = finite(raw.n) ? raw.n : 3;
+    const f = finite(raw.f) ? raw.f : 50;
+    const lines = finite(raw.lines) ? raw.lines : 600;
+    const angle = finite(raw.angle) ? raw.angle : 5;
+    const div = finite(raw.div) ? raw.div : 8;
+    return {
+      type,
+      n: Math.round(clamp(n, 1, 8)),
+      f: clamp(f, -3000, 3000),
+      lines: clamp(lines, 10, 3600),
+      orders: typeof raw.orders === 'string' ? raw.orders.slice(0, 200) : '1',
+      angle: clamp(angle, -360, 360),
+      div: clamp(div, 0.5, 40),
+    };
+  });
+}
+
+function normalizeParam(value, spec) {
+  if (spec.type === 'layers') return normalizeLayers(value);
+  if (spec.type === 'checkbox') return typeof value === 'boolean' ? value : !!spec.def;
+  if (spec.type === 'color') return typeof value === 'string' && COLOR.test(value) ? value : spec.def;
+  if (spec.type === 'text') {
+    const text = typeof value === 'string' ? value : String(spec.def ?? '');
+    return spec.key === 'orders' ? text.slice(0, 200) : text;
+  }
+  if (spec.type === 'select') {
+    return spec.options.some(([option]) => option === value) ? value : spec.def;
+  }
+  if (spec.type === 'number' || spec.type === 'optsize') {
+    let n = finite(value) ? value : spec.def;
+    if (!finite(n)) n = 0;
+    if (spec.negative) {
+      n = clamp(Math.abs(n), spec.min ?? 0, spec.max ?? Number.MAX_SAFE_INTEGER);
+      return -n;
+    }
+    const lo = spec.type === 'optsize' ? 1 : (spec.min ?? -Number.MAX_SAFE_INTEGER);
+    const hi = spec.type === 'optsize' ? 500 : (spec.max ?? Number.MAX_SAFE_INTEGER);
+    return clamp(n, lo, hi);
+  }
+  return value ?? spec.def;
+}
+
+function normalizeElement(raw, definitions, used) {
+  if (!record(raw) || typeof raw.type !== 'string') throw new Error('Sketch contains an invalid element');
+  const def = definitions && Object.hasOwn(definitions, raw.type) ? definitions[raw.type] : null;
+  if (definitions && !def) throw new Error(`Sketch uses an unknown element type: ${raw.type}`);
+  if (!finite(raw.x) || !finite(raw.y)) throw new Error(`Element ${raw.type} has invalid coordinates`);
+  const params = {};
+  if (def) {
+    for (const spec of def.params || []) params[spec.key] = normalizeParam(raw.params?.[spec.key], spec);
+  } else {
+    if (!record(raw.params)) throw new Error(`Element ${raw.type} has invalid parameters`);
+    Object.assign(params, raw.params);
+  }
+  // Preserve the old sample/stage pass/block convention while migrating it.
+  if ((raw.type === 'sample' || raw.type === 'stage') && (raw.params?.mode === 'trans' || raw.params?.mode === 'block')) {
+    params.mode = 'none';
+    params.transmitExc = raw.params.mode === 'trans';
+  }
+  const rot = finite(raw.rot) ? ((raw.rot % 360) + 360) % 360 : 0;
+  return {
+    id: freshId('e', raw.id, used), type: raw.type, x: raw.x, y: raw.y, rot,
+    label: typeof raw.label === 'string' ? raw.label : '',
+    showLabel: raw.showLabel === true,
+    ...(raw.labelPos && ['b', 't', 'l', 'r'].includes(raw.labelPos) ? { labelPos: raw.labelPos } : {}),
+    params,
+  };
+}
+
+function normalizeFiberOutput(raw, legacy = {}) {
+  raw = record(raw) ? raw : legacy;
+  return {
+    mode: raw.mode === 'focus' ? 'focus' : 'diverge',
+    na: clamp(finite(raw.na) ? raw.na : 0.12, 0.01, 0.95),
+    focal: clamp(finite(raw.focal) ? raw.focal : 20, 2, 500),
+    dia: clamp(finite(raw.dia) ? raw.dia : 6, 1, 30),
+  };
+}
+
+function normalizeBeam(raw, used) {
+  if (!record(raw)) throw new Error('Sketch contains an invalid manual beam');
+  const kind = raw.kind ?? 'beam';
+  if (kind !== 'beam' && kind !== 'fiber') throw new Error(`Unknown manual beam type: ${kind}`);
+  const pts = distinctPoints(raw.pts);
+  if (pts.length < 2) throw new Error(`${kind === 'fiber' ? 'Fiber' : 'Manual beam'} needs at least two distinct points`);
+  const base = {
+    id: freshId('b', raw.id, used), kind, pts,
+    color: typeof raw.color === 'string' && COLOR.test(raw.color) ? raw.color : (kind === 'fiber' ? '#e8a800' : '#e02020'),
+    width: clamp(finite(raw.width) ? raw.width : (kind === 'fiber' ? 4 : 2), 0.5, 20),
+  };
+  if (kind === 'fiber') {
+    const legacy = { mode: raw.outMode, na: raw.na, focal: raw.focal, dia: raw.outDia };
+    return { ...base, propagate: raw.propagate === true, out0: normalizeFiberOutput(raw.out0, legacy), out1: normalizeFiberOutput(raw.out1, legacy) };
+  }
+  return { ...base, dash: raw.dash === true, arrow: raw.arrow !== false };
+}
+
+export function parseSketch(text, definitions = null) {
+  const d = typeof text === 'string' ? JSON.parse(text) : text;
+  if (!record(d) || !Array.isArray(d.elements) || (d.beams !== undefined && !Array.isArray(d.beams))) {
+    throw new Error('Not a valid optics sketch file');
+  }
+  if (d.app !== undefined && d.app !== 'optics2d') throw new Error('Not an Optics Sketch file');
+  if (d.version !== undefined && d.version !== 1) throw new Error(`Unsupported sketch version: ${d.version}`);
+  const used = new Set();
+  return {
+    elements: d.elements.map(el => normalizeElement(el, definitions, used)),
+    beams: (d.beams || []).map(beam => normalizeBeam(beam, used)),
+  };
+}
 
 export function onChange(fn) { listeners.push(fn); }
 
 export function changed() {
-  try { localStorage.setItem(AUTOSAVE_KEY, serialize()); } catch (e) { /* ignore */ }
+  try { localStorage.setItem(AUTOSAVE_KEY, serialize()); } catch (_) { /* ignore */ }
   for (const fn of listeners) fn();
 }
 
@@ -31,6 +163,9 @@ export function pushUndo() {
   if (undoStack.length > 100) undoStack.shift();
   redoStack.length = 0;
 }
+
+export const canUndo = () => undoStack.length > 0;
+export const canRedo = () => redoStack.length > 0;
 
 function restore(snap) {
   const d = JSON.parse(snap);
@@ -65,20 +200,31 @@ export function serialize() {
   return JSON.stringify({ app: 'optics2d', version: 1, elements: state.elements, beams: state.beams }, null, 1);
 }
 
-export function deserialize(text) {
-  const d = JSON.parse(text);
-  if (!d || !Array.isArray(d.elements)) throw new Error('Not a valid optics sketch file');
-  state.elements = d.elements;
-  state.beams = d.beams || [];
+export function replaceScene(scene, { resetHistory = false } = {}) {
+  state.elements = scene.elements;
+  state.beams = scene.beams;
   state.selection = null;
-  undoStack.length = 0; redoStack.length = 0;
+  if (resetHistory) { undoStack.length = 0; redoStack.length = 0; }
   changed();
 }
 
-export function loadAutosave() {
+export function deserialize(text, { resetHistory = true, definitions = null } = {}) {
+  const scene = parseSketch(text, definitions);
+  replaceScene(scene, { resetHistory });
+  return scene;
+}
+
+export function loadAutosave(definitions = null) {
   try {
     const t = localStorage.getItem(AUTOSAVE_KEY);
-    if (t) { const d = JSON.parse(t); state.elements = d.elements || []; state.beams = d.beams || []; return true; }
-  } catch (e) { /* ignore */ }
+    if (t) {
+      const scene = parseSketch(t, definitions);
+      state.elements = scene.elements; state.beams = scene.beams;
+      undoStack.length = 0; redoStack.length = 0;
+      return true;
+    }
+  } catch (_) {
+    try { localStorage.removeItem(AUTOSAVE_KEY); } catch (_) { /* ignore */ }
+  }
   return false;
 }

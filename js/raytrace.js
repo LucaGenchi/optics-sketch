@@ -24,6 +24,18 @@ export function probeAt(x, y, tol = 16) {
 
 const MAXLEN = 6000, MAX_DEPTH = 60, MIN_INT = 0.02;
 
+function fiberEndDirection(pts, end, outward = false) {
+  const j = end === 0 ? 0 : pts.length - 1;
+  const step = end === 0 ? 1 : -1;
+  const e = pts[j];
+  for (let i = j + step; i >= 0 && i < pts.length; i += step) {
+    const q = pts[i];
+    const v = outward ? sub(e, q) : sub(q, e);
+    if (Math.hypot(v.x, v.y) > 1e-6) return norm(v);
+  }
+  return null;
+}
+
 function buildSurfaces(elements, beams) {
   const list = [];
   let sid = 0;
@@ -45,8 +57,8 @@ function buildSurfaces(elements, beams) {
     const W = (b.width || 4) + 6;
     for (const end of [0, 1]) {
       const e = b.pts[end === 0 ? 0 : b.pts.length - 1];
-      const q = b.pts[end === 0 ? 1 : b.pts.length - 2];
-      const dir = norm(sub(q, e)); // into the cable
+      const dir = fiberEndDirection(b.pts, end); // into the cable
+      if (!dir) continue;
       const pn = perp(dir);
       const e2 = add(e, mul(dir, 15));
       const c1 = add(e, mul(pn, W / 2)), c2 = add(e, mul(pn, -W / 2));
@@ -67,8 +79,9 @@ function fiberEmissionRays(c) {
   const b = c.beam, pts = b.pts;
   const outEnd = c.end === 0 ? 1 : 0;
   const j = outEnd === 0 ? 0 : pts.length - 1;
-  const e = pts[j], q = pts[j === 0 ? 1 : j - 1];
-  const dir = norm(sub(e, q));       // out of the connector
+  const e = pts[j];
+  const dir = fiberEndDirection(pts, outEnd, true); // out of the connector
+  if (!dir) return [];
   const o = add(e, mul(dir, 2));
   const cfg = b['out' + outEnd] || { mode: b.outMode || 'diverge', na: b.na, focal: b.focal, dia: b.outDia };
   const K = 9, rays = [];
@@ -195,8 +208,6 @@ function wlSamples(ray) {
   const lo = ray.wl - ray.bw / 2, hi = ray.wl + ray.bw / 2;
   return Array.from({ length: K }, (_, i) => lo + (hi - lo) * i / (K - 1));
 }
-
-const SPECTRUM = t => wavelengthToColor(430 + 250 * Math.min(1, Math.max(0, t)));
 
 // thin-lens (paraxial) bend; also used for curved mirrors after reflection.
 // hc offsets the lens center along the surface (for lenslet arrays).
@@ -436,7 +447,7 @@ function interact(ray, hit) {
             // only pair up within the same lenslet
             next.push({ ...r, d: lensBend(r.d, hit.p, s, ly.f, hc), tag: r.tag + 'L' + idx });
           } else if (ly.type === 'grating') {
-            const parsed = String(ly.orders ?? '1').split(',').map(v => parseInt(v.trim(), 10)).filter(m => isFinite(m));
+            const parsed = [...new Set(String(ly.orders ?? '1').split(',').map(v => parseInt(v.trim(), 10)).filter(m => Number.isFinite(m)))].slice(0, 21);
             const orders = parsed.length ? parsed : [1];
             const gd = 1e6 / (ly.lines || 600);
             const si = dot(r.d, t);
@@ -794,7 +805,7 @@ export function traceAll(elements, beams = []) {
       const dp2 = sub(rB.p, rA.p);
       const tA = (dp2.x * rB.d.y - dp2.y * rB.d.x) / den2;
       const pt = add(rA.p, mul(rA.d, tA));
-      return isFinite(pt.x) && isFinite(pt.y) ? pt : null;
+      return Number.isFinite(pt.x) && Number.isFinite(pt.y) ? pt : null;
     };
 
     const imgBase = imagePoint(p0);
@@ -803,7 +814,7 @@ export function traceAll(elements, beams = []) {
     if (Math.hypot(imgBase.x - p0.x, imgBase.y - p0.y) > MAXLEN) continue;
 
     const m = dot(sub(imgTip, imgBase), v) / h0;
-    if (!isFinite(m) || Math.abs(m) < 1e-6) continue;
+    if (!Number.isFinite(m) || Math.abs(m) < 1e-6) continue;
     const color = pp.autoColor === false && pp.color ? pp.color : wavelengthToColor(pp.wavelength);
     // redraw the object's shape at the image plane, scaled by |m| and
     // vertically flipped when m < 0

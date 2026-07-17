@@ -1,26 +1,32 @@
 // Export the sketch as standalone SVG or PNG.
 
 import { state } from './state.js';
-import { registry, getSize, labelSVG } from './elements.js';
+import { registry, getVisualBounds, labelSVG } from './elements.js';
 import { traceAll } from './raytrace.js';
-import { download, esc, manualBeamSVG } from './util.js';
+import { download, manualBeamSVG } from './util.js';
 
 function sceneBounds() {
   const pts = [];
+  const clampPts = [];
   for (const el of state.elements) {
-    const sz = getSize(el);
-    const r = Math.hypot(sz.w, sz.h) / 2 + 20;
-    pts.push({ x: el.x - r, y: el.y - r }, { x: el.x + r, y: el.y + r });
+    const def = registry[el.type];
+    if (!def) continue;
+    const clamp = getVisualBounds(el, { includeLabel: !def.hideInExport });
+    if (!clamp) continue;
+    const bounds = [{ x: clamp.x0, y: clamp.y0 }, { x: clamp.x1, y: clamp.y1 }];
+    clampPts.push(...bounds);
+    if (!def.hideInExport) pts.push(...bounds);
   }
   for (const b of state.beams) pts.push(...b.pts);
   for (const d of traceAll(state.elements, state.beams)) {
     // beams can extend far; clamp their contribution so an unterminated ray
     // doesn't blow up the export canvas
-    for (const p of d.pts) pts.push(p);
+    if (d.pts) pts.push(...d.pts);
+    if (d.dots) pts.push(...d.dots);
   }
   if (!pts.length) return { x: 0, y: 0, w: 400, h: 300 };
   // clamp runaway rays to the element bounding box + margin
-  const elPts = pts.slice(0, state.elements.length * 2);
+  const elPts = clampPts;
   let bx0, bx1, by0, by1;
   if (elPts.length) {
     bx0 = Math.min(...elPts.map(p => p.x)) - 150; bx1 = Math.max(...elPts.map(p => p.x)) + 150;
@@ -76,7 +82,14 @@ export function exportPNG(scale = 3) {
     ctx.scale(scale, scale);
     ctx.drawImage(img, 0, 0);
     URL.revokeObjectURL(url);
-    cv.toBlob(blob => download('optical-setup.png', blob), 'image/png');
+    cv.toBlob(blob => {
+      if (blob) download('optical-setup.png', blob);
+      else alert('Could not create the PNG export. Try exporting SVG instead.');
+    }, 'image/png');
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    alert('Could not render the PNG export. Try exporting SVG instead.');
   };
   img.src = url;
 }

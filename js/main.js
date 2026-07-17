@@ -1,6 +1,6 @@
 // App bootstrap: palette, toolbar, keyboard shortcuts.
 
-import { state, changed, onChange, pushUndo, undo, redo, findSelected, serialize, deserialize, loadAutosave } from './state.js';
+import { state, changed, onChange, pushUndo, undo, redo, canUndo, canRedo, findSelected, serialize, parseSketch, replaceScene, loadAutosave } from './state.js';
 import { registry, categories, createElement } from './elements.js';
 import { initCanvas, renderAll, startPlacing, startBeamTool, cancelTool, isPlacing, rotatePlacing, finishBeam, zoomBy, zoomFit, setSelectionCallback } from './canvas.js';
 import { initInspector, renderInspector } from './inspector.js';
@@ -21,9 +21,9 @@ function buildPalette() {
       const el = createElement(type);
       const sz = typeof def.size === 'function' ? def.size(el) : (def.size_ ? def.size_(el) : def.size);
       const vb = Math.max(sz.w, sz.h) + 12;
-      h += `<div class="palitem" data-type="${type}" title="${def.label}">
+      h += `<button type="button" class="palitem" data-type="${type}" title="${def.label}">
         <svg viewBox="${-vb / 2} ${-vb / 2} ${vb} ${vb}">${def.svg(el)}</svg>
-        <span>${def.label}</span></div>`;
+        <span>${def.label}</span></button>`;
     }
     h += `</div>`;
   }
@@ -83,13 +83,20 @@ function duplicateSelected() {
     return;
   }
   const sel = findSelected();
-  if (!sel || state.selection.kind !== 'element') return;
+  if (!sel) return;
   pushUndo();
   const copy = JSON.parse(JSON.stringify(sel));
-  copy.id = newId('e');
-  copy.x += 30; copy.y += 30;
-  state.elements.push(copy);
-  state.selection = { kind: 'element', id: copy.id };
+  if (state.selection.kind === 'element') {
+    copy.id = newId('e');
+    copy.x += 30; copy.y += 30;
+    state.elements.push(copy);
+    state.selection = { kind: 'element', id: copy.id };
+  } else {
+    copy.id = newId('b');
+    for (const p of copy.pts) { p.x += 30; p.y += 30; }
+    state.beams.push(copy);
+    state.selection = { kind: 'beam', id: copy.id };
+  }
   changed();
   renderInspector();
 }
@@ -144,8 +151,8 @@ function bindKeys() {
     if (e.key === 'Enter' && state.tool === 'beam') { finishBeam(); renderInspector(); return; }
     if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); deleteSelected(); return; }
     if (e.key === 'r' || e.key === 'R') { rotateSelected(e.shiftKey ? -45 : 45); return; }
-    if (e.key === 'q') { rotateSelected(-5); return; }
-    if (e.key === 'e') { rotateSelected(5); return; }
+    if (e.key.toLowerCase() === 'q') { rotateSelected(-5); return; }
+    if (e.key.toLowerCase() === 'e') { rotateSelected(5); return; }
     const step = e.shiftKey ? 25 : 1;
     if (e.key === 'ArrowLeft') { e.preventDefault(); nudgeSelected(-step, 0); }
     if (e.key === 'ArrowRight') { e.preventDefault(); nudgeSelected(step, 0); }
@@ -176,33 +183,54 @@ function bindExamples() {
     sel.value = ''; // reset so the same example can be re-chosen later
     if (i === '') return;
     const ex = examples[+i];
-    if (state.elements.length && !confirm(`Load example “${ex.name}”? This replaces the current sketch (Undo brings it back).`)) return;
+    if (hasScene() && !confirm(`Load example “${ex.name}”? This replaces the current sketch (Undo brings it back).`)) return;
     pushUndo();
+    cancelTool();
     const scene = ex.build();
-    state.elements = scene.elements;
-    state.beams = scene.beams || [];
-    state.selection = null;
-    changed();
+    replaceScene({ elements: scene.elements, beams: scene.beams || [] });
     renderInspector();
     zoomFit();
   });
 }
 
 // ---------- toolbar ----------
+const hasScene = () => state.elements.length > 0 || state.beams.length > 0;
+
+function syncToolbar() {
+  $('btnUndo').disabled = !canUndo();
+  $('btnRedo').disabled = !canRedo();
+  for (const [id, pressed] of [['btnGrid', state.showGrid], ['btnSnap', state.snap], ['btnFocal', state.showFocal]]) {
+    const button = $(id);
+    button.classList.toggle('active', pressed);
+    button.setAttribute('aria-pressed', String(pressed));
+  }
+}
+
 function bindToolbar() {
   $('btnNew').addEventListener('click', () => {
-    if (state.elements.length && !confirm('Clear the current sketch?')) return;
+    if (!hasScene()) { cancelTool(); return; }
+    if (!confirm('Clear the current sketch? (Undo brings it back.)')) return;
     pushUndo();
+    cancelTool();
     state.elements = []; state.beams = []; state.selection = null;
     changed(); renderInspector();
   });
   $('btnOpen').addEventListener('click', () => $('fileInput').click());
-  $('fileInput').addEventListener('change', e => {
+  $('fileInput').addEventListener('change', async e => {
     const f = e.target.files[0];
     if (!f) return;
-    f.text().then(t => { deserialize(t); renderInspector(); zoomFit(); })
-      .catch(err => alert('Could not open file: ' + err.message));
-    e.target.value = '';
+    try {
+      const scene = parseSketch(await f.text(), registry);
+      if (hasScene() && !confirm(`Open “${f.name}”? This replaces the current sketch (Undo brings it back).`)) return;
+      pushUndo();
+      cancelTool();
+      replaceScene(scene);
+      renderInspector(); zoomFit();
+    } catch (err) {
+      alert('Could not open file: ' + err.message);
+    } finally {
+      e.target.value = '';
+    }
   });
   $('btnSave').addEventListener('click', () => download('optical-setup.json', serialize(), 'application/json'));
   $('btnSVG').addEventListener('click', exportSVG);
@@ -211,9 +239,9 @@ function bindToolbar() {
   $('btnRedo').addEventListener('click', () => { redo(); renderInspector(); });
   $('btnBeam').addEventListener('click', () => startBeamTool('beam'));
   $('btnFiber').addEventListener('click', () => startBeamTool('fiber'));
-  $('btnGrid').addEventListener('click', () => { state.showGrid = !state.showGrid; renderAll(); });
-  $('btnSnap').addEventListener('click', function () { state.snap = !state.snap; this.classList.toggle('active', state.snap); });
-  $('btnFocal').addEventListener('click', function () { state.showFocal = !state.showFocal; this.classList.toggle('active', state.showFocal); renderAll(); });
+  $('btnGrid').addEventListener('click', () => { state.showGrid = !state.showGrid; syncToolbar(); renderAll(); });
+  $('btnSnap').addEventListener('click', () => { state.snap = !state.snap; syncToolbar(); });
+  $('btnFocal').addEventListener('click', () => { state.showFocal = !state.showFocal; syncToolbar(); renderAll(); });
   $('btnZoomIn').addEventListener('click', () => zoomBy(1.25));
   $('btnZoomOut').addEventListener('click', () => zoomBy(0.8));
   $('btnZoomFit').addEventListener('click', zoomFit);
@@ -232,9 +260,9 @@ window.addEventListener('DOMContentLoaded', () => {
   bindExamples();
   bindKeys();
   setSelectionCallback(renderInspector);
-  onChange(renderAll);
+  onChange(() => { renderAll(); syncToolbar(); });
 
-  if (!loadAutosave()) {
+  if (!loadAutosave(registry)) {
     // starter scene: laser -> lens -> beamsplitter -> two detection arms
     const mk = (t, x, y, rot = 0, params = {}, label = '') => {
       const e = createElement(t, x, y); e.rot = rot; Object.assign(e.params, params);
@@ -254,5 +282,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   renderAll();
   renderInspector();
+  syncToolbar();
   window.addEventListener('resize', renderAll);
 });
