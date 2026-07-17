@@ -40,6 +40,7 @@ No build step — plain HTML/JS/SVG:
 
 ```bash
 node serve.mjs        # serves on http://localhost:5182
+npm test              # runs the regression suite
 ```
 
 (Any static file server works; ES modules require http(s), not file://.)

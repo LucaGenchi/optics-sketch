@@ -7,41 +7,42 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header id="toolbar">
+  <header id="toolbar" role="toolbar" aria-label="Sketch tools">
     <span class="brand">Optics&nbsp;Sketch</span>
     <span class="sep"></span>
     <select id="exampleSel" title="Load a pre-made example setup">
       <option value="">Examples…</option>
     </select>
     <span class="sep"></span>
-    <button id="btnNew" title="New sketch">New</button>
-    <button id="btnOpen" title="Open .json sketch">Open</button>
-    <button id="btnSave" title="Save sketch as .json">Save</button>
+    <button type="button" id="btnNew" title="New sketch">New</button>
+    <button type="button" id="btnOpen" title="Open .json sketch">Open</button>
+    <button type="button" id="btnSave" title="Save sketch as .json">Save</button>
     <span class="sep"></span>
-    <button id="btnUndo" title="Undo (⌘Z)">↩︎ Undo</button>
-    <button id="btnRedo" title="Redo (⇧⌘Z)">↪︎ Redo</button>
+    <button type="button" id="btnUndo" title="Undo (⌘Z)">↩︎ Undo</button>
+    <button type="button" id="btnRedo" title="Redo (⇧⌘Z)">↪︎ Redo</button>
     <span class="sep"></span>
-    <button id="btnBeam" title="Draw a manual beam: click waypoints, double-click to finish">✏️ Draw beam</button>
-    <button id="btnFiber" title="Draw an optical fiber patch cable: click waypoints, double-click to finish">〰 Fiber</button>
-    <button id="btnGrid" title="Toggle table hole grid">Grid</button>
-    <button id="btnSnap" class="active" title="Toggle snapping">Snap</button>
-    <button id="btnFocal" class="active" title="Show focal points of lenses and curved mirrors">ƒ marks</button>
+    <button type="button" id="btnBeam" title="Draw a manual beam: click waypoints, double-click to finish">✏️ Draw beam</button>
+    <button type="button" id="btnFiber" title="Draw an optical fiber patch cable: click waypoints, double-click to finish">〰 Fiber</button>
+    <button type="button" id="btnGrid" class="active" aria-pressed="true" title="Toggle table hole grid">Grid</button>
+    <button type="button" id="btnSnap" class="active" aria-pressed="true" title="Toggle snapping">Snap</button>
+    <button type="button" id="btnFocal" class="active" aria-pressed="true" title="Show focal points of lenses and curved mirrors">ƒ marks</button>
     <span class="sep"></span>
-    <button id="btnZoomOut" title="Zoom out">−</button>
-    <button id="btnZoomIn" title="Zoom in">+</button>
-    <button id="btnZoomFit" title="Fit sketch in view">Fit</button>
+    <button type="button" id="btnZoomOut" title="Zoom out">−</button>
+    <button type="button" id="btnZoomIn" title="Zoom in">+</button>
+    <button type="button" id="btnZoomFit" title="Fit sketch in view">Fit</button>
     <span class="spacer"></span>
-    <button id="btnSVG" class="primary" title="Export vector SVG">Export SVG</button>
-    <button id="btnPNG" title="Export PNG (3×)">Export PNG</button>
+    <button type="button" id="btnSVG" class="primary" title="Export vector SVG">Export SVG</button>
+    <button type="button" id="btnPNG" title="Export PNG (3×)">Export PNG</button>
     <input type="file" id="fileInput" accept=".json,application/json" hidden>
   </header>
   <main>
-    <aside id="palette"></aside>
+    <aside id="palette" aria-label="Element palette"></aside>
     <div id="canvasWrap">
-      <svg id="canvas"></svg>
+      <!-- biome-ignore lint/a11y/noNoninteractiveTabindex: this SVG is the app's interactive pointer and keyboard workspace -->
+      <svg id="canvas" role="application" aria-label="Optical setup canvas" tabindex="0"></svg>
       <div id="status"></div>
     </div>
-    <aside id="inspector"></aside>
+    <aside id="inspector" aria-label="Properties"></aside>
   </main>
   <script type="module" src="js/main.js"></script>
 </body>

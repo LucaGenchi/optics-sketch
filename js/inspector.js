@@ -10,7 +10,7 @@ let undoArmed = false; // push one undo snapshot per editing session
 export function initInspector(el) { panel = el; }
 
 function field(labelText, inputHTML) {
-  return `<div class="field"><label>${esc(labelText)}</label>${inputHTML}</div>`;
+  return `<label class="field"><span>${esc(labelText)}</span>${inputHTML}</label>`;
 }
 
 const LAYER_TYPES = [['lensarray', 'Lens array'], ['grating', 'Grating'], ['steer', 'Beam steer'], ['speckle', 'Speckle / diffuser']];
@@ -19,24 +19,24 @@ function layersHTML(layers) {
   let h = `<div class="lsechead">Optical function — overlay up to ${MAX_SHAPER_LAYERS} structures</div>`;
   layers.forEach((ly, i) => {
     h += `<div class="layer"><div class="layerrow">
-      <select data-li="${i}" data-lk="type">` +
+      <select data-li="${i}" data-lk="type" aria-label="Structure ${i + 1} type">` +
       LAYER_TYPES.map(([v, l]) => `<option value="${v}" ${v === ly.type ? 'selected' : ''}>${l}</option>`).join('') +
-      `</select><button class="layerdel" data-ldel="${i}" title="Remove this structure">✕</button></div>`;
+      `</select><button type="button" class="layerdel" data-ldel="${i}" title="Remove this structure" aria-label="Remove structure ${i + 1}">✕</button></div>`;
     if (ly.type === 'lensarray') {
       h += field('Nr. of lenses (1–8)', `<input type="number" data-li="${i}" data-lk="n" min="1" max="8" step="1" value="${ly.n}">`);
-      h += field('Focal length (mm)', `<input type="number" data-li="${i}" data-lk="f" step="5" value="${ly.f}">`);
+      h += field('Focal length (mm)', `<input type="number" data-li="${i}" data-lk="f" min="-3000" max="3000" step="5" value="${ly.f}">`);
     } else if (ly.type === 'grating') {
       h += field('Lines / mm', `<input type="number" data-li="${i}" data-lk="lines" min="10" max="3600" step="10" value="${ly.lines}">`);
-      h += field('Orders', `<input type="text" data-li="${i}" data-lk="orders" value="${esc(ly.orders)}">`);
+      h += field('Orders', `<input type="text" data-li="${i}" data-lk="orders" maxlength="200" value="${esc(ly.orders)}">`);
     } else if (ly.type === 'speckle') {
       h += field('Divergence (°)', `<input type="number" data-li="${i}" data-lk="div" min="0.5" max="40" step="0.5" value="${ly.div ?? 8}">`);
     } else {
-      h += field('Steer angle (°)', `<input type="number" data-li="${i}" data-lk="angle" step="0.5" value="${ly.angle}">`);
+      h += field('Steer angle (°)', `<input type="number" data-li="${i}" data-lk="angle" min="-360" max="360" step="0.5" value="${ly.angle}">`);
     }
     h += `</div>`;
   });
-  if (!layers.length) h += `<div class="hint">Flat surface (plain ${''}reflection). Add a structure to shape the wavefront.</div>`;
-  if (layers.length < MAX_SHAPER_LAYERS) h += `<button id="layerAdd" class="layeradd">＋ Add structure</button>`;
+  if (!layers.length) h += `<div class="hint">Flat surface (plain reflection). Add a structure to shape the wavefront.</div>`;
+  if (layers.length < MAX_SHAPER_LAYERS) h += `<button type="button" id="layerAdd" class="layeradd">＋ Add structure</button>`;
   return h;
 }
 
@@ -48,7 +48,7 @@ export function renderInspector() {
     panel.innerHTML = `<h3>${n} objects selected</h3>
       <div class="hint">Drag any selected object to move the group.<br>
       Shift-click adds or removes objects.<br>⌫ deletes all · ⌘D duplicates all.</div>
-      <div class="btnrow"><button id="inspDup">Duplicate</button><button id="inspDel" class="danger">Delete</button></div>`;
+      <div class="btnrow"><button type="button" id="inspDup">Duplicate</button><button type="button" id="inspDel" class="danger">Delete</button></div>`;
     panel.querySelector('#inspDel').addEventListener('click', () => document.dispatchEvent(new CustomEvent('optics:delete')));
     panel.querySelector('#inspDup').addEventListener('click', () => document.dispatchEvent(new CustomEvent('optics:duplicate')));
     return;
@@ -92,13 +92,13 @@ export function renderInspector() {
           h += field(p.label, `<input type="number" data-p="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${v}">`);
         }
       }
-      else if (p.type === 'text') h += field(p.label, `<input type="text" data-p="${p.key}" value="${esc(v)}">`);
+      else if (p.type === 'text') h += field(p.label, `<input type="text" data-p="${p.key}" ${p.key === 'orders' ? 'maxlength="200"' : ''} value="${esc(v)}">`);
       else if (p.type === 'checkbox') h += field(p.label, `<input type="checkbox" data-p="${p.key}" ${v ? 'checked' : ''}>`);
       else if (p.type === 'color') h += field(p.label, `<input type="color" data-p="${p.key}" value="${v}">`);
       else if (p.type === 'select') {
         h += field(p.label, `<select data-p="${p.key}">` + p.options.map(([ov, ol]) => `<option value="${ov}" ${ov === v ? 'selected' : ''}>${esc(ol)}</option>`).join('') + `</select>`);
       }
-      else if (p.type === 'layers') h += layersHTML(sel.params[p.key] || (sel.params[p.key] = []));
+      else if (p.type === 'layers') h += layersHTML(Array.isArray(sel.params[p.key]) ? sel.params[p.key] : []);
       else if (p.type === 'optsize') {
         const STD = [[12.7, '½″ (12.7 mm)'], [25.4, '1″ (25.4 mm)'], [50.8, '2″ (50.8 mm)']];
         const isStd = STD.some(([s]) => s === v);
@@ -108,7 +108,7 @@ export function renderInspector() {
         if (!isStd) h += field('↳ size (mm)', `<input type="number" data-p="${p.key}" min="1" max="500" step="0.5" value="${v}">`);
       }
     }
-    h += `<div class="btnrow"><button id="inspDup">Duplicate</button><button id="inspDel" class="danger">Delete</button></div>`;
+    h += `<div class="btnrow"><button type="button" id="inspDup">Duplicate</button><button type="button" id="inspDel" class="danger">Delete</button></div>`;
     panel.innerHTML = h;
   } else {
     const b = sel;
@@ -145,7 +145,7 @@ export function renderInspector() {
       }
     }
     h += `<div class="hint">Drag the round handles on the canvas to reshape ${isFiber ? 'the fiber' : 'the beam'}.</div>`;
-    h += `<div class="btnrow"><button id="inspDel" class="danger">Delete</button></div>`;
+    h += `<div class="btnrow"><button type="button" id="inspDup">Duplicate</button><button type="button" id="inspDel" class="danger">Delete</button></div>`;
     panel.innerHTML = h;
   }
 
@@ -163,30 +163,44 @@ export function renderInspector() {
     const s = findSelected();
     if (!s) return;
     pushUndo();
-    (s.params.layers || (s.params.layers = [])).push(newShaperLayer());
+    if (!Array.isArray(s.params.layers)) s.params.layers = [];
+    s.params.layers.push(newShaperLayer());
     changed();
     renderInspector();
   });
-  panel.querySelectorAll('[data-ldel]').forEach(btn => btn.addEventListener('click', () => {
-    const s = findSelected();
-    if (!s) return;
-    pushUndo();
-    s.params.layers.splice(+btn.dataset.ldel, 1);
-    changed();
-    renderInspector();
-  }));
+  panel.querySelectorAll('[data-ldel]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = findSelected();
+      if (!s) return;
+      pushUndo();
+      s.params.layers.splice(+btn.dataset.ldel, 1);
+      changed();
+      renderInspector();
+    });
+  });
 }
 
 function applyInput(inp, rebuild = false) {
   const sel = findSelected();
   if (!sel) return;
-  if (!undoArmed) { pushUndo(); undoArmed = true; }
   const key = inp.dataset.k, pkey = inp.dataset.p;
   let val;
   if (inp.type === 'checkbox') val = inp.checked;
-  else if (inp.type === 'number') { val = parseFloat(inp.value); if (!isFinite(val)) return; }
+  else if (inp.type === 'number') {
+    val = parseFloat(inp.value);
+    if (!Number.isFinite(val)) return;
+    const min = parseFloat(inp.min), max = parseFloat(inp.max);
+    if (Number.isFinite(min)) val = Math.max(min, val);
+    if (Number.isFinite(max)) val = Math.min(max, val);
+    if (parseFloat(inp.value) !== val) inp.value = String(val);
+  }
   else val = inp.value;
+  if (inp.maxLength > 0 && typeof val === 'string' && val.length > inp.maxLength) {
+    val = val.slice(0, inp.maxLength);
+    inp.value = val;
+  }
   if (inp.dataset.neg) val = -Math.abs(val); // − sign lives outside the box
+  if (!undoArmed) { pushUndo(); undoArmed = true; }
 
   // per-end fiber output fields
   if (inp.dataset.fend !== undefined) {
@@ -223,7 +237,7 @@ function applyInput(inp, rebuild = false) {
     return;
   }
 
-  if (key) sel[key] = val;
+  if (key) sel[key] = key === 'rot' ? ((val % 360) + 360) % 360 : val;
   else if (pkey) sel.params[pkey] = val;
   changed();
   if (rebuild && (key === 'propagate' || key === 'outMode' || key === 'showLabel')) { renderInspector(); return; }
