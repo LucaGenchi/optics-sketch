@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { registry, createElement, getElementMeta, getSize } from '../js/elements.js';
 import { examples } from '../js/examples.js';
 import { buildSVG, exportPNG, exportSVG } from '../js/export.js';
-import { detectorReading, traceAll } from '../js/raytrace.js';
+import { detectorReading, traceAll, traceScene } from '../js/raytrace.js';
+import { C_MM_PER_NS } from '../js/pulses.js';
+import { pulseTimelineHTML } from '../js/inspector.js';
 import { state } from '../js/state.js';
 import { distinctPoints } from '../js/util.js';
 
@@ -57,12 +59,44 @@ test('grating order parsing is deduplicated and bounded', () => {
 
 test('component metadata distinguishes simulated, setup-dependent, and diagram-only elements', () => {
   assert.equal(getElementMeta('lens', createElement('lens').params).tier, 'simulated');
-  assert.equal(getElementMeta('glassrod', createElement('glassrod').params).tier, 'diagram');
+  assert.equal(getElementMeta('glassrod', createElement('glassrod').params).tier, 'simulated');
+  assert.equal(getElementMeta('microscope', createElement('microscope').params).tier, 'simulated');
+  assert.equal(getElementMeta('textlabel', createElement('textlabel').params).tier, 'diagram');
   const eom = createElement('eom');
   assert.equal(getElementMeta('eom', eom.params).tier, 'configurable');
   eom.params.modulate = true;
   assert.equal(getElementMeta('eom', eom.params).tier, 'simulated');
-  assert.deepEqual(registry.microscope.surfaces(createElement('microscope')), []);
+  assert.equal(registry.glassrod.surfaces(createElement('glassrod')).length, 4);
+  assert.equal(registry.microscope.surfaces(createElement('microscope')).length, 8);
+});
+
+test('glass rods refract through their faces and return an exiting ray to air', () => {
+  const laser = createElement('laser', 0, 0);
+  const rod = createElement('glassrod', 180, 0);
+  rod.rot = 10;
+  const paths = traceAll([laser, rod]).filter(d => d.type === 'path');
+  const ray = paths.find(d => d.pts.length >= 4);
+  assert.ok(ray, 'ray records entry and exit at the rod faces');
+  const slope = (a, b) => (b.y - a.y) / (b.x - a.x);
+  assert.ok(Math.abs(slope(ray.pts[1], ray.pts[2])) > 0.01, 'ray bends inside the glass');
+  assert.ok(Math.abs(slope(ray.pts.at(-2), ray.pts.at(-1))) < 1e-6, 'parallel faces return the ray to its incident direction');
+});
+
+test('microscope assembly applies both internal lenses and blocks outside its aperture', () => {
+  const laser = createElement('laser', 0, 5);
+  const microscope = createElement('microscope', 200, 0);
+  const paths = traceAll([laser, microscope]).filter(d => d.type === 'path');
+  const ray = paths.find(d => d.pts.length >= 4);
+  assert.ok(ray, 'ray crosses objective and tube lens');
+  const middleSlope = (ray.pts[2].y - ray.pts[1].y) / (ray.pts[2].x - ray.pts[1].x);
+  const exitSlope = (ray.pts.at(-1).y - ray.pts.at(-2).y) / (ray.pts.at(-1).x - ray.pts.at(-2).x);
+  assert.ok(Math.abs(middleSlope) > 0.1, 'objective bends the off-axis ray');
+  assert.ok(Math.abs(exitSlope) < 1e-6, 'default afocal pair recollimates the ray');
+
+  laser.y = 20;
+  microscope.params.aperture = 10;
+  const blocked = traceAll([laser, microscope]).filter(d => d.type === 'path')[0];
+  assert.ok(blocked.pts.at(-1).x < 200, 'housing stops rays outside the clear aperture');
 });
 
 test('detectors report qualitative signal, spectrum, polarization, and spot span', () => {
@@ -93,6 +127,106 @@ test('detector signal follows upstream attenuation', () => {
   const detector = createElement('detector', 300, 0);
   traceAll([laser, splitter, detector]);
   assert.ok(Math.abs(detectorReading(detector.id).signal - 0.35) < 1e-9);
+});
+
+test('pulsed lasers produce optical-path tracks and physical detector arrival times', () => {
+  const laser = createElement('laser', 0, 0);
+  laser.params.temporalMode = 'pulsed';
+  laser.params.repRateMHz = 80;
+  laser.params.pulseWidthFs = 120;
+  const detector = createElement('detector', 52 + C_MM_PER_NS + 19, 0);
+  const scene = traceScene([laser, detector]);
+  assert.ok(scene.pulseTracks.length > 0);
+  assert.deepEqual(scene.pulseTracks[0].pulse, {
+    sourceId: laser.id, repRateMHz: 80, pulseWidthFs: 120, phaseNs: 0,
+  });
+  const reading = detectorReading(detector.id);
+  assert.ok(reading.pulse);
+  assert.ok(Math.abs(reading.pulse.earliestPathDelayNs - 1) < 1e-9);
+  assert.equal(reading.pulse.phaseNs, 0);
+  assert.equal(reading.pulse.mixed, false);
+});
+
+test('detectors distinguish mixed pulse trains instead of inventing one setting', () => {
+  const fast = createElement('laser', 0, 0);
+  fast.params.temporalMode = 'pulsed';
+  fast.params.repRateMHz = 80;
+  const slow = createElement('laser', 0, 0);
+  slow.params.temporalMode = 'pulsed';
+  slow.params.repRateMHz = 10;
+  slow.params.pulsePhaseNs = 2;
+  const detector = createElement('detector', 300, 0);
+  traceAll([fast, slow, detector]);
+  const pulse = detectorReading(detector.id).pulse;
+  assert.equal(pulse.sources, 2);
+  assert.equal(pulse.mixed, true);
+  assert.equal(pulse.repRateMHz, null);
+  assert.equal(pulse.phaseNs, null);
+});
+
+test('detector timeline is generated from repetition rate, phase, and path delay', () => {
+  const pulse = {
+    trains: [{ repRateMHz: 80, pulseWidthFs: 100, phaseNs: 0 }],
+    repRateMHz: 80, pulseWidthFs: 100, phaseNs: 0,
+    earliestPathDelayNs: 1,
+    arrivalSpreadPs: 0,
+  };
+  const base = pulseTimelineHTML(pulse, '#ff0000');
+  const shifted = pulseTimelineHTML({
+    ...pulse,
+    trains: [{ ...pulse.trains[0], phaseNs: 3 }],
+    phaseNs: 3,
+  }, '#ff0000');
+  const slower = pulseTimelineHTML({
+    ...pulse,
+    trains: [{ ...pulse.trains[0], repRateMHz: 10 }],
+    repRateMHz: 10,
+  }, '#ff0000');
+  assert.match(base, /37\.50 ns arrival window/);
+  assert.notEqual(base, shifted);
+  assert.notEqual(base, slower);
+  assert.doesNotMatch(base, invalidNumber);
+});
+
+test('pulsed scenes export as deterministic static SVGs without animation markup', () => {
+  const laser = createElement('laser', 0, 0);
+  laser.params.temporalMode = 'pulsed';
+  state.elements = [laser, createElement('mirror', 200, 0)];
+  state.beams = [];
+  const first = buildSVG();
+  const second = buildSVG();
+  assert.equal(first, second);
+  assert.doesNotMatch(first, /pulseLayer|requestAnimationFrame/);
+});
+
+test('fiber relaunch adds configured group delay and finite loss', () => {
+  const laser = createElement('laser', 0, 0);
+  laser.params.temporalMode = 'pulsed';
+  const fiber = {
+    id: 'timed-fiber', kind: 'fiber', pts: [{ x: 100, y: 0 }, { x: 200, y: 0 }],
+    color: '#e8a800', width: 4, propagate: true, groupIndex: 1.5, lossDbPerM: 3,
+    out0: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
+    out1: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
+  };
+  const scene = traceScene([laser], [fiber]);
+  const relaunched = scene.pulseTracks.find(track => track.opls[0] > 100);
+  assert.ok(relaunched, 'a timed track starts at the output connector');
+  assert.ok(Math.abs(relaunched.opls[0] - (48 + 150 + 2)) < 1e-9);
+  assert.ok(relaunched.intensity < 1);
+});
+
+test('glass group index adds the expected pulse arrival delay', () => {
+  const laser = createElement('laser', 0, 0);
+  laser.params.temporalMode = 'pulsed';
+  const detector = createElement('detector', 369, 0); // front face at x=350
+  traceAll([laser, detector]);
+  const airArrival = detectorReading(detector.id).pulse.earliestPathDelayNs;
+  const rod = createElement('glassrod', 180, 0);
+  rod.params.rodlen = 60;
+  rod.params.ior = 1.52;
+  traceAll([laser, rod, detector]);
+  const glassArrival = detectorReading(detector.id).pulse.earliestPathDelayNs;
+  assert.ok(Math.abs((glassArrival - airArrival) - 60 * 0.52 / C_MM_PER_NS) < 1e-9);
 });
 
 test('all built-in examples trace and export without invalid geometry', () => {

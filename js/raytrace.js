@@ -5,23 +5,47 @@
 
 import { registry, OBJ_SHAPES } from './elements.js';
 import { toWorld, rotPt, dot, sub, add, mul, norm, perp, wavelengthToColor, D2R, distToSegment } from './util.js';
+import { C_MM_PER_NS, pulseGateTransmission } from './pulses.js';
+import {
+  linearStokes, cloneStokes, retarder as applyRetarder, analyzerTransmission,
+  legacyPolarization, polarizationDescription,
+} from './polarization.js';
 
 // polylines from the most recent traceAll, kept for beam probes
 let lastPaths = [];
 let detectorHits = new Map();
+let gateTransmissionCache = new Map();
+
+function averageGateTransmission(pulse) {
+  if (!pulse?.gates?.length) return 1;
+  const key = [pulse.repRateMHz, pulse.phaseNs, ...pulse.gates.flatMap(g => [
+    g.opl, g.frequencyMHz, g.duty, g.phaseNs,
+  ])].join('|');
+  if (!gateTransmissionCache.has(key)) gateTransmissionCache.set(key, pulseGateTransmission(pulse));
+  return gateTransmissionCache.get(key);
+}
 
 function recordDetectorHit(ray, hit) {
   const id = hit.surface.el?.id;
   if (!id) return;
   if (!detectorHits.has(id)) detectorHits.set(id, []);
+  const gateDuty = averageGateTransmission(ray.pulse);
   detectorHits.get(id).push({
-    power: Number.isFinite(ray.power) ? ray.power : ray.intensity,
+    power: (Number.isFinite(ray.power) ? ray.power : ray.intensity) * gateDuty,
     intensity: ray.intensity,
     wl: ray.wl,
     bw: ray.bw || 0,
     pol: ray.pol,
+    stokes: cloneStokes(ray.stokes),
     u: hit.u,
     aperture: hit.surface.data.aperture || 0,
+    detectorType: hit.surface.data.detectorType || 'Detector',
+    readoutKind: registry[hit.surface.el?.type]?.readoutKind || 'detector',
+    gain: hit.surface.data.gain,
+    saturation: hit.surface.data.saturation,
+    pixels: hit.surface.data.pixels,
+    pathDelayNs: Number.isFinite(ray.opl) ? ray.opl / C_MM_PER_NS : 0,
+    pulse: ray.pulse ? { ...ray.pulse } : null,
   });
 }
 
@@ -31,6 +55,7 @@ export function detectorReading(elementId) {
   const hits = detectorHits.get(elementId) || [];
   if (!hits.length) return null;
   const signal = hits.reduce((sum, h) => sum + Math.max(0, h.power || 0), 0);
+  if (signal <= 1e-12) return null;
   const weight = signal || hits.length;
   const wavelength = hits.reduce((sum, h) => sum + h.wl * (h.power || 1), 0) / weight;
   const bandMin = Math.min(...hits.map(h => h.wl - h.bw / 2));
@@ -38,13 +63,70 @@ export function detectorReading(elementId) {
   const us = hits.map(h => h.u);
   const aperture = Math.max(...hits.map(h => h.aperture || 0));
   const spotSpan = aperture * (Math.max(...us) - Math.min(...us));
+  const detectorType = hits[0].detectorType || 'Detector';
+  const readoutKind = hits[0].readoutKind || 'detector';
+  let outputSignal = signal, saturated = false, profile = null, centroid = null;
+  if (readoutKind === 'pmt') {
+    const gain = Math.max(1, hits[0].gain || 1);
+    const saturation = Math.max(1, hits[0].saturation || 100);
+    outputSignal = Math.min(saturation, signal * gain);
+    saturated = signal * gain >= saturation;
+  } else if (readoutKind === 'camera') {
+    const count = Math.min(64, Math.max(8, Math.round(hits[0].pixels || 16)));
+    profile = Array(count).fill(0);
+    for (const h of hits) {
+      const i = Math.min(count - 1, Math.max(0, Math.floor(h.u * count)));
+      profile[i] += Math.max(0, h.power || 0);
+    }
+    const total = profile.reduce((sum, value) => sum + value, 0);
+    if (total > 0) centroid = profile.reduce((sum, value, i) => sum + value * ((i + 0.5) / count - 0.5) * aperture, 0) / total;
+  }
+  const stokesHits = hits.filter(h => h.stokes);
   const numericPol = hits.filter(h => typeof h.pol === 'number').map(h => h.pol);
   let polarization = 'Unpolarized';
-  if (hits.every(h => h.pol === 'c')) polarization = 'Circular';
+  if (stokesHits.length === hits.length) {
+    const sw = stokesHits.reduce((sum, h) => sum + Math.max(0, h.power || 0), 0) || stokesHits.length;
+    const mixed = {
+      s1: stokesHits.reduce((sum, h) => sum + h.stokes.s1 * (h.power || 1), 0) / sw,
+      s2: stokesHits.reduce((sum, h) => sum + h.stokes.s2 * (h.power || 1), 0) / sw,
+      s3: stokesHits.reduce((sum, h) => sum + h.stokes.s3 * (h.power || 1), 0) / sw,
+    };
+    polarization = polarizationDescription(mixed);
+  } else if (hits.every(h => h.pol === 'c')) polarization = 'Circular';
   else if (numericPol.length === hits.length) {
     const lo = Math.min(...numericPol), hi = Math.max(...numericPol);
     polarization = hi - lo < 0.5 ? `Linear ${Math.round((lo + hi) / 2)}°` : 'Mixed linear';
   } else if (hits.some(h => h.pol !== undefined)) polarization = 'Mixed';
+  const pulsed = hits.filter(h => h.pulse);
+  let pulse = null;
+  if (pulsed.length) {
+    const delays = pulsed.map(h => h.pathDelayNs).filter(Number.isFinite);
+    const first = pulsed[0].pulse;
+    const trainMap = new Map();
+    for (const h of pulsed) {
+      const p = h.pulse;
+      const key = p.sourceId || [p.repRateMHz, p.pulseWidthFs, p.phaseNs].join(':');
+      if (!trainMap.has(key)) trainMap.set(key, {
+        repRateMHz: p.repRateMHz,
+        pulseWidthFs: p.pulseWidthFs,
+        phaseNs: p.phaseNs,
+      });
+    }
+    const trains = [...trainMap.values()];
+    const sources = new Set(pulsed.map(h => h.pulse.sourceId).filter(Boolean));
+    const trainSettings = new Set(trains.map(p => [p.repRateMHz, p.pulseWidthFs, p.phaseNs].join(':')));
+    const mixed = trainSettings.size > 1;
+    pulse = {
+      sources: Math.max(1, sources.size),
+      mixed,
+      repRateMHz: mixed ? null : first.repRateMHz,
+      pulseWidthFs: mixed ? null : first.pulseWidthFs,
+      phaseNs: mixed ? null : first.phaseNs,
+      trains,
+      earliestPathDelayNs: delays.length ? Math.min(...delays) : 0,
+      arrivalSpreadPs: delays.length ? (Math.max(...delays) - Math.min(...delays)) * 1000 : 0,
+    };
+  }
   return {
     signal,
     samples: hits.length,
@@ -54,6 +136,13 @@ export function detectorReading(elementId) {
     polarization,
     spotSpan,
     color: wavelengthToColor(wavelength),
+    pulse,
+    detectorType,
+    readoutKind,
+    outputSignal,
+    saturated,
+    profile,
+    centroid,
   };
 }
 
@@ -82,6 +171,12 @@ function fiberEndDirection(pts, end, outward = false) {
     if (Math.hypot(v.x, v.y) > 1e-6) return norm(v);
   }
   return null;
+}
+
+function polylineLength(pts) {
+  let length = 0;
+  for (let i = 0; i < pts.length - 1; i++) length += Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+  return length;
 }
 
 function buildSurfaces(elements, beams) {
@@ -133,9 +228,14 @@ function fiberEmissionRays(c) {
   const o = add(e, mul(dir, 2));
   const cfg = b['out' + outEnd] || { mode: b.outMode || 'diverge', na: b.na, focal: b.focal, dia: b.outDia };
   const K = 9, rays = [];
+  const ng = Math.min(2.2, Math.max(1, b.groupIndex || 1.468));
+  const lossDbPerM = Math.min(100, Math.max(0, b.lossDbPerM ?? 0.2));
+  const lengthMm = polylineLength(pts);
+  const transmission = 10 ** (-(lossDbPerM * lengthMm / 1000) / 10);
   const common = {
-    wl: c.wl, bw: c.bw || 0, speckle: false, intensity: Math.min(1, c.intensity),
-    power: Number.isFinite(c.power) ? c.power / K : undefined,
+    wl: c.wl, bw: c.bw || 0, speckle: false, intensity: Math.min(1, c.intensity * transmission),
+    power: Number.isFinite(c.power) ? c.power * transmission / K : undefined,
+    pol: c.pol, stokes: cloneStokes(c.stokes), pulse: c.pulse, oplStart: (c.opl || 0) + lengthMm * ng + 2,
   };
   if (cfg.mode === 'focus') {
     const f = Math.max(2, cfg.focal || 20), ap = Math.max(1, cfg.dia || 6);
@@ -202,6 +302,19 @@ function nearestHit(p, d, surfaces, skip) {
 
 const reflect = (d, n) => sub(d, mul(n, 2 * dot(d, n)));
 const rotv = (d, a) => ({ x: d.x * Math.cos(a) - d.y * Math.sin(a), y: d.x * Math.sin(a) + d.y * Math.cos(a) });
+
+// Vector form of Snell's law. The supplied segment normal can point either
+// way; orient it toward the incident medium before solving for transmission.
+// null means total internal reflection.
+function refract(d, surfaceNormal, n1, n2) {
+  let n = norm(surfaceNormal);
+  if (dot(d, n) > 0) n = mul(n, -1);
+  const eta = n1 / n2;
+  const cosI = Math.max(0, -dot(d, n));
+  const k = 1 - eta * eta * (1 - cosI * cosI);
+  if (k < 0) return null;
+  return norm(add(mul(d, eta), mul(n, eta * cosI - Math.sqrt(k))));
+}
 
 // deterministic jitter in [-0.5, 0.5) from integer keys — keeps speckle stable
 // across re-renders instead of flickering
@@ -311,6 +424,7 @@ function interact(ray, hit) {
   switch (k) {
     case 'absorb': return [];
     case 'detector': return [];
+    case 'attenuate': return [{ d, intensity: ray.intensity * Math.min(1, Math.max(0, data.transmission ?? 1)) }];
     case 'mirror': {
       // partial reflectivity (cavity mirrors / output couplers): reflect R,
       // transmit 1-R. The transmitted ray leaves the cavity, so multi-bounce
@@ -327,6 +441,38 @@ function interact(ray, hit) {
       return [{ d: lensBend(r, hit.p, s, data.f) }];
     }
     case 'lens': return [{ d: lensBend(d, hit.p, s, data.f) }];
+    case 'refract': {
+      const materialId = s.el?.id || null;
+      const inside = materialId !== null && ray.medium === materialId;
+      // BK7-like glass is dispersive: a broadband ray must be sampled across
+      // its bandwidth so each wavelength refracts by its own n(λ) and the
+      // beam actually fans out (e.g. white light through a prism). A fixed
+      // user-set index (glass rods) has no dispersion to sample.
+      const dispersive = data.material === 'bk7' && ray.bw > 0;
+      const wls = dispersive ? wlSamples(ray) : [ray.wl];
+      const out = [];
+      for (let i = 0; i < wls.length; i++) {
+        const wl = wls[i];
+        const dispersiveIor = data.material === 'bk7' ? 1.5046 + 4680 / (wl * wl) : data.ior;
+        const materialIor = Math.min(2.5, Math.max(1.01, dispersiveIor || 1.52));
+        const n1 = inside ? (ray.ior || materialIor) : (ray.ior || 1);
+        const n2 = inside ? 1 : materialIor;
+        const transmitted = refract(d, n, n1, n2);
+        const tag = wls.length > 1 ? 'w' + i : undefined;
+        if (!transmitted) {
+          out.push({ d: reflect(d, n), wl, bw: dispersive ? 0 : ray.bw, intensity: ray.intensity / wls.length, tag });
+          continue;
+        }
+        out.push({
+          d: transmitted, wl, bw: dispersive ? 0 : ray.bw,
+          medium: inside ? null : materialId,
+          ior: n2,
+          intensity: ray.intensity * Math.min(1, Math.max(0, data.transmission ?? 1)) / wls.length,
+          tag,
+        });
+      }
+      return out;
+    }
     case 'dichroic': {
       if (!ray.bw) return dichroicTransmits(ray.wl, data) ? [{ d }] : [{ d: reflect(d, n) }];
       // broadband: transmit the overlap with the passband, reflect the rest
@@ -383,25 +529,6 @@ function interact(ray, hit) {
       }
       return out;
     }
-    case 'prism': {
-      // simplified dispersive prism: minimum-deviation angle with a
-      // Cauchy glass model n(λ) = 1.5046 + 4680/λ²  (BK7-like)
-      const A = (data.apex || 60) * D2R;
-      const sgn = dot(d, n) >= 0 ? 1 : -1;
-      const out = [];
-      const wls = wlSamples(ray);
-      for (let i = 0; i < wls.length; i++) {
-        const ng = 1.5046 + 4680 / (wls[i] * wls[i]);
-        const sa = ng * Math.sin(A / 2);
-        const dev = sa < 1 ? 2 * Math.asin(sa) - A : (ng - 1) * A;
-        out.push({
-          d: rotv(d, -sgn * dev), wl: wls[i], bw: 0,
-          intensity: ray.intensity / wls.length,
-          tag: wls.length > 1 ? 'p' + i : null,
-        });
-      }
-      return out;
-    }
     case 'diffuser': {
       const div = (data.div || 8) * D2R;
       const sid = hit.surface.id;
@@ -417,36 +544,60 @@ function interact(ray, hit) {
     case 'aom': {
       const out = [];
       const a = data.deflect * D2R, c = Math.cos(a), sn = Math.sin(a);
-      const chopped = data.chop || undefined;
-      out.push({ d: { x: d.x * c - d.y * sn, y: d.x * sn + d.y * c }, intensity: ray.intensity * data.eff, tag: 'd1', chopped });
-      if (data.zero) out.push({ d, intensity: ray.intensity * (1 - data.eff), tag: 'd0', chopped });
+      const duty = data.gate ? Math.min(0.99, Math.max(0.01, data.gate.duty ?? 0.5)) : 1;
+      let pulse = ray.pulse;
+      if (data.gate && ray.pulse) {
+        pulse = {
+          ...ray.pulse,
+          gates: [...(ray.pulse.gates || []), {
+            opl: ray.opl, frequencyMHz: data.gate.frequencyMHz || 1, duty, phaseNs: data.gate.phaseNs || 0,
+          }],
+        };
+      }
+      const C_NM_PER_S = 2.99792458e17;
+      const opticalHz = C_NM_PER_S / ray.wl;
+      const shiftedHz = Math.max(1, opticalHz + (data.rfMHz || 0) * 1e6);
+      const shiftedWl = C_NM_PER_S / shiftedHz;
+      out.push({
+        d: { x: d.x * c - d.y * sn, y: d.x * sn + d.y * c },
+        wl: shiftedWl, intensity: ray.intensity * data.eff * (ray.pulse ? 1 : duty), tag: 'd1', pulse,
+      });
+      if (data.zero) out.push({ d, intensity: ray.intensity * (1 - data.eff * duty), tag: 'd0' });
       return out;
     }
-    case 'chop':
-      // intensity modulator: beam continues but renders as on/off chunks
-      return [{ d, chopped: { period: data.period || 30, duty: data.duty || 0.5 } }];
+    case 'chop': {
+      const duty = Math.min(0.99, Math.max(0.01, data.duty ?? 0.5));
+      if (!ray.pulse) return [{ d, intensity: ray.intensity * duty }];
+      const pulse = {
+        ...ray.pulse,
+        gates: [...(ray.pulse.gates || []), {
+          opl: ray.opl, frequencyMHz: data.frequencyMHz || 1, duty, phaseNs: data.phaseNs || 0,
+        }],
+      };
+      return [{ d, pulse, tag: 'gate' }];
+    }
     case 'polarizer': {
       const a = data.a || 0;
-      if (ray.pol === undefined || ray.pol === 'c') return [{ d, intensity: ray.intensity * 0.5, pol: a, tag: 'pol' }];
-      const f = Math.cos((a - ray.pol) * D2R) ** 2;
+      const f = analyzerTransmission(ray.stokes, a);
       if (f < 0.02) return [];
-      return [{ d, intensity: ray.intensity * f, pol: a, tag: 'pol' }];
+      const stokes = linearStokes(a);
+      return [{ d, intensity: ray.intensity * f, pol: a, stokes, tag: 'pol' }];
     }
     case 'wp': {
-      if (ray.pol === undefined) return [{ d }];
-      if (data.half) {
-        if (ray.pol === 'c') return [{ d }];
-        return [{ d, pol: ((2 * data.a - ray.pol) % 180 + 180) % 180 }];
-      }
-      // quarter-wave plate: linear <-> circular
-      if (ray.pol === 'c') return [{ d, pol: ((data.a + 45) % 180 + 180) % 180 }];
-      return [{ d, pol: 'c' }];
+      if (!ray.stokes) return [{ d }];
+      const stokes = applyRetarder(ray.stokes, data.a || 0, data.half ? 180 : 90);
+      return [{ d, stokes, pol: legacyPolarization(stokes), tag: data.half ? 'hwp' : 'qwp' }];
+    }
+    case 'retarder': {
+      if (!ray.stokes) return [{ d }];
+      const stokes = applyRetarder(ray.stokes, data.a || 0, data.retardance || 0);
+      return [{ d, stokes, pol: legacyPolarization(stokes), tag: 'ret' }];
     }
     case 'pbs': {
-      const ft = (ray.pol === undefined || ray.pol === 'c') ? 0.5 : Math.cos(ray.pol * D2R) ** 2;
+      const ft = analyzerTransmission(ray.stokes, 0);
       const out = [];
-      if (ft > 0.02) out.push({ d, intensity: ray.intensity * ft, pol: 0, tag: 'T' });
-      if (1 - ft > 0.02) out.push({ d: reflect(d, n), intensity: ray.intensity * (1 - ft), pol: 90, tag: 'R' });
+      if (ft > 0.02) out.push({ d, intensity: ray.intensity * ft, pol: 0, stokes: linearStokes(0), tag: 'T' });
+      if (1 - ft > 0.02) out.push({ d: reflect(d, n), intensity: ray.intensity * (1 - ft), pol: 90, stokes: linearStokes(90), tag: 'R' });
       return out;
     }
     case 'fluor': {
@@ -455,15 +606,17 @@ function interact(ray, hit) {
       // fiber tip nearby captures them (the tracer clears `evan` on capture)
       const out = [];
       const emitting = ray.sample == null || ray.sample === 0; // once per beam
-      if (data.transmitExc) out.push({ d, tag: emitting ? 'x' : undefined });
+      const transmission = data.transmitExc ? Math.min(1, Math.max(0, data.transmission ?? 1)) : 0;
+      if (transmission > 0.001) out.push({ d, intensity: ray.intensity * transmission, tag: emitting ? 'x' : undefined });
       if (emitting) {
-        const mid = mul(add(s.a, s.b), 0.5);
         const N = 16;
+        const emitted = ray.intensity * (1 - transmission) * Math.min(1, Math.max(0, data.efficiency ?? 0.1));
         for (let i = 0; i < N; i++) {
           const a = i * 2 * Math.PI / N;
           out.push({
-            d: { x: Math.cos(a), y: Math.sin(a) }, wl: data.wl, bw: 0, pol: undefined,
-            intensity: 0.8, tag: 'f' + i, evan: true, origin: mid,
+            d: { x: Math.cos(a), y: Math.sin(a) }, wl: data.wl, bw: 0, pol: undefined, stokes: null,
+            intensity: emitted > 0 ? 0.25 : 0, power: Number.isFinite(ray.power) ? ray.power * (1 - transmission) * Math.min(1, Math.max(0, data.efficiency ?? 0.1)) / N : undefined,
+            tag: 'f' + i,
           });
         }
       }
@@ -472,6 +625,23 @@ function interact(ray, hit) {
     case 'isolator': {
       const fwd = rotPt(1, 0, (s.el && s.el.rot) || 0);
       return dot(d, fwd) > 0 ? [{ d }] : [];
+    }
+    case 'dmd': {
+      const mid = mul(add(s.a, s.b), 0.5);
+      const pitch = Math.max(0.1, data.pitch || 8);
+      const h = dot(sub(hit.p, mid), t) + (data.length || 40) / 2 + pitch / 2;
+      const phase = ((h % pitch) + pitch) % pitch / pitch;
+      const on = phase < Math.min(0.95, Math.max(0.05, data.duty ?? 0.5));
+      if (!on && !data.routeOff) return [];
+      const base = reflect(d, n);
+      const angle = (on ? 1 : -1) * 2 * (data.tilt || 12) * D2R;
+      return [{ d: rotv(base, angle), tag: on ? 'on' : 'off' }];
+    }
+    case 'dm': {
+      let out = reflect(d, n);
+      if (data.f) out = lensBend(out, hit.p, s, data.f);
+      if (data.steer) out = rotv(out, data.steer * D2R);
+      return [{ d: out }];
     }
     case 'shaper': {
       // SLM / DMD / deformable mirror: base reflection (or transmission),
@@ -546,6 +716,7 @@ function interact(ray, hit) {
       return out;
     }
     case 'transmit': {
+      const efficiency = Math.min(1, Math.max(0, data.efficiency ?? 1));
       if (data.convert === 'opo') {
         // optical parametric down-conversion: pump -> signal + idler,
         // energy conservation 1/lambda_p = 1/lambda_s + 1/lambda_i.
@@ -557,10 +728,10 @@ function interact(ray, hit) {
         const pumpWl = data.pumpWl || 532;
         if (Math.abs(ray.wl - pumpWl) > 1) return [{ d }];
         const sig = Math.max(1, data.signalWl || 800);
-        const out = [{ d, wl: sig, tag: 's' }];
+        const out = [{ d, wl: sig, intensity: ray.intensity * efficiency / 2, tag: 's' }];
         const invIdler = 1 / pumpWl - 1 / sig;
-        if (invIdler > 1e-9) out.push({ d, wl: 1 / invIdler, tag: 'i' });
-        if (data.transmitPump) out.push({ d, tag: 'p' });
+        if (invIdler > 1e-9) out.push({ d, wl: 1 / invIdler, intensity: ray.intensity * efficiency / 2, tag: 'i' });
+        if (data.transmitPump && efficiency < 0.999) out.push({ d, intensity: ray.intensity * (1 - efficiency), tag: 'p' });
         return out;
       }
       let wl = ray.wl, bw;
@@ -568,12 +739,17 @@ function interact(ray, hit) {
       else if (data.convert === 'thg') wl = ray.wl / 3;
       else if (data.convert === 'custom' || data.convert === 'cars') wl = data.outWl;
       else if (data.convert === 'sc') { wl = 650; bw = 440; } // supercontinuum
-      const conv = { d, wl };
+      const conv = { d, wl, intensity: ray.intensity * efficiency };
       if (bw !== undefined) conv.bw = bw;
       // samples can co-transmit the excitation beam alongside the converted signal
       if (data.transmitExc && wl !== ray.wl) {
         conv.tag = 'c';
-        return [conv, { d, tag: 'x' }];
+        const transmission = Math.min(1, Math.max(0, data.transmission ?? 1));
+        return [conv, { d, intensity: ray.intensity * (1 - efficiency) * transmission, tag: 'x' }];
+      }
+      if (data.transmitPump && wl !== ray.wl && efficiency < 0.999) {
+        conv.tag = 'c';
+        return [conv, { d, intensity: ray.intensity * (1 - efficiency), tag: 'p' }];
       }
       return [conv];
     }
@@ -585,7 +761,16 @@ function interact(ray, hit) {
 // `couplings` collects light captured by fiber input connectors.
 function traceRays(rays0, surfaces, couplings) {
   const done = [];
-  const stack = rays0.map(r => ({ ...r, pts: [{ x: r.x, y: r.y }], sig: '', depth: 0, last: null }));
+  const stack = rays0.map(r => {
+    const opl = Number.isFinite(r.oplStart) ? r.oplStart : 0;
+    return { ...r, opl, pts: [{ x: r.x, y: r.y }], opls: [opl], sig: '', depth: 0, last: null };
+  });
+  const appendPoint = (r, p, geometricLength) => {
+    const ng = Math.min(3, Math.max(1, r.ior || 1));
+    r.opl += Math.max(0, geometricLength) * ng;
+    r.pts.push(p);
+    r.opls.push(r.opl);
+  };
   while (stack.length) {
     const r = stack.pop();
     for (; ;) {
@@ -599,22 +784,29 @@ function traceRays(rays0, surfaces, couplings) {
           && (hit.surface.kind === 'lens' || hit.surface.kind === 'fiberin');
         if (!captured) {
           const L = hit ? Math.min(hit.t, EVAN_LEN) : EVAN_LEN;
-          r.pts.push({ x: r.x + r.dx * L, y: r.y + r.dy * L });
+          appendPoint(r, { x: r.x + r.dx * L, y: r.y + r.dy * L }, L);
           r.evanFade = true;
           break;
         }
         r.evan = false; // collected: from here on it behaves like normal light
       }
       if (!hit) {
-        r.pts.push({ x: r.x + r.dx * MAXLEN, y: r.y + r.dy * MAXLEN });
+        appendPoint(r, { x: r.x + r.dx * MAXLEN, y: r.y + r.dy * MAXLEN }, MAXLEN);
         break;
       }
-      r.pts.push({ x: hit.p.x, y: hit.p.y });
+      appendPoint(r, { x: hit.p.x, y: hit.p.y }, hit.t);
       if (hit.surface.kind === 'detector') recordDetectorHit(r, hit);
       if (hit.surface.kind === 'fiberin') {
         const fb = hit.surface.data.beam;
-        if (couplings && fb.propagate) {
-          couplings.push({ beam: fb, end: hit.surface.data.end, wl: r.wl, bw: r.bw, intensity: r.intensity, power: r.power });
+        const intoFiber = fiberEndDirection(fb.pts, hit.surface.data.end);
+        const inputNA = Math.min(0.95, Math.max(0.01, fb.inputNA ?? 0.22));
+        const accepted = intoFiber && dot({ x: r.dx, y: r.dy }, intoFiber) >= Math.cos(Math.asin(inputNA));
+        if (couplings && fb.propagate && accepted) {
+          couplings.push({
+            beam: fb, end: hit.surface.data.end, wl: r.wl, bw: r.bw,
+            intensity: r.intensity, power: r.power, pol: r.pol, stokes: cloneStokes(r.stokes),
+            pulse: r.pulse, opl: r.opl,
+          });
         }
         break; // the connector absorbs the incoming beam either way
       }
@@ -626,7 +818,9 @@ function traceRays(rays0, surfaces, couplings) {
         && (c0.bw === undefined || c0.bw === r.bw)
         && !(c0.speckle && !r.speckle)
         && !(c0.chopped && !r.chopped)
-        && !('pol' in c0 && c0.pol !== r.pol); // pol change splits so probes read per-segment
+        && !('pol' in c0 && c0.pol !== r.pol)
+        && !('stokes' in c0)
+        && !('pulse' in c0); // state changes split so probes read each segment
       if (single) {
         if (c0.intensity !== undefined && r.intensity > 0 && Number.isFinite(r.power)) {
           r.power *= c0.intensity / r.intensity;
@@ -635,6 +829,9 @@ function traceRays(rays0, surfaces, couplings) {
         r.dx = c0.d.x; r.dy = c0.d.y;
         if (c0.intensity !== undefined) r.intensity = c0.intensity;
         if ('pol' in c0) r.pol = c0.pol;
+        if ('stokes' in c0) r.stokes = cloneStokes(c0.stokes);
+        if ('medium' in c0) r.medium = c0.medium;
+        if ('ior' in c0) r.ior = c0.ior;
         r.last = hit.surface; r.depth++;
         continue;
       }
@@ -648,12 +845,18 @@ function traceRays(rays0, surfaces, couplings) {
           chopped: c.chopped || r.chopped || undefined,
           evan: c.evan || false,
           pol: 'pol' in c ? c.pol : r.pol,
+          stokes: 'stokes' in c ? cloneStokes(c.stokes) : cloneStokes(r.stokes),
+          medium: 'medium' in c ? c.medium : r.medium,
+          ior: 'ior' in c ? c.ior : (r.ior || 1),
+          pulse: 'pulse' in c ? c.pulse : r.pulse,
           intensity: c.intensity !== undefined ? c.intensity : r.intensity,
-          power: Number.isFinite(r.power)
+          power: c.power !== undefined ? c.power : Number.isFinite(r.power)
             ? r.power * (c.intensity !== undefined && r.intensity > 0 ? c.intensity / r.intensity : 1)
             : undefined,
           sample: r.sample,
           pts: [{ x: ox, y: oy }],
+          opl: r.opl,
+          opls: [r.opl],
           sig: r.sig + '/' + (c.tag || 'w'),
           depth: r.depth + 1, last: hit.surface,
         });
@@ -759,13 +962,31 @@ function assembleDrawables(paths, opts, drawables) {
   }
 }
 
-// Trace everything -> drawables [{type:'path'|'poly'|'dots', ...}]
-export function traceAll(elements, beams = []) {
+function collectPulseTracks(paths, K, fixedColor, pulseTracks) {
+  const centreSample = Math.floor((Math.max(1, K) - 1) / 2);
+  for (const r of paths) {
+    if (!r.pulse || r.pts.length < 2 || r.opls?.length !== r.pts.length) continue;
+    if (r.sample !== null && r.sample !== undefined && r.sample !== centreSample) continue;
+    pulseTracks.push({
+      pts: r.pts.map(p => ({ x: p.x, y: p.y })),
+      opls: [...r.opls],
+      pulse: { ...r.pulse },
+      color: fixedColor || wavelengthToColor(r.wl),
+      intensity: r.intensity,
+    });
+  }
+}
+
+// Trace everything. The static drawables remain export-safe while pulseTracks
+// carry absolute optical path lengths for the canvas-only animation layer.
+export function traceScene(elements, beams = []) {
   const surfaces = buildSurfaces(elements, beams);
   const drawables = [];
+  const pulseTracks = [];
   const couplings = [];
   lastPaths = [];
   detectorHits = new Map();
+  gateTransmissionCache = new Map();
 
   for (const el of elements) {
     const def = registry[el.type];
@@ -776,12 +997,20 @@ export function traceAll(elements, beams = []) {
     const srcBw = p.bwMode === 'band' ? (p.bandwidth || 0) : p.bwMode === 'sc' ? 440 : 0;
     const srcWl = p.bwMode === 'sc' ? 650 : p.wavelength;
     const K = local.length;
+    const pulse = p.temporalMode === 'pulsed' ? {
+      sourceId: el.id,
+      repRateMHz: Math.min(1000000, Math.max(0.001, p.repRateMHz || 80)),
+      pulseWidthFs: Math.min(1000000000, Math.max(1, p.pulseWidthFs || 100)),
+      phaseNs: Math.min(1000000, Math.max(-1000000, p.pulsePhaseNs || 0)),
+    } : null;
     const rays0 = local.map(r => {
       const o = toWorld(el, r.x, r.y);
       const d = rotPt(r.dx, r.dy, el.rot || 0);
       return {
         x: o.x, y: o.y, dx: d.x, dy: d.y, wl: srcWl, bw: srcBw, speckle: false,
         pol: typeof p.pol === 'number' ? p.pol : undefined,
+        stokes: typeof p.pol === 'number' ? linearStokes(p.pol) : null,
+        pulse,
         intensity: 1, power: 1 / Math.max(1, K), sample: r.sample !== undefined ? r.sample : null,
       };
     });
@@ -791,6 +1020,7 @@ export function traceAll(elements, beams = []) {
       K, isBeam: p.beamMode === 'beam',
       fixedColor: p.autoColor === false && p.color ? baseColor : null,
     }, drawables);
+    collectPulseTracks(paths, K, p.autoColor === false && p.color ? baseColor : null, pulseTracks);
   }
 
   // fibers that received light re-emit at their far end (up to 3 chained hops)
@@ -798,7 +1028,7 @@ export function traceAll(elements, beams = []) {
   for (let pass = 0; pass < 3 && couplings.length; pass++) {
     const batch = couplings.splice(0, couplings.length);
     for (const c of batch) {
-      const key = c.beam.id + ':' + c.end + ':' + Math.round(c.wl || 0);
+      const key = c.beam.id + ':' + c.end + ':' + Math.round(c.wl || 0) + ':' + (c.pulse?.sourceId || 'cw') + ':' + Math.round(c.opl || 0);
       if (emitted.has(key)) continue;
       emitted.add(key);
       const rays0 = fiberEmissionRays(c);
@@ -806,6 +1036,7 @@ export function traceAll(elements, beams = []) {
       const paths = traceRays(rays0, surfaces, couplings);
       lastPaths.push(...paths);
       assembleDrawables(paths, { K: rays0.length, isBeam: true, fixedColor: null }, drawables);
+      collectPulseTracks(paths, rays0.length, null, pulseTracks);
     }
   }
   // image formation for Object elements: locate the image of the object's
@@ -888,5 +1119,9 @@ export function traceAll(elements, beams = []) {
     }
   }
 
-  return drawables;
+  return { drawables, pulseTracks };
+}
+
+export function traceAll(elements, beams = []) {
+  return traceScene(elements, beams).drawables;
 }

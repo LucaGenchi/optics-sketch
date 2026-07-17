@@ -2,7 +2,11 @@
 
 import { state, changed, onChange, pushUndo, undo, redo, canUndo, canRedo, findSelected, serialize, parseSketch, replaceScene, loadAutosave } from './state.js';
 import { registry, categories, createElement, getElementMeta } from './elements.js';
-import { initCanvas, renderAll, startPlacing, startBeamTool, cancelTool, isPlacing, rotatePlacing, finishBeam, zoomBy, zoomFit, setSelectionCallback } from './canvas.js';
+import {
+  initCanvas, renderAll, startPlacing, startBeamTool, cancelTool, isPlacing,
+  rotatePlacing, finishBeam, zoomBy, zoomFit, setSelectionCallback,
+  getPulsePlayback, setPulsePlaying, setPulseSpeed, setPulseDisplayMode, resetPulseTime,
+} from './canvas.js';
 import { initInspector, renderInspector, refreshMeasurements } from './inspector.js';
 import { exportSVG, exportPNG } from './export.js';
 import { examples } from './examples.js';
@@ -262,6 +266,23 @@ function syncToolbar() {
   }
 }
 
+function syncPulseControls(detail = getPulsePlayback()) {
+  const controls = $('pulseControls');
+  if (!controls) return;
+  controls.classList.toggle('is-idle', !detail.hasPulses);
+  const play = $('btnPulsePlay');
+  play.textContent = detail.playing ? 'Ⅱ' : '▶';
+  play.title = detail.playing ? 'Pause pulse animation' : 'Play pulse animation';
+  play.setAttribute('aria-label', play.title);
+  play.setAttribute('aria-pressed', String(detail.playing && detail.hasPulses));
+  play.classList.toggle('active', detail.playing && detail.hasPulses);
+  $('pulseDisplay').value = detail.mode;
+  $('pulseSpeed').value = String(detail.speedNsPerSecond);
+  $('pulseScaleNote').textContent = detail.mode === 'physical'
+    ? 'spacing physical · packets enlarged'
+    : 'packets schematic · timing physical';
+}
+
 function bindToolbar() {
   $('btnNew').addEventListener('click', () => {
     if (!hasScene()) { cancelTool(); return; }
@@ -301,12 +322,17 @@ function bindToolbar() {
   $('btnZoomIn').addEventListener('click', () => zoomBy(1.25));
   $('btnZoomOut').addEventListener('click', () => zoomBy(0.8));
   $('btnZoomFit').addEventListener('click', zoomFit);
+  $('btnPulsePlay').addEventListener('click', () => setPulsePlaying(!getPulsePlayback().playing));
+  $('btnPulseReset').addEventListener('click', resetPulseTime);
+  $('pulseDisplay').addEventListener('change', e => setPulseDisplayMode(e.target.value));
+  $('pulseSpeed').addEventListener('change', e => setPulseSpeed(parseFloat(e.target.value)));
 }
 
 // inspector panel buttons dispatch these
 document.addEventListener('optics:delete', deleteSelected);
 document.addEventListener('optics:duplicate', duplicateSelected);
 document.addEventListener('optics:toolchange', e => syncToolMode(e.detail));
+document.addEventListener('optics:pulsestate', e => syncPulseControls(e.detail));
 
 // ---------- boot ----------
 window.addEventListener('DOMContentLoaded', () => {
@@ -341,5 +367,6 @@ window.addEventListener('DOMContentLoaded', () => {
   renderAll();
   renderInspector();
   syncToolbar();
+  syncPulseControls();
   window.addEventListener('resize', renderAll);
 });

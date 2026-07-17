@@ -3,11 +3,15 @@
 
 import { state, changed, pushUndo, findSelected } from './state.js';
 import { registry, getSize, getVisualBounds, createElement, labelSVG } from './elements.js';
-import { traceAll } from './raytrace.js';
+import { traceScene } from './raytrace.js';
+import { pulseMarkers } from './pulses.js';
 import { toLocal, toWorld, distToSegment, distinctPoints, manualBeamSVG } from './util.js';
 
-let svg, viewport, gridLayer, beamLayer, manualLayer, elementLayer, overlayLayer;
+let svg, viewport, gridLayer, beamLayer, pulseLayer, manualLayer, elementLayer, overlayLayer;
 let statusEl;
+let pulseTracks = [];
+let pulseFrame = null;
+const pulsePlayback = { playing: true, timeNs: 0, speedNsPerSecond: 10, mode: 'schematic', lastFrameMs: null };
 export let onSelectionChange = () => { };
 export function setSelectionCallback(fn) { onSelectionChange = fn; }
 
@@ -25,6 +29,7 @@ export function initCanvas(svgElement, statusElement) {
     <g id="viewport">
       <g id="gridLayer"></g>
       <g id="beamLayer"></g>
+      <g id="pulseLayer" pointer-events="none"></g>
       <g id="manualLayer"></g>
       <g id="elementLayer"></g>
       <g id="overlayLayer"></g>
@@ -32,11 +37,14 @@ export function initCanvas(svgElement, statusElement) {
   viewport = svg.querySelector('#viewport');
   gridLayer = svg.querySelector('#gridLayer');
   beamLayer = svg.querySelector('#beamLayer');
+  pulseLayer = svg.querySelector('#pulseLayer');
   manualLayer = svg.querySelector('#manualLayer');
   elementLayer = svg.querySelector('#elementLayer');
   overlayLayer = svg.querySelector('#overlayLayer');
   bindPointer();
   bindWheel();
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) pulsePlayback.playing = false;
+  document.addEventListener('visibilitychange', () => { pulsePlayback.lastFrameMs = null; });
 }
 
 // ---------- coordinates ----------
@@ -75,7 +83,9 @@ function renderGrid() {
 function ptsAttr(pts) { return pts.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '); }
 
 function renderBeams() {
-  const drawables = traceAll(state.elements, state.beams);
+  const scene = traceScene(state.elements, state.beams);
+  const drawables = scene.drawables;
+  pulseTracks = scene.pulseTracks;
   let s = '';
   for (const d of drawables) {
     if (d.type === 'poly') {
@@ -87,6 +97,87 @@ function renderBeams() {
     }
   }
   beamLayer.innerHTML = s;
+  renderPulseLayer();
+  syncPulseAnimation();
+  notifyPulseState();
+}
+
+function notifyPulseState() {
+  document.dispatchEvent(new CustomEvent('optics:pulsestate', { detail: getPulsePlayback() }));
+}
+
+function renderPulseLayer() {
+  if (!pulseLayer) return;
+  if (!pulseTracks.length) { pulseLayer.innerHTML = ''; return; }
+  const z = state.view.z || 1;
+  let s = '';
+  for (const track of pulseTracks) {
+    for (const marker of pulseMarkers(track, pulsePlayback.timeNs, { mode: pulsePlayback.mode })) {
+      const physicalMin = 9 / z;
+      const width = pulsePlayback.mode === 'physical' ? Math.max(marker.widthMm, physicalMin) : marker.widthMm;
+      const rx = Math.max(2 / z, width / 2);
+      const ry = Math.max(2.2 / z, Math.min(5 / z, 2.5 / z + 1.4 * Math.sqrt(Math.max(0, track.intensity || 0)) / z));
+      const opacity = Math.max(0.35, Math.min(0.95, 0.45 + 0.45 * (track.intensity || 0)));
+      s += `<g transform="translate(${marker.x.toFixed(2)} ${marker.y.toFixed(2)}) rotate(${marker.angle.toFixed(2)})">` +
+        `<ellipse rx="${(rx * 1.65).toFixed(2)}" ry="${(ry * 1.8).toFixed(2)}" fill="${track.color}" opacity="${(opacity * 0.18).toFixed(2)}"/>` +
+        `<ellipse rx="${rx.toFixed(2)}" ry="${ry.toFixed(2)}" fill="${track.color}" opacity="${opacity.toFixed(2)}"/>` +
+        `<ellipse rx="${Math.max(1 / z, rx * 0.32).toFixed(2)}" ry="${Math.max(0.8 / z, ry * 0.45).toFixed(2)}" fill="#fff" opacity="0.82"/>` +
+        `</g>`;
+    }
+  }
+  pulseLayer.innerHTML = s;
+}
+
+function animatePulses(nowMs) {
+  pulseFrame = null;
+  if (!pulsePlayback.playing || !pulseTracks.length) return;
+  if (pulsePlayback.lastFrameMs !== null) {
+    const elapsedSeconds = Math.min(0.05, Math.max(0, (nowMs - pulsePlayback.lastFrameMs) / 1000));
+    pulsePlayback.timeNs += elapsedSeconds * pulsePlayback.speedNsPerSecond;
+  }
+  pulsePlayback.lastFrameMs = nowMs;
+  renderPulseLayer();
+  pulseFrame = requestAnimationFrame(animatePulses);
+}
+
+function syncPulseAnimation() {
+  if (pulsePlayback.playing && pulseTracks.length) {
+    if (pulseFrame === null) pulseFrame = requestAnimationFrame(animatePulses);
+  } else if (pulseFrame !== null) {
+    cancelAnimationFrame(pulseFrame);
+    pulseFrame = null;
+    pulsePlayback.lastFrameMs = null;
+  }
+}
+
+export function getPulsePlayback() {
+  return { ...pulsePlayback, hasPulses: pulseTracks.length > 0 };
+}
+
+export function setPulsePlaying(playing) {
+  pulsePlayback.playing = !!playing;
+  pulsePlayback.lastFrameMs = null;
+  syncPulseAnimation();
+  notifyPulseState();
+}
+
+export function setPulseSpeed(speedNsPerSecond) {
+  if (Number.isFinite(speedNsPerSecond)) pulsePlayback.speedNsPerSecond = Math.min(1000, Math.max(0.1, speedNsPerSecond));
+  pulsePlayback.lastFrameMs = null;
+  notifyPulseState();
+}
+
+export function setPulseDisplayMode(mode) {
+  pulsePlayback.mode = mode === 'physical' ? 'physical' : 'schematic';
+  renderPulseLayer();
+  notifyPulseState();
+}
+
+export function resetPulseTime() {
+  pulsePlayback.timeNs = 0;
+  pulsePlayback.lastFrameMs = null;
+  renderPulseLayer();
+  notifyPulseState();
 }
 
 function renderManual() {
@@ -130,6 +221,10 @@ function focalPoints(el) {
       const s = Math.max(5, p.f1 + p.f2);
       return [{ x: -s / 2 + p.f1, y: 0 }, { x: -s / 2 - p.f1, y: 0 }, { x: s / 2 + p.f2, y: 0 }];
     }
+    case 'microscope': return [
+      { x: -25 - p.objectiveF, y: 0 }, { x: -25 + p.objectiveF, y: 0 },
+      { x: 25 - p.tubeF, y: 0 }, { x: 25 + p.tubeF, y: 0 },
+    ];
     default: return null;
   }
 }
@@ -295,6 +390,7 @@ export function finishBeam() {
     const beam = isFiber
       ? {
         id: 'b' + Math.random().toString(36).slice(2, 9), kind: 'fiber', pts, color: '#e8a800', width: 4, propagate: false,
+        inputNA: 0.22, groupIndex: 1.468, lossDbPerM: 0.2,
         out0: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
         out1: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
       }

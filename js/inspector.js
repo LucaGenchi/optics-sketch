@@ -15,7 +15,65 @@ function field(labelText, inputHTML) {
 }
 
 const LAYER_TYPES = [['lensarray', 'Lens array'], ['grating', 'Grating'], ['steer', 'Beam steer'], ['speckle', 'Speckle / diffuser']];
-const DETECTORS = new Set(['detector', 'pmt', 'camera']);
+
+const positiveMod = (value, modulus) => ((value % modulus) + modulus) % modulus;
+
+function shortTime(ns) {
+  if (ns >= 1000) return `${(ns / 1000).toFixed(ns >= 10000 ? 0 : 2)} µs`;
+  if (ns >= 1) return `${ns.toFixed(ns >= 100 ? 0 : 2)} ns`;
+  return `${(ns * 1000).toFixed(2)} ps`;
+}
+
+// A detector timing plot derived from the actual trains. Horizontal position
+// uses repetition rate, emission phase, and path delay; the pulse glyph widens
+// with configured duration and multipath spread, with a visible minimum only
+// when the physical width would be sub-pixel.
+export function pulseTimelineHTML(pulse, color = '#2469e8') {
+  if (!pulse) return '';
+  const fallback = Number.isFinite(pulse.repRateMHz) ? [{
+    repRateMHz: pulse.repRateMHz,
+    pulseWidthFs: pulse.pulseWidthFs,
+    phaseNs: pulse.phaseNs,
+  }] : [];
+  const trains = (Array.isArray(pulse.trains) && pulse.trains.length ? pulse.trains : fallback)
+    .filter(t => Number.isFinite(t.repRateMHz) && t.repRateMHz > 0)
+    .slice(0, 3);
+  if (!trains.length) return '';
+  const periods = trains.map(t => 1000 / t.repRateMHz);
+  const minPeriod = Math.min(...periods), maxPeriod = Math.max(...periods);
+  const windowNs = Math.max(minPeriod, Math.min(3 * maxPeriod, 12 * minPeriod));
+  const width = 240, rowHeight = 24, height = 6 + rowHeight * trains.length;
+  const stroke = /^#[0-9a-f]{6}$/i.test(color) ? color : '#2469e8';
+  const delayNs = Number.isFinite(pulse.earliestPathDelayNs) ? pulse.earliestPathDelayNs : 0;
+  const spreadNs = Number.isFinite(pulse.arrivalSpreadPs) ? pulse.arrivalSpreadPs / 1000 : 0;
+  let content = '';
+  trains.forEach((train, row) => {
+    const periodNs = periods[row];
+    const base = 18 + row * rowHeight;
+    const phaseNs = Number.isFinite(train.phaseNs) ? train.phaseNs : 0;
+    const offsetNs = positiveMod(phaseNs + delayNs, periodNs);
+    const physicalWidthNs = Math.max(0, (train.pulseWidthFs || 0) * 1e-6 + spreadNs);
+    const halfWidth = Math.min(8, Math.max(1.2, physicalWidthNs / windowNs * width / 2));
+    const firstK = Math.floor(-offsetNs / periodNs) - 1;
+    const lastK = Math.ceil((windowNs - offsetNs) / periodNs) + 1;
+    const stride = Math.max(1, Math.ceil((lastK - firstK + 1) / 60));
+    let pulses = '';
+    for (let k = firstK; k <= lastK; k += stride) {
+      const timeNs = offsetNs + k * periodNs;
+      if (timeNs < 0 || timeNs > windowNs) continue;
+      const x = timeNs / windowNs * width;
+      pulses += `M ${(x - halfWidth).toFixed(2)},${base} Q ${x.toFixed(2)},${base - 14} ${(x + halfWidth).toFixed(2)},${base}`;
+    }
+    content += `<line x1="0" y1="${base}" x2="${width}" y2="${base}" stroke="#b8c6d8" stroke-width="1"/>` +
+      `<path d="${pulses}" fill="none" stroke="${stroke}" stroke-width="2"/>`;
+  });
+  const extra = Array.isArray(pulse.trains) && pulse.trains.length > trains.length
+    ? ` · first ${trains.length} of ${pulse.trains.length} trains` : '';
+  return `<div class="pulse-timeline" aria-label="Detector pulse arrival timeline">
+    <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">${content}</svg>
+    <span>${shortTime(windowNs)} arrival window · widths enlarged when sub-pixel${extra}</span>
+  </div>`;
+}
 
 function inspectorHead(def, meta) {
   const noteClass = meta.tier === 'diagram' ? ' diagram' : '';
@@ -27,7 +85,8 @@ function inspectorHead(def, meta) {
 }
 
 function measurementHTML(el) {
-  if (!DETECTORS.has(el.type)) return '';
+  const readoutKind = registry[el.type]?.readoutKind;
+  if (!readoutKind) return '';
   const rd = detectorReading(el.id);
   if (!rd) {
     return `<div class="measurement-card no-signal" data-measurements>
@@ -40,6 +99,31 @@ function measurementHTML(el) {
     ? `${Math.round(rd.bandMin)}–${Math.round(rd.bandMax)} nm`
     : `${Math.round(rd.wavelength)} nm`;
   const spot = rd.samples > 1 ? `${rd.spotSpan.toFixed(1)} mm` : 'Point hit';
+  const pulseTrain = rd.pulse?.mixed
+    ? `${rd.pulse.sources} source trains · mixed settings`
+    : rd.pulse ? `${rd.pulse.sources > 1 ? `${rd.pulse.sources} sources · ` : ''}${rd.pulse.repRateMHz.toLocaleString()} MHz · ${rd.pulse.pulseWidthFs.toLocaleString()} fs` : '';
+  const pulseRows = rd.pulse ? `
+      <dt>Pulse train</dt><dd>${pulseTrain}</dd>
+      ${rd.pulse.mixed ? '' : `<dt>Emission offset</dt><dd>${rd.pulse.phaseNs.toLocaleString()} ns</dd>`}
+      <dt>Earliest path delay</dt><dd>${rd.pulse.earliestPathDelayNs.toFixed(3)} ns</dd>
+      <dt>Path spread</dt><dd>${rd.pulse.arrivalSpreadPs < 0.001 ? '&lt;0.001' : rd.pulse.arrivalSpreadPs.toFixed(3)} ps</dd>` : '';
+  const pulseTimeline = pulseTimelineHTML(rd.pulse, rd.color);
+  const detectorRows = readoutKind === 'pmt' ? `
+      <dt>Amplified output</dt><dd>${rd.outputSignal.toFixed(2)} a.u.</dd>
+      <dt>PMT state</dt><dd>${rd.saturated ? 'Saturated' : 'Linear range'}</dd>`
+    : readoutKind === 'camera' ? `
+      <dt>Centroid</dt><dd>${rd.centroid === null ? '—' : `${rd.centroid.toFixed(2)} mm`}</dd>
+      <dt>Sensor bins</dt><dd>${rd.profile?.length || 0}</dd>` : '';
+  let cameraProfile = '';
+  if (rd.profile) {
+    const max = Math.max(...rd.profile, 1e-9);
+    const bw = 240 / rd.profile.length;
+    const bars = rd.profile.map((value, i) => {
+      const height = 28 * value / max;
+      return `<rect x="${(i * bw + 0.5).toFixed(2)}" y="${(32 - height).toFixed(2)}" width="${Math.max(0.5, bw - 1).toFixed(2)}" height="${height.toFixed(2)}" rx="0.7"/>`;
+    }).join('');
+    cameraProfile = `<div class="camera-profile"><svg viewBox="0 0 240 36" preserveAspectRatio="none" aria-label="One-dimensional sensor profile"><g fill="${rd.color}">${bars}</g><line x1="0" y1="32" x2="240" y2="32" stroke="#b8c6d8"/></svg><span>1D sensor profile</span></div>`;
+  }
   return `<div class="measurement-card" data-measurements>
     <div class="measurement-status"><span class="signal-light" style="background:${rd.color}"></span>Receiving light</div>
     <dl class="measurement-grid">
@@ -48,7 +132,11 @@ function measurementHTML(el) {
       <dt>Polarization</dt><dd>${esc(rd.polarization)}</dd>
       <dt>Spot span</dt><dd>${spot}</dd>
       <dt>Ray samples</dt><dd>${rd.samples}</dd>
+      ${detectorRows}
+      ${pulseRows}
     </dl>
+    ${cameraProfile}
+    ${pulseTimeline}
     <div class="measurement-foot">Relative ray weight from the qualitative tracer—not calibrated optical power.</div>
   </div>`;
 }
@@ -56,7 +144,7 @@ function measurementHTML(el) {
 export function refreshMeasurements() {
   if (!panel || state.selection?.kind !== 'element') return;
   const sel = findSelected();
-  if (!sel || !DETECTORS.has(sel.type)) return;
+  if (!sel || !registry[sel.type]?.readoutKind) return;
   const current = panel.querySelector('[data-measurements]');
   if (!current) return;
   const holder = document.createElement('div');
@@ -176,6 +264,9 @@ export function renderInspector() {
     } else {
       h += field('Beam propagates', `<input type="checkbox" data-k="propagate" ${b.propagate ? 'checked' : ''}>`);
       if (b.propagate) {
+        h += field('Input NA', `<input type="number" data-k="inputNA" min="0.01" max="0.95" step="0.01" value="${b.inputNA ?? 0.22}">`);
+        h += field('Group index', `<input type="number" data-k="groupIndex" min="1" max="2.2" step="0.001" value="${b.groupIndex ?? 1.468}">`);
+        h += field('Loss (dB/m)', `<input type="number" data-k="lossDbPerM" min="0" max="100" step="0.1" value="${b.lossDbPerM ?? 0.2}">`);
         // one output spec per fiber end; migrate legacy single-spec fibers
         for (const end of [0, 1]) {
           if (!b['out' + end]) b['out' + end] = { mode: b.outMode || 'diverge', na: b.na ?? 0.12, focal: b.focal ?? 20, dia: b.outDia ?? 6 };
@@ -296,5 +387,5 @@ function applyInput(inp, rebuild = false) {
   changed();
   if (rebuild && (key === 'propagate' || key === 'outMode' || key === 'showLabel')) { renderInspector(); return; }
   // conditional params (show/hide) need a panel rebuild — only on 'change' to not steal focus
-  if (rebuild && ['dtype', 'ftype', 'beamMode', 'autoColor', 'convert', 'bwMode', 'raysMode', 'zeroOrder', 'modulate', 'mode', 'transmitExc'].includes(pkey)) renderInspector();
+  if (rebuild && ['dtype', 'ftype', 'beamMode', 'autoColor', 'convert', 'bwMode', 'temporalMode', 'raysMode', 'zeroOrder', 'modulate', 'mode', 'transmitExc', 'containsSample'].includes(pkey)) renderInspector();
 }
