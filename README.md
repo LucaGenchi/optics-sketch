@@ -75,6 +75,9 @@ or manufacturing tolerances.
 Use the app, then send your exported `.json` sketch and notes to Luca. The canvas
 autosaves in your own browser, so you can't break anything for anyone else.
 
+The sanitized Codex conversations behind the major development passes are available
+in the [work-trace index](docs/codex-sessions/README.md).
+
 ## Run locally
 
 No build step — plain HTML/JS/SVG:
