@@ -64,6 +64,20 @@ test('legacy lasers without temporal fields remain continuous-wave sources', () 
   assert.equal(loaded.params.pulsePhaseNs, 0);
 });
 
+test('legacy lamps retain their monochromatic forward-fan emission', () => {
+  const raw = {
+    id: 'legacy-lamp', type: 'lamp', x: 10, y: 20, rot: 15,
+    params: { wavelength: 532, spread: 40, nrays: 3, autoColor: true, color: '#e8a800' },
+  };
+  const [loaded] = parseSketch(file([raw]), registry).elements;
+  assert.equal(loaded.params.legacyDirectional, true);
+  assert.equal(loaded.params.bandwidth, 0);
+  assert.equal(loaded.params.packageSize, 34);
+  const rays = registry.lamp.source(loaded);
+  assert.deepEqual(rays.map(ray => ray.x), [15, 15, 15]);
+  assert.ok(rays.every(ray => ray.dx > 0), 'legacy lamp remains a forward fan');
+});
+
 test('duplicate object ids are repaired during import', () => {
   const a = createElement('laser', 0, 0);
   const b = createElement('lens', 100, 0);

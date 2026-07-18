@@ -1,8 +1,9 @@
 // Right-hand inspector: edit properties of the selected element or manual beam.
 
 import { state, changed, pushUndo, findSelected } from './state.js';
-import { registry, newShaperLayer, MAX_SHAPER_LAYERS, getElementMeta } from './elements.js';
+import { registry, newShaperLayer, MAX_SHAPER_LAYERS, getElementMeta, getDirectManipulation } from './elements.js';
 import { detectorReading } from './raytrace.js';
+import { pulseTransmissionAt } from './pulses.js';
 import { esc } from './util.js';
 
 let panel;
@@ -34,6 +35,7 @@ export function pulseTimelineHTML(pulse, color = '#2469e8') {
     repRateMHz: pulse.repRateMHz,
     pulseWidthFs: pulse.pulseWidthFs,
     phaseNs: pulse.phaseNs,
+    gates: pulse.gates,
   }] : [];
   const trains = (Array.isArray(pulse.trains) && pulse.trains.length ? pulse.trains : fallback)
     .filter(t => Number.isFinite(t.repRateMHz) && t.repRateMHz > 0)
@@ -61,8 +63,12 @@ export function pulseTimelineHTML(pulse, color = '#2469e8') {
     for (let k = firstK; k <= lastK; k += stride) {
       const timeNs = offsetNs + k * periodNs;
       if (timeNs < 0 || timeNs > windowNs) continue;
+      const emissionTimeNs = timeNs - (Number.isFinite(train.pathDelayNs) ? train.pathDelayNs : delayNs);
+      const transmission = pulseTransmissionAt(train, emissionTimeNs);
+      if (transmission <= 0) continue;
       const x = timeNs / windowNs * width;
-      pulses += `M ${(x - halfWidth).toFixed(2)},${base} Q ${x.toFixed(2)},${base - 14} ${(x + halfWidth).toFixed(2)},${base}`;
+      const peak = base - 14 * transmission;
+      pulses += `M ${(x - halfWidth).toFixed(2)},${base} Q ${x.toFixed(2)},${peak.toFixed(2)} ${(x + halfWidth).toFixed(2)},${base}`;
     }
     content += `<line x1="0" y1="${base}" x2="${width}" y2="${base}" stroke="#b8c6d8" stroke-width="1"/>` +
       `<path d="${pulses}" fill="none" stroke="${stroke}" stroke-width="2"/>`;
@@ -75,10 +81,11 @@ export function pulseTimelineHTML(pulse, color = '#2469e8') {
   </div>`;
 }
 
-function inspectorHead(def, meta) {
+function inspectorHead(def, meta, element = null) {
   const noteClass = meta.tier === 'diagram' ? ' diagram' : '';
+  const title = element && def.labelFor ? def.labelFor(element) : def.label;
   return `<div class="inspector-head">
-    <div class="inspector-title-row"><h3>${esc(def.label)}</h3><span class="cap-badge ${meta.tier}">${esc(meta.status)}</span></div>
+    <div class="inspector-title-row"><h3>${esc(title)}</h3><span class="cap-badge ${meta.tier}">${esc(meta.status)}</span></div>
     <div class="inspector-desc">${esc(meta.description)}</div>
     ${meta.note ? `<div class="inspector-note${noteClass}">${esc(meta.note)}</div>` : ''}
   </div>`;
@@ -203,11 +210,18 @@ export function renderInspector() {
   if (state.selection.kind === 'element') {
     const def = registry[sel.type];
     const meta = getElementMeta(sel.type, sel.params);
-    let h = inspectorHead(def, meta) + measurementHTML(sel);
+    let h = inspectorHead(def, meta, sel) + measurementHTML(sel);
+    const direct = getDirectManipulation(sel);
+    if (direct || def.editPoints) {
+      const actions = [direct?.resize ? 'blue handles resize the physical component' : '',
+        def.editPoints ? 'round blue points reshape the boundary' : '',
+        direct?.tune ? `purple knob tunes ${direct.tune.short || direct.tune.param.label}` : ''].filter(Boolean).join(' · ');
+      h += `<div class="direct-hint"><b>On-canvas controls</b><span>${esc(def.directHint || actions)}</span></div>`;
+    }
     h += `<section class="insp-section"><div class="insp-section-title">Position</div>`;
     h += field('X (mm)', `<input type="number" step="1" data-k="x" value="${Math.round(sel.x * 10) / 10}">`);
     h += field('Y (mm)', `<input type="number" step="1" data-k="y" value="${Math.round(sel.y * 10) / 10}">`);
-    h += field('Angle (°)', `<input type="number" step="1" data-k="rot" value="${Math.round((sel.rot || 0) * 10) / 10}">`);
+    if (def.rotatable !== false) h += field('Angle (°)', `<input type="number" step="1" data-k="rot" value="${Math.round((sel.rot || 0) * 10) / 10}">`);
     h += `</section>`;
     if (!def.noLabel) {
       h += `<section class="insp-section"><div class="insp-section-title">Appearance</div>`;
@@ -222,6 +236,7 @@ export function renderInspector() {
     }
     if ((def.params || []).length) h += `<section class="insp-section"><div class="insp-section-title">Optical behavior</div>`;
     for (const p of def.params || []) {
+      if (p.hidden) continue;
       if (p.show && !p.show(sel.params)) continue;
       const v = sel.params[p.key];
       if (p.type === 'number') {
@@ -250,7 +265,7 @@ export function renderInspector() {
       }
     }
     if ((def.params || []).length) h += `</section>`;
-    h += `<div class="btnrow"><button type="button" id="inspDup">Duplicate</button><button type="button" id="inspDel" class="danger">Delete</button></div>`;
+    h += `<div class="btnrow">${def.singleton ? '' : '<button type="button" id="inspDup">Duplicate</button>'}<button type="button" id="inspDel" class="danger">Delete</button></div>`;
     panel.innerHTML = h;
   } else {
     const b = sel;
@@ -387,5 +402,5 @@ function applyInput(inp, rebuild = false) {
   changed();
   if (rebuild && (key === 'propagate' || key === 'outMode' || key === 'showLabel')) { renderInspector(); return; }
   // conditional params (show/hide) need a panel rebuild — only on 'change' to not steal focus
-  if (rebuild && ['dtype', 'ftype', 'beamMode', 'autoColor', 'convert', 'bwMode', 'temporalMode', 'raysMode', 'zeroOrder', 'modulate', 'mode', 'transmitExc', 'containsSample'].includes(pkey)) renderInspector();
+  if (rebuild && ['dtype', 'ftype', 'beamMode', 'autoColor', 'convert', 'bwMode', 'temporalMode', 'raysMode', 'zeroOrder', 'modulate', 'mode', 'scanMode', 'transmitExc', 'containsSample'].includes(pkey)) renderInspector();
 }

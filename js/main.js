@@ -4,7 +4,8 @@ import { state, changed, onChange, pushUndo, undo, redo, canUndo, canRedo, findS
 import { registry, categories, createElement, getElementMeta } from './elements.js';
 import {
   initCanvas, renderAll, startPlacing, startBeamTool, cancelTool, isPlacing,
-  rotatePlacing, finishBeam, zoomBy, zoomFit, setSelectionCallback,
+  isPolygonDrawing, rotatePlacing, finishBeam, finishPolygon, undoPolygonPoint,
+  zoomBy, zoomFit, setSelectionCallback,
   getPulsePlayback, setPulsePlaying, setPulseSpeed, setPulseDisplayMode, resetPulseTime,
 } from './canvas.js';
 import { initInspector, renderInspector, refreshMeasurements } from './inspector.js';
@@ -29,7 +30,8 @@ function buildPalette() {
   let total = 0;
   const initiallyOpen = new Set(['Sources', 'Mirrors', 'Lenses']);
   for (const cat of categories) {
-    const entries = Object.entries(registry).filter(([, def]) => def.category === cat);
+    const entries = Object.entries(registry).filter(([, def]) => def.category === cat)
+      .sort((a, b) => (a[1].paletteOrder ?? 100) - (b[1].paletteOrder ?? 100));
     if (!entries.length) continue;
     h += `<details class="palette-group" data-category="${esc(cat)}" ${initiallyOpen.has(cat) ? 'open' : ''}>
       <summary>${esc(cat)}<span class="group-count">${entries.length}</span></summary><div class="catlist">`;
@@ -38,7 +40,11 @@ function buildPalette() {
       const sz = typeof def.size === 'function' ? def.size(el) : (def.size_ ? def.size_(el) : def.size);
       const vb = Math.max(sz.w, sz.h) + 12;
       const meta = getElementMeta(type, el.params);
-      const search = `${def.label} ${cat} ${meta.status} ${meta.description}`.toLowerCase();
+      const parameterSearch = (def.params || []).flatMap(param => [
+        param.label,
+        ...(param.options || []).flatMap(option => option),
+      ]).join(' ');
+      const search = `${def.label} ${cat} ${meta.status} ${meta.description} ${(def.aliases || []).join(' ')} ${parameterSearch}`.toLowerCase();
       h += `<button type="button" class="palitem" data-type="${type}" data-search="${esc(search)}" title="${esc(meta.description)}">
         <svg viewBox="${-vb / 2} ${-vb / 2} ${vb} ${vb}">${def.svg(el)}</svg>
         <span class="pal-copy"><span class="pal-label">${esc(def.label)}</span><span class="pal-desc">${esc(meta.description)}</span></span>
@@ -82,13 +88,16 @@ function syncToolMode(detail = { mode: 'select' }) {
   const canvas = $('canvas');
   canvas.classList.toggle('tool-active', active);
   mode.classList.toggle('is-visible', active);
-  document.querySelectorAll('.palitem').forEach(item => item.classList.toggle('is-active', detail.mode === 'place' && item.dataset.type === detail.type));
+  document.querySelectorAll('.palitem').forEach(item => item.classList.toggle('is-active',
+    (detail.mode === 'place' || detail.mode === 'polygon') && item.dataset.type === detail.type));
   $('btnBeam').classList.toggle('active', detail.mode === 'beam');
   $('btnFiber').classList.toggle('active', detail.mode === 'fiber');
   if (!active) { mode.textContent = ''; return; }
   mode.textContent = detail.mode === 'place'
     ? `Place ${detail.label} · click to drop · R rotate · Shift keeps placing · Esc cancels`
-    : `${detail.label} · click waypoints · double-click or Enter finishes · Esc cancels`;
+    : detail.mode === 'polygon'
+      ? `${detail.label} · click corners · click first point, double-click, or Enter closes · Shift constrains · Option bypasses snap`
+      : `${detail.label} · click waypoints · double-click or Enter finishes · Esc cancels`;
 }
 
 // ---------- selection / deletion ----------
@@ -118,11 +127,16 @@ const newId = pre => pre + Math.random().toString(36).slice(2, 9);
 function duplicateSelected() {
   const s = state.selection;
   if (s?.kind === 'multi') {
+    const hasDuplicable = s.beams.length || s.els.some(id => {
+      const el = state.elements.find(item => item.id === id);
+      return el && !registry[el.type]?.singleton;
+    });
+    if (!hasDuplicable) return;
     pushUndo();
     const els = [], bms = [];
     for (const id of s.els) {
       const src = state.elements.find(e => e.id === id);
-      if (!src) continue;
+      if (!src || registry[src.type]?.singleton) continue;
       const copy = JSON.parse(JSON.stringify(src));
       copy.id = newId('e'); copy.x += 30; copy.y += 30;
       state.elements.push(copy); els.push(copy.id);
@@ -142,6 +156,7 @@ function duplicateSelected() {
   }
   const sel = findSelected();
   if (!sel) return;
+  if (state.selection.kind === 'element' && registry[sel.type]?.singleton) return;
   pushUndo();
   const copy = JSON.parse(JSON.stringify(sel));
   if (state.selection.kind === 'element') {
@@ -163,6 +178,7 @@ function rotateSelected(deg) {
   if (isPlacing()) { rotatePlacing(deg); return; }
   const sel = findSelected();
   if (!sel || state.selection.kind !== 'element') return;
+  if (registry[sel.type]?.rotatable === false) return;
   pushUndo();
   sel.rot = (((sel.rot || 0) + deg) % 360 + 360) % 360;
   changed();
@@ -201,7 +217,13 @@ function bindKeys() {
 
     if (e.key === '/') { e.preventDefault(); $('paletteSearch')?.focus(); return; }
 
-    if (meta && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); renderInspector(); return; }
+    if (meta && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (isPolygonDrawing() && !e.shiftKey) undoPolygonPoint();
+      else e.shiftKey ? redo() : undo();
+      renderInspector();
+      return;
+    }
     if (meta && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); return; }
     if (e.key === 'Escape') {
       cancelTool();
@@ -209,7 +231,12 @@ function bindKeys() {
       return;
     }
     if (e.key === 'Enter' && state.tool === 'beam') { finishBeam(); renderInspector(); return; }
-    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); deleteSelected(); return; }
+    if (e.key === 'Enter' && isPolygonDrawing()) { e.preventDefault(); finishPolygon(); renderInspector(); return; }
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      if (isPolygonDrawing()) undoPolygonPoint(); else deleteSelected();
+      return;
+    }
     if (e.key === 'r' || e.key === 'R') { rotateSelected(e.shiftKey ? -45 : 45); return; }
     if (e.key.toLowerCase() === 'q') { rotateSelected(-5); return; }
     if (e.key.toLowerCase() === 'e') { rotateSelected(5); return; }
@@ -328,6 +355,48 @@ function bindToolbar() {
   $('pulseSpeed').addEventListener('change', e => setPulseSpeed(parseFloat(e.target.value)));
 }
 
+function bindContextMenu() {
+  const menu = $('contextMenu');
+  const wrap = $('canvasWrap');
+  const hide = () => { menu.hidden = true; };
+  document.addEventListener('optics:contextmenu', event => {
+    const detail = event.detail;
+    if (!detail) { hide(); return; }
+    const rect = wrap.getBoundingClientRect();
+    const rotate = menu.querySelector('[data-action="rotate"]');
+    const duplicate = menu.querySelector('[data-action="duplicate"]');
+    if (rotate) rotate.hidden = detail.kind !== 'element' || !detail.rotatable;
+    if (duplicate) duplicate.hidden = detail.duplicable === false;
+    menu.hidden = false;
+    const width = menu.offsetWidth || 178, height = menu.offsetHeight || 116;
+    menu.style.left = `${Math.max(6, Math.min(rect.width - width - 6, detail.clientX - rect.left))}px`;
+    menu.style.top = `${Math.max(6, Math.min(rect.height - height - 6, detail.clientY - rect.top))}px`;
+    menu.querySelector('[data-action="duplicate"]')?.focus({ preventScroll: true });
+  });
+  menu.addEventListener('click', event => {
+    const action = event.target.closest('[data-action]')?.dataset.action;
+    if (!action) return;
+    hide();
+    if (action === 'duplicate') duplicateSelected();
+    else if (action === 'rotate') rotateSelected(45);
+    else if (action === 'delete') deleteSelected();
+  });
+  window.addEventListener('pointerdown', event => { if (!menu.hidden && !menu.contains(event.target)) hide(); }, true);
+  window.addEventListener('blur', hide);
+  menu.addEventListener('keydown', event => {
+    const buttons = [...menu.querySelectorAll('[data-action]:not([hidden])')];
+    const index = buttons.indexOf(document.activeElement);
+    if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation(); hide();
+      document.querySelector('#opticsCanvas')?.focus({ preventScroll: true });
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault(); event.stopPropagation();
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      buttons[(index + delta + buttons.length) % buttons.length]?.focus();
+    }
+  });
+}
+
 // inspector panel buttons dispatch these
 document.addEventListener('optics:delete', deleteSelected);
 document.addEventListener('optics:duplicate', duplicateSelected);
@@ -340,7 +409,8 @@ window.addEventListener('DOMContentLoaded', () => {
   initInspector($('inspector'));
   buildPalette();
   syncToolMode();
-  bindToolbar();
+    bindToolbar();
+    bindContextMenu();
   bindExamples();
   bindKeys();
   setSelectionCallback(renderInspector);

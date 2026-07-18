@@ -6,6 +6,11 @@ import { traceAll } from './raytrace.js';
 import { download, manualBeamSVG } from './util.js';
 
 function sceneBounds() {
+  const frame = [...state.elements].reverse().find(el => registry[el.type]?.exportFrame);
+  if (frame) {
+    const crop = getVisualBounds(frame, { includeLabel: false });
+    if (crop) return { x: crop.x0, y: crop.y0, w: crop.x1 - crop.x0, h: crop.y1 - crop.y0 };
+  }
   const pts = [];
   const clampPts = [];
   for (const el of state.elements) {
@@ -44,8 +49,9 @@ function ptsAttr(pts) { return pts.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}
 export function buildSVG({ whiteBg = false } = {}) {
   const b = sceneBounds();
   let body = '';
+  const frame = [...state.elements].reverse().find(el => registry[el.type]?.exportFrame);
 
-  if (whiteBg) body += `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="#ffffff"/>`;
+  if (whiteBg || frame?.params.background === 'white') body += `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="#ffffff"/>`;
 
   for (const d of traceAll(state.elements, state.beams)) {
     if (d.type === 'poly') body += `<polygon points="${ptsAttr(d.pts)}" fill="${d.color}" opacity="${d.opacity}"/>`;

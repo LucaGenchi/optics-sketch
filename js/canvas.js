@@ -2,15 +2,21 @@
 // element placement, manual beam drawing/editing).
 
 import { state, changed, pushUndo, findSelected } from './state.js';
-import { registry, getSize, getVisualBounds, createElement, labelSVG } from './elements.js';
+import { registry, getSize, getVisualBounds, getDirectManipulation, createElement, labelSVG } from './elements.js';
 import { traceScene } from './raytrace.js';
 import { pulseMarkers } from './pulses.js';
 import { toLocal, toWorld, distToSegment, distinctPoints, manualBeamSVG } from './util.js';
+import { canAppendPolygonPoint, isSimplePolygon, polygonBounds } from './polygon.js';
 
 let svg, viewport, gridLayer, beamLayer, pulseLayer, manualLayer, elementLayer, overlayLayer;
 let statusEl;
 let pulseTracks = [];
 let pulseFrame = null;
+let motionFrame = null;
+let motionStartMs = null;
+let motionTimeSeconds = 0;
+let motionLastRenderMs = 0;
+const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const pulsePlayback = { playing: true, timeNs: 0, speedNsPerSecond: 10, mode: 'schematic', lastFrameMs: null };
 export let onSelectionChange = () => { };
 export function setSelectionCallback(fn) { onSelectionChange = fn; }
@@ -25,6 +31,11 @@ export function initCanvas(svgElement, statusElement) {
       <pattern id="holes" width="${HOLE_PITCH}" height="${HOLE_PITCH}" patternUnits="userSpaceOnUse">
         <circle cx="${HOLE_PITCH / 2}" cy="${HOLE_PITCH / 2}" r="1.6" fill="#d3d8de"/>
       </pattern>
+      <linearGradient id="pulseSpectrum" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#7c3aed"/><stop offset="0.22" stop-color="#2563eb"/>
+        <stop offset="0.45" stop-color="#10b981"/><stop offset="0.65" stop-color="#eab308"/>
+        <stop offset="0.82" stop-color="#f97316"/><stop offset="1" stop-color="#ef4444"/>
+      </linearGradient>
     </defs>
     <g id="viewport">
       <g id="gridLayer"></g>
@@ -43,8 +54,11 @@ export function initCanvas(svgElement, statusElement) {
   overlayLayer = svg.querySelector('#overlayLayer');
   bindPointer();
   bindWheel();
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) pulsePlayback.playing = false;
-  document.addEventListener('visibilitychange', () => { pulsePlayback.lastFrameMs = null; });
+  if (reduceMotion) pulsePlayback.playing = false;
+  document.addEventListener('visibilitychange', () => {
+    pulsePlayback.lastFrameMs = null;
+    motionStartMs = null;
+  });
 }
 
 // ---------- coordinates ----------
@@ -54,10 +68,19 @@ export function screenToWorld(sx, sy) {
   return { x: (sx - r.left - v.x) / v.z, y: (sy - r.top - v.y) / v.z };
 }
 
-function snapPos(v) {
-  if (!state.snap) return v;
+function snapPos(v, bypass = false) {
+  if (!state.snap || bypass) return v;
   const g = 5;
   return Math.round(v / g) * g;
+}
+
+function constrainPoint(origin, point, incrementDeg = 45) {
+  const dx = point.x - origin.x, dy = point.y - origin.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 1e-9) return { ...origin };
+  const step = incrementDeg * Math.PI / 180;
+  const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+  return { x: origin.x + length * Math.cos(angle), y: origin.y + length * Math.sin(angle) };
 }
 
 // ---------- rendering ----------
@@ -69,6 +92,73 @@ export function renderAll() {
   renderManual();
   renderElements();
   renderOverlay();
+  syncMotionAnimation();
+}
+
+function animatedOpticalElements() {
+  if (!state.elements.some(el => el.type === 'galvo' && el.params.scanMode !== 'static')) return state.elements;
+  return state.elements.map(el => {
+    if (el.type !== 'galvo' || el.params.scanMode === 'static') return el;
+    const physicalHz = Math.max(0.01, el.params.scanFrequencyHz || 1);
+    return { ...el, _animationTimeS: motionTimeSeconds * Math.min(1, 4 / physicalHz) };
+  });
+}
+
+function animatedVisualElements() {
+  if (!hasMotion()) return state.elements;
+  return state.elements.map(el => {
+    if (el.type === 'galvo' && el.params.scanMode !== 'static') {
+      const physicalHz = Math.max(0.01, el.params.scanFrequencyHz || 1);
+      return { ...el, _animationTimeS: motionTimeSeconds * Math.min(1, 4 / physicalHz) };
+    }
+    if (el.type === 'chopper' && el.params.modulate) {
+      return {
+        ...el, _animationTimeS: motionTimeSeconds,
+        _simulationTimeNs: pulseTracks.length ? pulsePlayback.timeNs : null,
+      };
+    }
+    return el;
+  });
+}
+
+function hasMotion() {
+  return state.elements.some(el => (el.type === 'galvo' && el.params.scanMode !== 'static')
+    || (el.type === 'chopper' && el.params.modulate));
+}
+
+function hasGalvoMotion() {
+  return state.elements.some(el => el.type === 'galvo' && el.params.scanMode !== 'static');
+}
+
+function animateMotion(nowMs) {
+  motionFrame = null;
+  if (reduceMotion || !hasMotion()) return;
+  if (motionStartMs === null) motionStartMs = nowMs;
+  motionTimeSeconds = Math.max(0, (nowMs - motionStartMs) / 1000);
+  if (nowMs - motionLastRenderMs >= 1000 / 30) {
+    motionLastRenderMs = nowMs;
+    if (hasGalvoMotion()) renderBeams();
+    renderElements();
+    renderOverlay();
+    const selected = findSelected();
+    if (hasGalvoMotion() && selected && registry[selected.type]?.readoutKind
+      && nowMs - (animateMotion.lastInspectorMs || 0) >= 150) {
+      animateMotion.lastInspectorMs = nowMs;
+      onSelectionChange();
+    }
+  }
+  motionFrame = requestAnimationFrame(animateMotion);
+}
+
+function syncMotionAnimation() {
+  if (!reduceMotion && hasMotion()) {
+    if (motionFrame === null) motionFrame = requestAnimationFrame(animateMotion);
+  } else if (motionFrame !== null) {
+    cancelAnimationFrame(motionFrame);
+    motionFrame = null;
+    motionStartMs = null;
+    motionTimeSeconds = 0;
+  }
 }
 
 function renderGrid() {
@@ -83,7 +173,7 @@ function renderGrid() {
 function ptsAttr(pts) { return pts.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '); }
 
 function renderBeams() {
-  const scene = traceScene(state.elements, state.beams);
+  const scene = traceScene(animatedOpticalElements(), state.beams);
   const drawables = scene.drawables;
   pulseTracks = scene.pulseTracks;
   let s = '';
@@ -117,10 +207,12 @@ function renderPulseLayer() {
       const width = pulsePlayback.mode === 'physical' ? Math.max(marker.widthMm, physicalMin) : marker.widthMm;
       const rx = Math.max(2 / z, width / 2);
       const ry = Math.max(2.2 / z, Math.min(5 / z, 2.5 / z + 1.4 * Math.sqrt(Math.max(0, track.intensity || 0)) / z));
-      const opacity = Math.max(0.35, Math.min(0.95, 0.45 + 0.45 * (track.intensity || 0)));
+      const opacity = Math.max(0.12, Math.min(0.95,
+        (0.45 + 0.45 * (track.intensity || 0)) * (marker.transmission ?? 1)));
+      const packetFill = track.bw >= 200 ? 'url(#pulseSpectrum)' : track.color;
       s += `<g transform="translate(${marker.x.toFixed(2)} ${marker.y.toFixed(2)}) rotate(${marker.angle.toFixed(2)})">` +
-        `<ellipse rx="${(rx * 1.65).toFixed(2)}" ry="${(ry * 1.8).toFixed(2)}" fill="${track.color}" opacity="${(opacity * 0.18).toFixed(2)}"/>` +
-        `<ellipse rx="${rx.toFixed(2)}" ry="${ry.toFixed(2)}" fill="${track.color}" opacity="${opacity.toFixed(2)}"/>` +
+        `<ellipse rx="${(rx * 1.65).toFixed(2)}" ry="${(ry * 1.8).toFixed(2)}" fill="${packetFill}" opacity="${(opacity * 0.18).toFixed(2)}"/>` +
+        `<ellipse rx="${rx.toFixed(2)}" ry="${ry.toFixed(2)}" fill="${packetFill}" opacity="${opacity.toFixed(2)}"/>` +
         `<ellipse rx="${Math.max(1 / z, rx * 0.32).toFixed(2)}" ry="${Math.max(0.8 / z, ry * 0.45).toFixed(2)}" fill="#fff" opacity="0.82"/>` +
         `</g>`;
     }
@@ -191,12 +283,36 @@ function renderManual() {
     if (pts.length > 1) s += `<polyline points="${ptsAttr(pts)}" fill="none" stroke="${c}" stroke-width="2" opacity="0.6" stroke-dasharray="4 4"/>`;
     for (const p of drawing.pts) s += `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${c}"/>`;
   }
+  if (polygonDrawing) {
+    const z = state.view.z || 1;
+    const pts = [...polygonDrawing.pts];
+    if (polygonDrawing.cursor) pts.push(polygonDrawing.cursor);
+    if (pts.length >= 3) s += `<polygon points="${ptsAttr(pts)}" fill="rgba(111,177,219,0.15)" stroke="none"/>`;
+    if (pts.length > 1) {
+      s += `<polyline points="${ptsAttr(pts)}" fill="none" stroke="#4a90c4" stroke-width="${1.7 / z}" stroke-dasharray="${5 / z} ${4 / z}" stroke-linejoin="round"/>`;
+    }
+    if (polygonDrawing.pts.length >= 2 && polygonDrawing.cursor) {
+      const first = polygonDrawing.pts[0], cur = polygonDrawing.cursor;
+      s += `<line x1="${cur.x}" y1="${cur.y}" x2="${first.x}" y2="${first.y}" stroke="#7ba9ca" stroke-width="${1 / z}" stroke-dasharray="${3 / z} ${4 / z}"/>`;
+    }
+    polygonDrawing.pts.forEach((p, i) => {
+      const r = (i === 0 ? 5.5 : 3.8) / z;
+      s += `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="#fff" stroke="#2f6fed" stroke-width="${1.5 / z}"/>`;
+    });
+    if (polygonDrawing.cursor && polygonDrawing.pts.length) {
+      const a = polygonDrawing.pts.at(-1), b = polygonDrawing.cursor;
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      const angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+      const label = `${length.toFixed(1)} mm · ${angle.toFixed(0)}°`;
+      s += `<g transform="translate(${b.x + 9 / z} ${b.y - 24 / z})"><rect x="0" y="0" width="${(label.length * 6.1 + 12) / z}" height="${18 / z}" rx="${5 / z}" fill="rgba(255,255,255,0.96)" stroke="#c8d8e8" stroke-width="${1 / z}"/><text x="${6 / z}" y="${12.2 / z}" font-size="${10 / z}" fill="#4f657d">${label}</text></g>`;
+    }
+  }
   manualLayer.innerHTML = s;
 }
 
 function renderElements() {
   let s = '';
-  for (const el of state.elements) {
+  for (const el of animatedVisualElements()) {
     const def = registry[el.type];
     if (!def) continue;
     s += `<g transform="translate(${el.x} ${el.y}) rotate(${el.rot || 0})">${def.svg(el)}</g>`;
@@ -280,11 +396,37 @@ function renderOverlay() {
   if (sel && state.selection.kind === 'element') {
     const sz = getSize(sel);
     const hw = sz.w / 2 + 6, hh = sz.h / 2 + 6;
+    const direct = getDirectManipulation(sel);
+    const resizeHandles = direct?.resize ? resizeHandleLocations(direct.resize, hw, hh) : [];
+    const rotateControl = registry[sel.type]?.rotatable === false ? ''
+      : `<line x1="0" y1="${-hh}" x2="0" y2="${-hh - 18 / z}" stroke="#2f6fed" stroke-width="${1.2 / z}"/>` +
+        `<circle id="rotHandle" cx="0" cy="${-hh - 22 / z}" r="${5 / z}" fill="#fff" stroke="#2f6fed" stroke-width="${1.5 / z}"/>`;
     s += `<g transform="translate(${sel.x} ${sel.y}) rotate(${sel.rot || 0})">` +
       `<rect x="${-hw}" y="${-hh}" width="${2 * hw}" height="${2 * hh}" fill="none" stroke="#2f6fed" stroke-width="${1.2 / z}" stroke-dasharray="${4 / z} ${3 / z}"/>` +
-      `<line x1="0" y1="${-hh}" x2="0" y2="${-hh - 18 / z}" stroke="#2f6fed" stroke-width="${1.2 / z}"/>` +
-      `<circle id="rotHandle" cx="0" cy="${-hh - 22 / z}" r="${5 / z}" fill="#fff" stroke="#2f6fed" stroke-width="${1.5 / z}"/>` +
+      rotateControl +
+      resizeHandles.map(({ x, y }) =>
+        `<rect x="${x - 4.5 / z}" y="${y - 4.5 / z}" width="${9 / z}" height="${9 / z}" rx="${1.4 / z}" fill="#fff" stroke="#2f6fed" stroke-width="${1.5 / z}"/>`).join('') +
       `</g>`;
+    const editPoints = registry[sel.type]?.editPoints?.get?.(sel) || [];
+    if (editPoints.length) {
+      s += `<g transform="translate(${sel.x} ${sel.y}) rotate(${sel.rot || 0})">` +
+        editPoints.map((p, i) => `<circle data-element-vtx="${i}" cx="${p.x}" cy="${p.y}" r="${5 / z}" fill="#fff" stroke="#2f6fed" stroke-width="${1.7 / z}"/>`).join('') +
+        `</g>`;
+    }
+    if (direct?.tune) {
+      const side = tuneHandleSide(sel);
+      const knob = toWorld(sel, side * (hw + 25 / z), 0);
+      const edge = toWorld(sel, side * hw, 0);
+      const value = directValueLabel(sel, direct.tune);
+      const pillWidth = Math.max(48, value.length * 6.2) / z;
+      const pillX = side > 0 ? 10 / z : -10 / z - pillWidth;
+      s += `<line x1="${edge.x}" y1="${edge.y}" x2="${knob.x}" y2="${knob.y}" stroke="#8b5cf6" stroke-width="${1.3 / z}"/>` +
+        `<circle cx="${knob.x}" cy="${knob.y}" r="${6 / z}" fill="#fff" stroke="#8b5cf6" stroke-width="${1.8 / z}"/>` +
+        `<circle cx="${knob.x}" cy="${knob.y}" r="${2.2 / z}" fill="#8b5cf6"/>` +
+        `<g transform="translate(${knob.x} ${knob.y - 9 / z})">` +
+        `<rect x="${pillX}" y="0" width="${pillWidth}" height="${18 / z}" rx="${6 / z}" fill="rgba(255,255,255,0.96)" stroke="#d8d2f2" stroke-width="${1 / z}"/>` +
+        `<text x="${pillX + 6 / z}" y="${12.2 / z}" font-size="${10 / z}" font-weight="650" fill="#6547b3">${value}</text></g>`;
+    }
   } else if (sel && state.selection.kind === 'beam') {
     s += `<polyline points="${ptsAttr(sel.pts)}" fill="none" stroke="#2f6fed" stroke-width="${1 / z}" stroke-dasharray="${4 / z} ${3 / z}"/>`;
     sel.pts.forEach((p, i) => {
@@ -299,13 +441,33 @@ function renderOverlay() {
   overlayLayer.innerHTML = s;
 }
 
+function directValueLabel(el, tune) {
+  const value = el.params[tune.key];
+  const rounded = Math.abs(value) >= 100 ? Math.round(value) : Math.round(value * 100) / 100;
+  const unitMatch = tune.param.label.match(/\((nm|mm|°|MHz|Hz|fs|dB\/m)\)/);
+  return `${tune.short || tune.param.label} ${rounded}${unitMatch ? ` ${unitMatch[1]}` : ''}`;
+}
+
+function resizeHandleLocations(resize, hw, hh) {
+  if (resize.uniform || (resize.x && resize.y)) {
+    return [{ x: -hw, y: -hh, sx: -1, sy: -1 }, { x: hw, y: -hh, sx: 1, sy: -1 },
+      { x: hw, y: hh, sx: 1, sy: 1 }, { x: -hw, y: hh, sx: -1, sy: 1 }];
+  }
+  if (resize.y) return [{ x: 0, y: -hh, sx: 0, sy: -1 }, { x: 0, y: hh, sx: 0, sy: 1 }];
+  if (resize.x) return [{ x: -hw, y: 0, sx: -1, sy: 0 }, { x: hw, y: 0, sx: 1, sy: 0 }];
+  return [];
+}
+
 // ---------- hit testing ----------
 function hitElement(w) {
   for (let i = state.elements.length - 1; i >= 0; i--) {
     const el = state.elements[i];
+    const def = registry[el.type];
     const sz = getSize(el);
     const l = toLocal(el, w.x, w.y);
-    if (Math.abs(l.x) <= sz.w / 2 + 4 && Math.abs(l.y) <= sz.h / 2 + 4) return el;
+    if (def?.hitTest) {
+      if (def.hitTest(el, l, 6 / state.view.z)) return el;
+    } else if (Math.abs(l.x) <= sz.w / 2 + 4 && Math.abs(l.y) <= sz.h / 2 + 4) return el;
   }
   return null;
 }
@@ -330,18 +492,77 @@ function hitVertex(sel, w) {
   return -1;
 }
 
+function hitElementEditPoint(sel, w) {
+  if (!sel || state.selection.kind !== 'element') return -1;
+  const points = registry[sel.type]?.editPoints?.get?.(sel);
+  if (!points?.length) return -1;
+  const local = toLocal(sel, w.x, w.y), tol = 10 / state.view.z;
+  let best = -1, distance = Infinity;
+  points.forEach((p, i) => {
+    const d = Math.hypot(p.x - local.x, p.y - local.y);
+    if (d < tol && d < distance) { best = i; distance = d; }
+  });
+  return best;
+}
+
 function hitRotHandle(sel, w) {
   if (!sel || state.selection.kind !== 'element') return false;
+  if (registry[sel.type]?.rotatable === false) return false;
   const sz = getSize(sel);
   const l = toLocal(sel, w.x, w.y);
   const hy = -(sz.h / 2 + 6) - 22 / state.view.z;
   return Math.hypot(l.x, l.y - hy) < 9 / state.view.z;
 }
 
+function hitResizeHandle(sel, w) {
+  if (!sel || state.selection.kind !== 'element') return null;
+  const direct = getDirectManipulation(sel);
+  if (!direct?.resize) return null;
+  const sz = getSize(sel), z = state.view.z;
+  const hw = sz.w / 2 + 6, hh = sz.h / 2 + 6;
+  const l = toLocal(sel, w.x, w.y);
+  const corners = resizeHandleLocations(direct.resize, hw, hh);
+  return corners.find(corner => Math.hypot(l.x - corner.x, l.y - corner.y) < 10 / z) || null;
+}
+
+function tuneHandleSide(sel) {
+  if (!svg) return 1;
+  const screenX = state.view.x + sel.x * state.view.z;
+  return screenX > svg.clientWidth - 110 ? -1 : 1;
+}
+
+function tuneHandlePoint(sel) {
+  const sz = getSize(sel), z = state.view.z;
+  return toWorld(sel, tuneHandleSide(sel) * (sz.w / 2 + 6 + 25 / z), 0);
+}
+
+function hitTuneHandle(sel, w) {
+  if (!sel || state.selection.kind !== 'element') return false;
+  if (!getDirectManipulation(sel)?.tune) return false;
+  const p = tuneHandlePoint(sel);
+  return Math.hypot(w.x - p.x, w.y - p.y) < 11 / state.view.z;
+}
+
+function boundedParam(el, key, value) {
+  const spec = (registry[el.type]?.params || []).find(param => param.key === key);
+  if (!spec || !Number.isFinite(value)) return el.params[key];
+  const negative = spec.negative === true;
+  let lo = spec.type === 'optsize' ? (spec.min ?? 1) : (spec.min ?? -Number.MAX_SAFE_INTEGER);
+  let hi = spec.type === 'optsize' ? (spec.max ?? 500) : (spec.max ?? Number.MAX_SAFE_INTEGER);
+  if (el.type === 'sclaser' && key === 'scMax') lo = Math.max(lo, el.params.scMin);
+  if (el.type === 'sclaser' && key === 'scMin') hi = Math.min(hi, el.params.scMax);
+  const step = Number.isFinite(spec.step) && spec.step > 0 ? spec.step : (spec.type === 'optsize' ? 0.5 : 1);
+  let magnitude = negative ? Math.abs(value) : value;
+  magnitude = Math.min(hi, Math.max(lo, magnitude));
+  magnitude = Math.round(magnitude / step) * step;
+  return negative ? -Math.abs(magnitude) : magnitude;
+}
+
 // ---------- interactions ----------
 let drag = null;     // {mode, ...}
 let drawing = null;  // manual beam in progress {pts:[], cursor}
 let placing = null;  // {el, pos}
+let polygonDrawing = null; // registry-driven closed polygon construction
 let spaceDown = false;
 
 function notifyTool(detail = { mode: 'select' }) {
@@ -349,7 +570,25 @@ function notifyTool(detail = { mode: 'select' }) {
 }
 
 export function startPlacing(type) {
-  drawing = null;
+  drawing = null; polygonDrawing = null;
+  const def = registry[type];
+  if (def?.singleton) {
+    const existing = state.elements.find(el => el.type === type);
+    if (existing) {
+      placing = null; state.tool = 'select'; state.selection = { kind: 'element', id: existing.id };
+      setStatus(`${def.label} already exists`); notifyTool(); renderAll(); onSelectionChange();
+      return;
+    }
+  }
+  if (def?.construction?.kind === 'polygon') {
+    placing = null;
+    polygonDrawing = { type, pts: [], cursor: null };
+    state.tool = 'polygon:' + type;
+    setStatus('Click the first point again, double-click, or press Enter to close');
+    notifyTool({ mode: 'polygon', type, label: def.label });
+    renderAll();
+    return;
+  }
   placing = { el: createElement(type), pos: null };
   state.tool = 'place:' + type;
   setStatus('');
@@ -358,7 +597,7 @@ export function startPlacing(type) {
 }
 
 export function startBeamTool(kind = 'beam') {
-  placing = null;
+  placing = null; polygonDrawing = null;
   state.tool = 'beam';
   drawing = { pts: [], cursor: null, kindType: kind };
   setStatus('');
@@ -367,19 +606,55 @@ export function startBeamTool(kind = 'beam') {
 }
 
 export function cancelTool() {
-  placing = null; drawing = null;
+  placing = null; drawing = null; polygonDrawing = null;
   state.tool = 'select';
   setStatus('');
   notifyTool();
   renderAll();
 }
 
-export function isPlacing() { return !!placing; }
+export function isPlacing() { return !!placing || !!polygonDrawing; }
+export function isPolygonDrawing() { return !!polygonDrawing; }
 export function rotatePlacing(deg) {
   if (placing) {
     placing.el.rot = ((((placing.el.rot || 0) + deg) % 360) + 360) % 360;
     renderAll();
   }
+}
+
+export function undoPolygonPoint() {
+  if (!polygonDrawing) return false;
+  if (polygonDrawing.pts.length) {
+    polygonDrawing.pts.pop();
+    setStatus(polygonDrawing.pts.length
+      ? `${polygonDrawing.pts.length} ${polygonDrawing.pts.length === 1 ? 'point' : 'points'} · continue drawing`
+      : 'Choose the first boundary point');
+    renderManual();
+  } else {
+    cancelTool();
+  }
+  return true;
+}
+
+export function finishPolygon() {
+  if (!polygonDrawing) return false;
+  const points = distinctPoints(polygonDrawing.pts, 0.25);
+  if (!isSimplePolygon(points)) {
+    setStatus(points.length < 3 ? 'Freeform glass needs at least three points' : 'Boundary cannot cross itself or collapse');
+    renderManual();
+    return false;
+  }
+  const b = polygonBounds(points), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+  const el = createElement(polygonDrawing.type, cx, cy);
+  const key = registry[el.type].construction.pointsKey;
+  el.params[key] = points.map(p => ({ x: p.x - cx, y: p.y - cy }));
+  el.params.scale = 1;
+  pushUndo();
+  state.elements.push(el);
+  state.selection = { kind: 'element', id: el.id };
+  polygonDrawing = null; state.tool = 'select'; setStatus(''); notifyTool();
+  changed(); renderAll(); onSelectionChange();
+  return true;
 }
 
 export function finishBeam() {
@@ -410,11 +685,36 @@ function setStatus(t) { if (statusEl) statusEl.textContent = t; }
 
 function bindPointer() {
   svg.addEventListener('pointerdown', onDown);
+  svg.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (state.tool !== 'select') return;
+    const w = screenToWorld(e.clientX, e.clientY);
+    const el = hitElement(w);
+    const beam = el ? null : hitBeam(w);
+    const hit = el || beam;
+    if (!hit) {
+      document.dispatchEvent(new CustomEvent('optics:contextmenu', { detail: null }));
+      return;
+    }
+    const inCurrentGroup = state.selection?.kind === 'multi'
+      && (el ? state.selection.els.includes(hit.id) : state.selection.beams.includes(hit.id));
+    if (!inCurrentGroup) state.selection = { kind: el ? 'element' : 'beam', id: hit.id };
+    renderAll(); onSelectionChange();
+    document.dispatchEvent(new CustomEvent('optics:contextmenu', {
+      detail: {
+        clientX: e.clientX, clientY: e.clientY,
+        kind: inCurrentGroup ? 'multi' : el ? 'element' : 'beam',
+        rotatable: !!el && registry[el.type]?.rotatable !== false,
+        duplicable: inCurrentGroup || !el || registry[el.type]?.singleton !== true,
+      },
+    }));
+  });
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
   window.addEventListener('pointercancel', onUp);
   svg.addEventListener('dblclick', e => {
     if (state.tool === 'beam' && drawing) { e.preventDefault(); finishBeam(); }
+    else if (polygonDrawing) { e.preventDefault(); finishPolygon(); }
   });
   window.addEventListener('keydown', e => {
     if (e.code === 'Space' && (e.target === document.body || e.target === svg)) {
@@ -435,6 +735,29 @@ function onDown(e) {
   if (e.button !== 0) return;
   const w = screenToWorld(e.clientX, e.clientY);
 
+  if (polygonDrawing) {
+    let p = { x: snapPos(w.x, e.altKey), y: snapPos(w.y, e.altKey) };
+    const previous = polygonDrawing.pts.at(-1);
+    if (e.shiftKey && previous) p = constrainPoint(previous, p);
+    const first = polygonDrawing.pts[0];
+    if (first && polygonDrawing.pts.length >= 3
+        && Math.hypot(p.x - first.x, p.y - first.y) <= 11 / state.view.z) {
+      finishPolygon();
+      return;
+    }
+    if (!canAppendPolygonPoint(polygonDrawing.pts, p)) {
+      const duplicate = previous && Math.hypot(p.x - previous.x, p.y - previous.y) < 0.25;
+      setStatus(duplicate ? 'Move to a new point' : 'That edge would cross the boundary');
+      return;
+    }
+    polygonDrawing.pts.push(p);
+    setStatus(polygonDrawing.pts.length < 3
+      ? `${polygonDrawing.pts.length} ${polygonDrawing.pts.length === 1 ? 'point' : 'points'} · add at least ${3 - polygonDrawing.pts.length} more`
+      : 'Click the first point, double-click, or press Enter to close');
+    renderManual();
+    return;
+  }
+
   if (placing) {
     pushUndo();
     const el = placing.el;
@@ -453,6 +776,21 @@ function onDown(e) {
     const prev = drawing.pts[drawing.pts.length - 1];
     if (!prev || Math.hypot(p.x - prev.x, p.y - prev.y) > 1e-6) drawing.pts.push(p);
     renderAll();
+    return;
+  }
+
+  // Editable control points take precedence over Shift multi-selection so
+  // Shift can constrain a point drag to 45° drafting directions.
+  const selectedBeforeHit = findSelected();
+  const selectedPointIndex = hitElementEditPoint(selectedBeforeHit, w);
+  if (selectedPointIndex >= 0) {
+    const editor = registry[selectedBeforeHit.type].editPoints;
+    drag = {
+      mode: 'editpoint', el: selectedBeforeHit, editor, i: selectedPointIndex,
+      base: JSON.parse(JSON.stringify(selectedBeforeHit)),
+      start: editor.get(selectedBeforeHit)[selectedPointIndex], moved: false,
+    };
+    svg.setPointerCapture(e.pointerId);
     return;
   }
 
@@ -497,6 +835,25 @@ function onDown(e) {
   }
 
   const sel = findSelected();
+  const resizeHandle = hitResizeHandle(sel, w);
+  if (resizeHandle) {
+    const direct = getDirectManipulation(sel);
+    const size = getSize(sel);
+    const keys = [...new Set(Object.values(direct.resize).filter(value => typeof value === 'string'))];
+    drag = {
+      mode: 'resize', el: sel, direct: direct.resize, corner: resizeHandle,
+      hw: size.w / 2 + 6, hh: size.h / 2 + 6,
+      values: Object.fromEntries(keys.map(key => [key, sel.params[key]])), moved: false,
+    };
+    svg.setPointerCapture(e.pointerId);
+    return;
+  }
+  if (hitTuneHandle(sel, w)) {
+    const tune = getDirectManipulation(sel).tune;
+    drag = { mode: 'tune', el: sel, tune, clientY: e.clientY, value: sel.params[tune.key], moved: false };
+    svg.setPointerCapture(e.pointerId);
+    return;
+  }
   // rotation handle?
   if (hitRotHandle(sel, w)) {
     drag = { mode: 'rotate', el: sel, moved: false };
@@ -538,8 +895,22 @@ function onMove(e) {
   const w = screenToWorld(e.clientX, e.clientY);
   if (statusEl && !drag && !placing && state.tool === 'select') {
     statusEl.textContent = `x ${Math.round(w.x)} mm,  y ${Math.round(w.y)} mm`;
+    const hoverSel = findSelected();
+    const resize = hitResizeHandle(hoverSel, w);
+    svg.style.cursor = hitElementEditPoint(hoverSel, w) >= 0 ? 'move'
+      : resize ? (resize.sx === 0 ? 'ns-resize' : resize.sy === 0 ? 'ew-resize'
+      : resize.sx === resize.sy ? 'nwse-resize' : 'nesw-resize')
+      : hitTuneHandle(hoverSel, w) ? 'ns-resize' : '';
   }
-  if (placing) { placing.pos = { x: snapPos(w.x), y: snapPos(w.y) }; renderElements(); return; }
+  if (polygonDrawing) {
+    let p = { x: snapPos(w.x, e.altKey), y: snapPos(w.y, e.altKey) };
+    const previous = polygonDrawing.pts.at(-1);
+    if (e.shiftKey && previous) p = constrainPoint(previous, p);
+    polygonDrawing.cursor = p;
+    renderManual();
+    return;
+  }
+  if (placing) { placing.pos = { x: snapPos(w.x, e.altKey), y: snapPos(w.y, e.altKey) }; renderElements(); return; }
   if (drawing) { drawing.cursor = { x: snapPos(w.x), y: snapPos(w.y) }; renderManual(); return; }
   if (!drag) return;
 
@@ -561,6 +932,51 @@ function onMove(e) {
     if (a === drag.el.rot) return;
     if (!drag.moved) { pushUndo(); drag.moved = true; }
     drag.el.rot = a;
+    renderAll();
+  } else if (drag.mode === 'resize') {
+    const local = toLocal(drag.el, w.x, w.y);
+    const sx = Math.max(0.08, Math.abs(local.x) / Math.max(1, drag.hw));
+    const sy = Math.max(0.08, Math.abs(local.y) / Math.max(1, drag.hh));
+    const assignments = [];
+    if (drag.direct.x) assignments.push([drag.direct.x, sx]);
+    if (drag.direct.y) assignments.push([drag.direct.y, sy]);
+    if (drag.direct.uniform) assignments.push([drag.direct.uniform, Math.max(sx, sy)]);
+    const changes = assignments.map(([key, ratio]) => [key, boundedParam(drag.el, key, drag.values[key] * ratio)])
+      .filter(([key, next]) => next !== drag.el.params[key]);
+    if (!changes.length) return;
+    if (!drag.moved) { pushUndo(); drag.moved = true; }
+    for (const [key, value] of Object.entries(drag.direct.set || {})) drag.el.params[key] = value;
+    for (const [key, next] of changes) drag.el.params[key] = next;
+    const labels = assignments.map(([key]) => `${key} ${drag.el.params[key]}`).join(' · ');
+    setStatus(labels);
+    renderAll();
+  } else if (drag.mode === 'tune') {
+    const spec = drag.tune.param;
+    const step = Number.isFinite(spec.step) && spec.step > 0 ? spec.step : 1;
+    const rangeSteps = Number.isFinite(spec.min) && Number.isFinite(spec.max)
+      ? Math.max(1, (spec.max - spec.min) / step) : 100;
+    const pixelsPerStep = drag.tune.pixelsPerStep
+      || Math.max(0.2, Math.min(4, 200 / rangeSteps));
+    const steps = Math.round((drag.clientY - e.clientY) / pixelsPerStep);
+    const next = boundedParam(drag.el, drag.tune.key, drag.value + steps * step);
+    if (next === drag.el.params[drag.tune.key]) return;
+    if (!drag.moved) { pushUndo(); drag.moved = true; }
+    drag.el.params[drag.tune.key] = next;
+    setStatus(directValueLabel(drag.el, drag.tune));
+    renderAll();
+  } else if (drag.mode === 'editpoint') {
+    const snapped = { x: snapPos(w.x, e.altKey), y: snapPos(w.y, e.altKey) };
+    let local = toLocal(drag.base, snapped.x, snapped.y);
+    if (e.shiftKey) local = constrainPoint(drag.start, local);
+    const next = drag.editor.candidate(drag.base, drag.i, local);
+    if (!next) {
+      setStatus('Boundary cannot cross itself or collapse');
+      return;
+    }
+    if (!drag.moved) { pushUndo(); drag.moved = true; }
+    drag.el.x = next.x; drag.el.y = next.y;
+    drag.el.params.vertices = next.vertices;
+    setStatus(`vertex ${drag.i + 1} · ${local.x.toFixed(1)}, ${local.y.toFixed(1)} mm`);
     renderAll();
   } else if (drag.mode === 'marquee') {
     drag.x1 = w.x; drag.y1 = w.y;
@@ -600,7 +1016,7 @@ function onMove(e) {
 function onUp(e) {
   if (!drag) return;
   if (e.type === 'pointercancel') {
-    const wasChange = drag.moved === true && ['move', 'rotate', 'vertex', 'movebeam', 'movemulti'].includes(drag.mode);
+    const wasChange = drag.moved === true && ['move', 'rotate', 'resize', 'tune', 'editpoint', 'vertex', 'movebeam', 'movemulti'].includes(drag.mode);
     drag = null;
     renderAll();
     if (wasChange) { changed(); onSelectionChange(); }
@@ -619,9 +1035,9 @@ function onUp(e) {
     renderAll(); onSelectionChange();
     return;
   }
-  const wasChange = drag.moved === true && ['move', 'rotate', 'vertex', 'movebeam', 'movemulti'].includes(drag.mode);
+  const wasChange = drag.moved === true && ['move', 'rotate', 'resize', 'tune', 'editpoint', 'vertex', 'movebeam', 'movemulti'].includes(drag.mode);
   drag = null;
-  if (wasChange) { changed(); onSelectionChange(); }
+  if (wasChange) { setStatus(''); changed(); onSelectionChange(); }
 }
 
 function bindWheel() {

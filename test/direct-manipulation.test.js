@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { createElement, galvoAngleAt, getDirectManipulation, getSize, registry } from '../js/elements.js';
+
+test('every component exposes a resize handle backed by a real size parameter', () => {
+  for (const type of Object.keys(registry)) {
+    const el = createElement(type);
+    const direct = getDirectManipulation(el);
+    assert.ok(direct?.resize, `${type} has resize metadata`);
+    Object.assign(el.params, direct.resize.set || {});
+    for (const [axis, key] of Object.entries(direct.resize).filter(([axis, key]) =>
+      ['x', 'y', 'uniform'].includes(axis) && typeof key === 'string')) {
+      const before = getSize(el);
+      const spec = registry[type].params.find(param => param.key === key);
+      assert.ok(spec, `${type} resize key ${key} belongs to its registry schema`);
+      const current = el.params[key];
+      const candidate = Number.isFinite(spec.max) && spec.max !== current
+        ? spec.max : Number.isFinite(spec.min) && spec.min !== current ? spec.min : current * 1.5;
+      el.params[key] = candidate;
+      const after = getSize(el);
+      if (axis === 'y') assert.notEqual(after.h, before.h, `${type} height follows ${key}`);
+      if (axis === 'x') assert.notEqual(after.w, before.w, `${type} width follows ${key}`);
+      if (axis === 'uniform') assert.ok(after.w !== before.w || after.h !== before.h, `${type} bounds follow ${key}`);
+    }
+  }
+});
+
+test('galvo scan amplitude is constrained without flat-topped clipping', () => {
+  const params = {
+    commandAngle: 30, scanMode: 'sine', scanAmplitude: 30,
+    scanFrequencyHz: 1, scanPhaseDeg: 0,
+  };
+  assert.equal(galvoAngleAt(params, 0.25), 45);
+  assert.equal(galvoAngleAt(params, 0.75), 15);
+  assert.ok(galvoAngleAt(params, 0.125) < 45);
+});

@@ -1,6 +1,7 @@
 // App state, undo/redo, autosave.
 
-import { distinctPoints } from './util.js';
+import { distinctPoints, rotPt } from './util.js';
+import { normalizePolygonPoints, polygonBounds } from './polygon.js';
 
 export const state = {
   elements: [],   // optical elements
@@ -55,6 +56,7 @@ function normalizeLayers(value) {
 
 function normalizeParam(value, spec) {
   if (spec.type === 'layers') return normalizeLayers(value);
+  if (spec.type === 'points') return normalizePolygonPoints(value, spec.def || []);
   if (spec.type === 'checkbox') return typeof value === 'boolean' ? value : !!spec.def;
   if (spec.type === 'color') return typeof value === 'string' && COLOR.test(value) ? value : spec.def;
   if (spec.type === 'text') {
@@ -71,8 +73,8 @@ function normalizeParam(value, spec) {
       n = clamp(Math.abs(n), spec.min ?? 0, spec.max ?? Number.MAX_SAFE_INTEGER);
       return -n;
     }
-    const lo = spec.type === 'optsize' ? 1 : (spec.min ?? -Number.MAX_SAFE_INTEGER);
-    const hi = spec.type === 'optsize' ? 500 : (spec.max ?? Number.MAX_SAFE_INTEGER);
+    const lo = spec.type === 'optsize' ? (spec.min ?? 1) : (spec.min ?? -Number.MAX_SAFE_INTEGER);
+    const hi = spec.type === 'optsize' ? (spec.max ?? 500) : (spec.max ?? Number.MAX_SAFE_INTEGER);
     return clamp(n, lo, hi);
   }
   return value ?? spec.def;
@@ -102,9 +104,30 @@ function normalizeElement(raw, definitions, used) {
       && raw.params?.mode && !['none', 'trans', 'block'].includes(raw.params.mode)) {
     params.containsSample = true;
   }
-  const rot = finite(raw.rot) ? ((raw.rot % 360) + 360) % 360 : 0;
+  // Before the broadband point source existed, `lamp` was a monochromatic
+  // forward fan emitted from local x=15. Preserve both its spectrum and
+  // geometry instead of silently applying the newer radial-source defaults.
+  if (raw.type === 'lamp' && raw.params?.legacyDirectional === undefined
+      && raw.params?.bandwidth === undefined && raw.params?.packageSize === undefined) {
+    params.legacyDirectional = true;
+    params.bandwidth = 0;
+    params.packageSize = 34;
+  }
+  const rot = def?.rotatable === false ? 0 : finite(raw.rot) ? ((raw.rot % 360) + 360) % 360 : 0;
+  let x = raw.x, y = raw.y;
+  // Keep editable polygon bounds centered on the element transform. This makes
+  // hit boxes, resize handles, labels, and exports agree while preserving the
+  // exact world-space boundary of older or hand-edited sketch files.
+  if (raw.type === 'freeglass' && Array.isArray(params.vertices) && params.vertices.length >= 3) {
+    const b = polygonBounds(params.vertices), cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    if (Math.abs(cx) > 1e-9 || Math.abs(cy) > 1e-9) {
+      params.vertices = params.vertices.map(p => ({ x: p.x - cx, y: p.y - cy }));
+      const shift = rotPt(cx * (params.scale || 1), cy * (params.scale || 1), rot);
+      x += shift.x; y += shift.y;
+    }
+  }
   return {
-    id: freshId('e', raw.id, used), type: raw.type, x: raw.x, y: raw.y, rot,
+    id: freshId('e', raw.id, used), type: raw.type, x, y, rot,
     label: typeof raw.label === 'string' ? raw.label : '',
     showLabel: raw.showLabel === true,
     ...(raw.labelPos && ['b', 't', 'l', 'r'].includes(raw.labelPos) ? { labelPos: raw.labelPos } : {}),
