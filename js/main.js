@@ -12,6 +12,7 @@ import { initInspector, renderInspector, refreshMeasurements } from './inspector
 import { exportSVG, exportPNG } from './export.js';
 import { examples } from './examples.js';
 import { download, esc } from './util.js';
+import { buildShareURL, copyText, sharedSceneFromURL } from './share.js';
 
 const $ = id => document.getElementById(id);
 
@@ -355,6 +356,21 @@ function bindToolbar() {
     }
   });
   $('btnSave').addEventListener('click', () => download('optical-setup.json', serialize(), 'application/json'));
+  $('btnShare').addEventListener('click', async () => {
+    const button = $('btnShare');
+    button.disabled = true;
+    try {
+      const url = await buildShareURL(serialize());
+      history.replaceState(null, '', url);
+      await copyText(url);
+      button.textContent = 'Copied!';
+      setTimeout(() => { button.textContent = 'Share'; }, 1600);
+    } catch (err) {
+      alert('Could not create share link: ' + err.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
   $('btnSVG').addEventListener('click', exportSVG);
   $('btnPNG').addEventListener('click', () => exportPNG(3));
   $('btnUndo').addEventListener('click', () => { undo(); renderInspector(); });
@@ -421,7 +437,7 @@ document.addEventListener('optics:toolchange', e => syncToolMode(e.detail));
 document.addEventListener('optics:pulsestate', e => syncPulseControls(e.detail));
 
 // ---------- boot ----------
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   initCanvas($('canvas'), $('status'));
   initInspector($('inspector'));
   buildPalette();
@@ -433,7 +449,18 @@ window.addEventListener('DOMContentLoaded', () => {
   setSelectionCallback(renderInspector);
   onChange(() => { renderAll(); syncToolbar(); refreshMeasurements(); });
 
-  if (!loadAutosave(registry)) {
+  let sharedScene = null;
+  try {
+    const sharedText = await sharedSceneFromURL();
+    if (sharedText) sharedScene = parseSketch(sharedText, registry);
+  } catch (err) {
+    alert('Could not open shared sketch: ' + err.message);
+  }
+
+  if (sharedScene) {
+    replaceScene(sharedScene, { resetHistory: true });
+    zoomFit();
+  } else if (!loadAutosave(registry)) {
     // starter scene: laser -> lens -> beamsplitter -> two detection arms
     const mk = (t, x, y, rot = 0, params = {}, label = '') => {
       const e = createElement(t, x, y); e.rot = rot; Object.assign(e.params, params);

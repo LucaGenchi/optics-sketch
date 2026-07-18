@@ -51,6 +51,9 @@ figures as SVG or PNG.
 - **Paper-ready export**: sketches save/load as `.json` files; figures export as
   SVG/PNG. An optional resizable Figure frame sets the exact export crop and never
   appears in the exported artwork.
+- **Self-contained share links**: the Share action compresses the current sketch
+  into the URL fragment and copies the link. Opening it restores the setup without
+  an account or server-side scene storage.
 
 ## Simulation scope
 
