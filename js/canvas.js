@@ -5,7 +5,7 @@ import { state, changed, pushUndo, findSelected } from './state.js';
 import { registry, getSize, getVisualBounds, getDirectManipulation, createElement, labelSVG } from './elements.js';
 import { traceScene } from './raytrace.js';
 import { pulseMarkers } from './pulses.js';
-import { toLocal, toWorld, distToSegment, distinctPoints, manualBeamSVG } from './util.js';
+import { toLocal, toWorld, rotPt, distToSegment, distinctPoints, manualBeamSVG } from './util.js';
 import { canAppendPolygonPoint, isSimplePolygon, polygonBounds } from './polygon.js';
 
 let svg, viewport, gridLayer, beamLayer, pulseLayer, manualLayer, elementLayer, overlayLayer;
@@ -28,7 +28,7 @@ export function initCanvas(svgElement, statusElement) {
   statusEl = statusElement;
   svg.innerHTML = `
     <defs>
-      <pattern id="holes" width="${HOLE_PITCH}" height="${HOLE_PITCH}" patternUnits="userSpaceOnUse">
+      <pattern id="holes" x="${-HOLE_PITCH / 2}" y="${-HOLE_PITCH / 2}" width="${HOLE_PITCH}" height="${HOLE_PITCH}" patternUnits="userSpaceOnUse">
         <circle cx="${HOLE_PITCH / 2}" cy="${HOLE_PITCH / 2}" r="1.6" fill="#d3d8de"/>
       </pattern>
       <linearGradient id="pulseSpectrum" x1="0" y1="0" x2="1" y2="0">
@@ -70,8 +70,21 @@ export function screenToWorld(sx, sy) {
 
 function snapPos(v, bypass = false) {
   if (!state.snap || bypass) return v;
-  const g = 5;
-  return Math.round(v / g) * g;
+  return Math.round(v / HOLE_PITCH) * HOLE_PITCH;
+}
+
+// Snap an element so that its OPTICALLY ACTIVE point (mirror face, lens
+// plane, laser aperture, detector window... def.snapPt, local coords) lands
+// exactly on a table hole — not just the element's center.
+function snapElPos(el, wx, wy, bypass = false) {
+  if (!state.snap || bypass) return { x: wx, y: wy };
+  const def = registry[el.type];
+  const spl = def && def.snapPt ? def.snapPt : { x: 0, y: 0 };
+  const sp = rotPt(spl.x, spl.y, el.rot || 0);
+  return {
+    x: Math.round((wx + sp.x) / HOLE_PITCH) * HOLE_PITCH - sp.x,
+    y: Math.round((wy + sp.y) / HOLE_PITCH) * HOLE_PITCH - sp.y,
+  };
 }
 
 function constrainPoint(origin, point, incrementDeg = 45) {
@@ -564,6 +577,21 @@ let drawing = null;  // manual beam in progress {pts:[], cursor}
 let placing = null;  // {el, pos}
 let polygonDrawing = null; // registry-driven closed polygon construction
 let spaceDown = false;
+// Manual double-click detection for finishing a beam/fiber/polygon. The
+// native 'dblclick' listener is kept as a backup, but some input paths
+// (trackpad double-taps, remote/automated pointer events) don't reliably
+// synthesize a browser dblclick, so we also detect two close clicks here.
+let lastDrawClick = null; // {t, x, y} in screen coords
+
+function isManualDoubleClick(e) {
+  const now = performance.now();
+  const isDouble = lastDrawClick
+    && now - lastDrawClick.t < 450
+    && Math.hypot(e.clientX - lastDrawClick.x, e.clientY - lastDrawClick.y) < 8;
+  lastDrawClick = { t: now, x: e.clientX, y: e.clientY };
+  if (isDouble) lastDrawClick = null;
+  return isDouble;
+}
 
 function notifyTool(detail = { mode: 'select' }) {
   document.dispatchEvent(new CustomEvent('optics:toolchange', { detail }));
@@ -583,6 +611,7 @@ export function startPlacing(type) {
   if (def?.construction?.kind === 'polygon') {
     placing = null;
     polygonDrawing = { type, pts: [], cursor: null };
+    lastDrawClick = null;
     state.tool = 'polygon:' + type;
     setStatus('Click the first point again, double-click, or press Enter to close');
     notifyTool({ mode: 'polygon', type, label: def.label });
@@ -600,13 +629,15 @@ export function startBeamTool(kind = 'beam') {
   placing = null; polygonDrawing = null;
   state.tool = 'beam';
   drawing = { pts: [], cursor: null, kindType: kind };
+  lastDrawClick = null;
   setStatus('');
-  notifyTool({ mode: kind, label: kind === 'fiber' ? 'Optical fiber' : 'Manual beam' });
+  notifyTool({ mode: kind, label: kind === 'fiber' ? 'Optical fiber' : 'Arrow' });
   renderAll();
 }
 
 export function cancelTool() {
   placing = null; drawing = null; polygonDrawing = null;
+  lastDrawClick = null;
   state.tool = 'select';
   setStatus('');
   notifyTool();
@@ -739,6 +770,13 @@ function onDown(e) {
     let p = { x: snapPos(w.x, e.altKey), y: snapPos(w.y, e.altKey) };
     const previous = polygonDrawing.pts.at(-1);
     if (e.shiftKey && previous) p = constrainPoint(previous, p);
+    // manual double-click closes the polygon even when the browser never
+    // synthesizes a native dblclick; must run before duplicate rejection
+    // because the second click lands on the same point
+    if (isManualDoubleClick(e) && polygonDrawing.pts.length >= 3) {
+      finishPolygon();
+      return;
+    }
     const first = polygonDrawing.pts[0];
     if (first && polygonDrawing.pts.length >= 3
         && Math.hypot(p.x - first.x, p.y - first.y) <= 11 / state.view.z) {
@@ -761,20 +799,22 @@ function onDown(e) {
   if (placing) {
     pushUndo();
     const el = placing.el;
-    el.x = snapPos(w.x); el.y = snapPos(w.y);
+    const sp = snapElPos(el, w.x, w.y, e.altKey);
+    el.x = sp.x; el.y = sp.y;
     state.elements.push(el);
     state.selection = { kind: 'element', id: el.id };
     const type = el.type;
-    placing = e.shiftKey ? { el: createElement(type), pos: { x: snapPos(w.x), y: snapPos(w.y) } } : null;
+    placing = e.shiftKey ? { el: createElement(type), pos: { x: sp.x, y: sp.y } } : null;
     if (!placing) { state.tool = 'select'; setStatus(''); notifyTool(); }
     changed(); onSelectionChange();
     return;
   }
 
   if (state.tool === 'beam') {
-    const p = { x: snapPos(w.x), y: snapPos(w.y) };
+    const p = { x: snapPos(w.x, e.altKey), y: snapPos(w.y, e.altKey) };
     const prev = drawing.pts[drawing.pts.length - 1];
     if (!prev || Math.hypot(p.x - prev.x, p.y - prev.y) > 1e-6) drawing.pts.push(p);
+    if (isManualDoubleClick(e)) { finishBeam(); return; }
     renderAll();
     return;
   }
@@ -910,7 +950,7 @@ function onMove(e) {
     renderManual();
     return;
   }
-  if (placing) { placing.pos = { x: snapPos(w.x, e.altKey), y: snapPos(w.y, e.altKey) }; renderElements(); return; }
+  if (placing) { placing.pos = snapElPos(placing.el, w.x, w.y, e.altKey); renderElements(); return; }
   if (drawing) { drawing.cursor = { x: snapPos(w.x), y: snapPos(w.y) }; renderManual(); return; }
   if (!drag) return;
 
@@ -919,7 +959,7 @@ function onMove(e) {
     state.view.y = drag.vy + (e.clientY - drag.sy);
     renderAll();
   } else if (drag.mode === 'move') {
-    const x = snapPos(w.x + drag.ox), y = snapPos(w.y + drag.oy);
+    const { x, y } = snapElPos(drag.el, w.x + drag.ox, w.y + drag.oy, e.altKey);
     if (x === drag.el.x && y === drag.el.y) return;
     if (!drag.moved) { pushUndo(); drag.moved = true; }
     drag.el.x = x;

@@ -30,11 +30,28 @@ function buildPalette() {
   let total = 0;
   const initiallyOpen = new Set(['Sources', 'Mirrors', 'Lenses']);
   for (const cat of categories) {
-    const entries = Object.entries(registry).filter(([, def]) => def.category === cat)
+    const entries = Object.entries(registry).filter(([, def]) => def.category === cat && !def.hidden)
       .sort((a, b) => (a[1].paletteOrder ?? 100) - (b[1].paletteOrder ?? 100));
-    if (!entries.length) continue;
+    const drawArrowHere = cat === 'Annotations';
+    if (!entries.length && !drawArrowHere) continue;
     h += `<details class="palette-group" data-category="${esc(cat)}" ${initiallyOpen.has(cat) ? 'open' : ''}>
-      <summary>${esc(cat)}<span class="group-count">${entries.length}</span></summary><div class="catlist">`;
+      <summary>${esc(cat)}<span class="group-count">${entries.length + (drawArrowHere ? 1 : 0)}</span></summary><div class="catlist">`;
+    if (drawArrowHere) {
+      // freehand "draw arrow" tool lives here too — it's the same concept as
+      // the fixed-length Arrow annotation, just drawn point-by-point
+      const arrowEl = createElement('arrowann');
+      const arrowDef = registry.arrowann;
+      const asz = typeof arrowDef.size === 'function' ? arrowDef.size(arrowEl) : arrowDef.size;
+      const avb = Math.max(asz.w, asz.h) + 12;
+      const ameta = getElementMeta('arrowann', arrowEl.params);
+      const adesc = 'Draw a straight or multi-point arrow: click waypoints, double-click to finish.';
+      const asearch = `arrow draw beam annotation ${adesc}`.toLowerCase();
+      h += `<button type="button" class="palitem" data-tool="drawarrow" data-type="arrowann" data-search="${esc(asearch)}" title="${esc(adesc)}">
+        <svg viewBox="${-avb / 2} ${-avb / 2} ${avb} ${avb}">${arrowDef.svg(arrowEl)}</svg>
+        <span class="pal-copy"><span class="pal-label">Arrow</span><span class="pal-desc">${esc(adesc)}</span></span>
+        <i class="cap-dot ${ameta.tier}" title="${esc(ameta.status)}" aria-label="${esc(ameta.status)}"></i></button>`;
+      total++;
+    }
     for (const [type, def] of entries) {
       const el = createElement(type);
       const sz = typeof def.size === 'function' ? def.size(el) : (def.size_ ? def.size_(el) : def.size);
@@ -57,6 +74,7 @@ function buildPalette() {
   pal.innerHTML = h;
   $('libraryCount').textContent = `${total} components`;
   pal.querySelectorAll('.palitem').forEach(item => {
+    if (item.dataset.tool === 'drawarrow') { item.addEventListener('click', () => startBeamTool('beam')); return; }
     item.addEventListener('click', () => startPlacing(item.dataset.type));
   });
 
@@ -89,8 +107,8 @@ function syncToolMode(detail = { mode: 'select' }) {
   canvas.classList.toggle('tool-active', active);
   mode.classList.toggle('is-visible', active);
   document.querySelectorAll('.palitem').forEach(item => item.classList.toggle('is-active',
-    (detail.mode === 'place' || detail.mode === 'polygon') && item.dataset.type === detail.type));
-  $('btnBeam').classList.toggle('active', detail.mode === 'beam');
+    ((detail.mode === 'place' || detail.mode === 'polygon') && !item.dataset.tool && item.dataset.type === detail.type) ||
+    (detail.mode === 'beam' && item.dataset.tool === 'drawarrow')));
   $('btnFiber').classList.toggle('active', detail.mode === 'fiber');
   if (!active) { mode.textContent = ''; return; }
   mode.textContent = detail.mode === 'place'
@@ -341,7 +359,6 @@ function bindToolbar() {
   $('btnPNG').addEventListener('click', () => exportPNG(3));
   $('btnUndo').addEventListener('click', () => { undo(); renderInspector(); });
   $('btnRedo').addEventListener('click', () => { redo(); renderInspector(); });
-  $('btnBeam').addEventListener('click', () => startBeamTool('beam'));
   $('btnFiber').addEventListener('click', () => startBeamTool('fiber'));
   $('btnGrid').addEventListener('click', () => { state.showGrid = !state.showGrid; syncToolbar(); renderAll(); });
   $('btnSnap').addEventListener('click', () => { state.snap = !state.snap; syncToolbar(); });

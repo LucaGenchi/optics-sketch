@@ -227,12 +227,13 @@ function sampleSurfaces(el, h) {
     : rectAbsorb(8, 2 * h);
 }
 
-// lens outline at x=cx: biconvex for f>=0, biconcave for f<0
+// lens outline at x=cx: biconvex for f>=0, biconcave for f<0.
+// The refracting faces are the two VERTICAL surfaces the beam crosses, so
+// for a diverging lens those are the ones that curve inward (waist at mid).
 function lensShape(cx, h, f) {
-  const inset = Math.min(10, h * 0.65);
   const d = f >= 0
     ? `M ${cx},${-h} Q ${cx + 9},0 ${cx},${h} Q ${cx - 9},0 ${cx},${-h} Z`
-    : `M ${cx - 6},${-h} Q ${cx},${-h + inset} ${cx + 6},${-h} L ${cx + 6},${h} Q ${cx},${h - inset} ${cx - 6},${h} Z`;
+    : `M ${cx - 6},${-h} L ${cx + 6},${-h} Q ${cx},0 ${cx + 6},${h} L ${cx - 6},${h} Q ${cx},0 ${cx - 6},${-h} Z`;
   return `<path d="${d}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.5"/>`;
 }
 
@@ -300,6 +301,7 @@ export const registry = {
   // ---------------- Sources ----------------
   laser: {
     label: 'Laser', category: 'Sources', paletteOrder: 0, size: { w: 104, h: 38 },
+    snapPt: { x: 52, y: 0 }, // beam exit aperture
     size_: el => ({ w: 104, h: laserH(el) + 4 }),
     params: [
       P.wavelength,
@@ -339,8 +341,11 @@ export const registry = {
     },
   },
 
+  // Hidden legacy source: superseded by the unified Point source below, but
+  // kept (with its exact directional geometry) so older sketches load
+  // unchanged. Not shown in the palette.
   led: {
-    label: 'LED', category: 'Sources', size: { w: 34, h: 30 },
+    label: 'LED (legacy)', category: 'Sources', hidden: true, size: { w: 34, h: 30 },
     size_: el => ({ w: (el.params.packageSize || 30) + 4, h: el.params.packageSize || 30 }),
     params: [
       P.wavelength,
@@ -367,8 +372,11 @@ export const registry = {
     },
   },
 
+  // Hidden legacy source: superseded by the unified Point source below.
+  // Old sketches load with their exact original directional behavior via the
+  // legacyDirectional migration in state.js.
   lamp: {
-    label: 'Broadband point source', category: 'Sources', size: { w: 38, h: 38 },
+    label: 'Light source (legacy)', category: 'Sources', hidden: true, size: { w: 38, h: 38 },
     labelFor: el => el.params.legacyDirectional ? 'Legacy light source' : 'Broadband point source',
     size_: el => ({ w: el.params.packageSize || 38, h: el.params.packageSize || 38 }),
     params: [
@@ -411,6 +419,47 @@ export const registry = {
           : (n === 1 ? 0 : -spread / 2 + spread * i / (n - 1));
         const a = aDeg * Math.PI / 180;
         out.push({ x: 0, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
+      }
+      return out;
+    },
+  },
+
+  // Unified replacement for the old LED + Light source: one isotropic point
+  // emitter. Rays are evanescent — they fade within ~110 mm (5x a fluorescent
+  // specimen's range) unless a nearby lens / objective / fiber tip collects
+  // them, which keeps 360° emission from flooding the canvas.
+  pointsource: {
+    label: 'Point source', category: 'Sources', paletteOrder: 2, size: { w: 30, h: 30 },
+    aliases: ['led', 'lamp', 'light source', 'bulb', 'isotropic source', 'point emitter'],
+    size_: el => ({ w: 30 * (el.params.displayScale || 1), h: 30 * (el.params.displayScale || 1) }),
+    params: [
+      { key: 'displayScale', label: 'Display scale', type: 'number', min: 0.5, max: 2.5, step: 0.1, def: 1 },
+      P.wavelength,
+      { key: 'bwMode', label: 'Spectrum', type: 'select', def: 'mono', options: [['mono', 'Monochromatic'], ['band', 'Broadband']] },
+      { key: 'bandwidth', label: 'Spectrum width (nm)', type: 'number', min: 10, max: 600, step: 10, def: 400, show: p => p.bwMode === 'band' },
+      { key: 'spread', label: 'Emission angle (°)', type: 'number', min: 10, max: 360, step: 10, def: 360 },
+      { key: 'nrays', label: 'Rays', type: 'number', min: 4, max: 32, step: 2, def: 12 },
+      P.autoColor, P.color,
+    ],
+    svg(el) {
+      const c = el.params.autoColor === false && el.params.color ? el.params.color : wavelengthToColor(el.params.wavelength);
+      let spokes = '';
+      for (let i = 0; i < 8; i++) {
+        const a = (i * 45) * Math.PI / 180;
+        spokes += `<line x1="${(6 * Math.cos(a)).toFixed(1)}" y1="${(6 * Math.sin(a)).toFixed(1)}" x2="${(11 * Math.cos(a)).toFixed(1)}" y2="${(11 * Math.sin(a)).toFixed(1)}" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/>`;
+      }
+      return `<g transform="scale(${el.params.displayScale || 1})"><circle r="4.5" fill="${c}" stroke="#333" stroke-width="1"/>` + spokes + `</g>`;
+    },
+    source(el) {
+      const { spread, nrays } = el.params, out = [];
+      const n = Math.max(1, Math.round(nrays));
+      for (let i = 0; i < n; i++) {
+        // A full-circle source must not duplicate the -180°/+180° sample.
+        const aDeg = spread >= 359.999
+          ? 360 * i / n
+          : (n === 1 ? 0 : -spread / 2 + spread * i / (n - 1));
+        const a = aDeg * Math.PI / 180;
+        out.push({ x: 0, y: 0, dx: Math.cos(a), dy: Math.sin(a), evan: true, evanLen: 110 });
       }
       return out;
     },
@@ -589,6 +638,7 @@ export const registry = {
 
   objective: {
     label: 'Objective', category: 'Lenses', size: { w: 36, h: 40 },
+    snapPt: { x: -16, y: 0 }, // lens plane
     size_: el => ({ w: 36, h: (el.params.aperture || 20) + 20 }),
     params: [
       { key: 'f', label: 'Focal length (mm)', type: 'number', min: 1, max: 500, step: 1, def: 20 },
@@ -898,6 +948,7 @@ export const registry = {
   // ---------------- Wavefront shaping ----------------
   slm: {
     label: 'SLM', category: 'Wavefront Shaping', size: { w: 30, h: 50 },
+    snapPt: { x: -9, y: 0 }, // active face
     params: [
       { key: 'transmissive', label: 'Transmissive', type: 'checkbox', def: false },
       { key: 'length', label: 'Active size (mm)', type: 'number', min: 10, max: 100, step: 2, def: 40 },
@@ -928,6 +979,7 @@ export const registry = {
 
   dmd: {
     label: 'DMD', category: 'Wavefront Shaping', size: { w: 30, h: 50 },
+    snapPt: { x: -9, y: 0 }, // active face
     params: [
       { key: 'length', label: 'Active size (mm)', type: 'number', min: 10, max: 100, step: 2, def: 40 },
       { key: 'tilt', label: 'Micromirror tilt (°)', type: 'number', min: 1, max: 20, step: 0.5, def: 12 },
@@ -1013,6 +1065,7 @@ export const registry = {
   // ---------------- Detectors ----------------
   detector: {
     label: 'Photodetector', category: 'Detectors', readoutKind: 'detector', size: { w: 40, h: 30 },
+    snapPt: { x: -19, y: 0 }, // entrance window
     size_: el => ({ w: 40, h: (el.params.aperture || 26) + 4 }),
     params: [{ key: 'aperture', label: 'Sensor height (mm)', type: 'number', min: 6, max: 120, step: 2, def: 26 }],
     svg(el) {
@@ -1026,6 +1079,7 @@ export const registry = {
 
   pmt: {
     label: 'PMT', category: 'Detectors', readoutKind: 'pmt', size: { w: 54, h: 30 },
+    snapPt: { x: -25, y: 0 }, // entrance window
     size_: el => ({ w: 54, h: (el.params.aperture || 26) + 4 }),
     params: [
       { key: 'aperture', label: 'Photocathode height (mm)', type: 'number', min: 6, max: 120, step: 2, def: 26 },
@@ -1044,6 +1098,7 @@ export const registry = {
 
   camera: {
     label: 'Camera', category: 'Detectors', readoutKind: 'camera', size: { w: 44, h: 34 },
+    snapPt: { x: -22, y: 0 }, // sensor face
     size_: el => ({ w: 44, h: (el.params.ch || 30) + 4 }),
     params: [
       { key: 'ch', label: 'Sensor height (mm)', type: 'number', min: 20, max: 150, step: 2, def: 30 },
@@ -1060,6 +1115,7 @@ export const registry = {
 
   eye: {
     label: 'Human eye', category: 'Detectors', readoutKind: 'retina', size: { w: 36, h: 36 },
+    snapPt: { x: -15, y: 0 }, // pupil
     size_: el => ({ w: (el.params.diameter || 30) + 6, h: (el.params.diameter || 30) + 6 }),
     params: [
       { key: 'diameter', label: 'Eye diameter (mm)', type: 'number', min: 18, max: 60, step: 1, def: 30 },
@@ -1373,8 +1429,11 @@ export const registry = {
     surfaces: () => [],
   },
 
+  // Hidden from the palette: the Annotations "Arrow" tile starts the freehand
+  // draw-arrow tool instead (same concept, drawn point-by-point). Existing
+  // placed arrowann elements stay fully editable.
   arrowann: {
-    label: 'Arrow', category: 'Annotations', size: el => ({
+    label: 'Arrow', category: 'Annotations', hidden: true, size: el => ({
       w: el.params.len + 8,
       h: Math.max(20, 2 * (3 + 1.5 * el.params.width) + 4),
     }),
@@ -1522,6 +1581,7 @@ const DIRECT = {
   sclaser: { resize: { y: 'beamWidth', set: { beamMode: 'beam' } }, tune: { key: 'scMax', short: 'λ max' } },
   led: { resize: { uniform: 'packageSize' }, tune: { key: 'spread', short: 'cone' } },
   lamp: { resize: { uniform: 'packageSize' }, tune: { key: 'spread', short: 'angle' } },
+  pointsource: { resize: { uniform: 'displayScale' }, tune: { key: 'spread', short: 'angle' } },
   objarrow: { resize: { y: 'height' }, tune: { key: 'spread', short: 'fan', when: p => p.raysMode === 'fan' } },
   mirror: { resize: { y: 'length' }, tune: { key: 'refl', short: 'R' } },
   galvo: { resize: { y: 'length' }, tune: { key: 'commandAngle', short: 'center' } },
@@ -1598,6 +1658,7 @@ const ELEMENT_HELP = {
   sclaser: 'Emits a configurable pulsed supercontinuum band as a collimated beam.',
   led: 'Emits a directional narrowband fan from an LED package.',
   lamp: 'Emits a broad visible spectrum over a near-isotropic angular fan.',
+  pointsource: 'Emits isotropic light (360° by default, optionally broadband) that fades over a short evanescent range unless captured by a nearby lens, objective, or fiber tip.',
   objarrow: 'Traces object-tip rays and draws an ideal paraxial image; the image marker does not model downstream clipping.',
   mirror: 'Reflects rays with configurable size and reflectivity.',
   galvo: 'Reflects rays from a static or animated ideal quasistatic mechanical scan angle; high scan rates use a slowed preview.',
