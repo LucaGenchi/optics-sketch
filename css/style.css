@@ -65,6 +65,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 button.primary:hover { background: #2559c4; }
 button.danger { color: #c0392b; border-color: #e6b6b0; }
 button.danger:hover { background: #fdf0ee; }
+.icon-button { padding: 2px 8px; border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
 #toolbar select {
   font: inherit;
   color: var(--text);
@@ -76,6 +77,23 @@ button.danger:hover { background: #fdf0ee; }
   max-width: min(280px, 40vw);
 }
 #toolbar select:hover { background: #f0f3f8; }
+
+.share-dialog {
+  width: min(430px, calc(100vw - 28px)); max-height: calc(100vh - 28px); overflow: auto;
+  margin: auto; padding: 20px; border: 1px solid var(--border-strong); border-radius: 13px;
+  background: var(--panel); color: var(--text); box-shadow: 0 24px 70px rgba(22, 31, 44, .24);
+}
+.share-dialog::backdrop { background: rgba(28, 36, 48, .38); backdrop-filter: blur(2px); }
+.share-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.share-dialog h2 { margin-top: 2px; font-size: 18px; letter-spacing: -.25px; }
+.eyebrow { color: var(--accent); font-size: 9px; font-weight: 760; letter-spacing: .7px; text-transform: uppercase; }
+.share-qr { width: min(290px, 100%); margin: 17px auto 10px; padding: 9px; border: 1px solid var(--border); border-radius: 9px; background: #fff; }
+.share-qr svg { display: block; width: 100%; height: auto; }
+.share-qr-note { min-height: 18px; text-align: center; color: var(--muted); font-size: 10.5px; }
+.share-qr-note.easter-egg { color: #9a4d08; font-weight: 650; }
+.share-url-label { display: block; margin: 14px 0 5px; color: var(--muted); font-size: 9px; font-weight: 720; letter-spacing: .45px; text-transform: uppercase; }
+.share-url { width: 100%; resize: none; padding: 8px 9px; border: 1px solid var(--border); border-radius: 7px; background: #f7f9fb; color: #4d5865; font: 9.5px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.share-actions { display: flex; gap: 7px; margin-top: 12px; }
 
 /* ---------- layout ---------- */
 main { flex: 1; display: flex; min-height: 0; position: relative; }
