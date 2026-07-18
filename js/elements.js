@@ -1173,10 +1173,12 @@ export const registry = {
       { key: 'rfMHz', label: 'RF frequency (MHz)', type: 'number', min: -10000, max: 10000, step: 1, def: 80 },
       { key: 'zero', label: 'Keep 0th order', type: 'checkbox', def: false },
       { key: 'eff', label: 'Efficiency (0–1)', type: 'number', min: 0, max: 1, step: 0.05, def: 0.85 },
-      { key: 'modulate', label: 'Gate RF on/off', type: 'checkbox', def: false },
-      { key: 'modFreqMHz', label: 'Gate frequency (MHz)', type: 'number', min: 0.000001, max: 1000, step: 0.001, def: 1, show: p => p.modulate },
-      { key: 'chopDuty', label: 'On fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5, show: p => p.modulate },
-      { key: 'phaseNs', label: 'Gate offset (ns)', type: 'number', min: -1000000, max: 1000000, step: 0.1, def: 0, show: p => p.modulate },
+      { key: 'modulate', label: 'Modulate RF drive', type: 'checkbox', def: false },
+      { key: 'modShape', label: 'Modulation waveform', type: 'select', def: 'square', options: [['square', 'RF on/off'], ['sine', 'Sinusoidal intensity']], show: p => p.modulate },
+      { key: 'modFreqMHz', label: 'Modulation frequency (MHz)', type: 'number', min: 0.000001, max: 1000, step: 0.001, def: 1, show: p => p.modulate },
+      { key: 'chopDuty', label: 'On fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5, show: p => p.modulate && p.modShape !== 'sine' },
+      { key: 'modDepth', label: 'Modulation depth (0–1)', type: 'number', min: 0, max: 1, step: 0.05, def: 1, show: p => p.modulate && p.modShape === 'sine' },
+      { key: 'phaseNs', label: 'Modulation offset (ns)', type: 'number', min: -1000000, max: 1000000, step: 0.1, def: 0, show: p => p.modulate },
     ],
     svg(el) { return boxSVG(40, el.params.aperture || 26, '#c9b458', '#8a7a2e', 'AOM', '#3d3616', isFlipped(el)); },
     surfaces(el) {
@@ -1185,7 +1187,10 @@ export const registry = {
         x1: 0, y1: -(p.aperture || 26) / 2, x2: 0, y2: (p.aperture || 26) / 2, kind: 'aom',
         data: {
           deflect: p.deflect, rfMHz: p.rfMHz, zero: p.zero, eff: p.eff,
-          gate: p.modulate ? { frequencyMHz: p.modFreqMHz, duty: p.chopDuty, phaseNs: p.phaseNs } : null,
+          gate: p.modulate ? {
+            frequencyMHz: p.modFreqMHz, duty: p.chopDuty, phaseNs: p.phaseNs,
+            shape: p.modShape, depth: p.modDepth,
+          } : null,
         },
       }];
     },
@@ -1213,6 +1218,28 @@ export const registry = {
         { x1: -1, y1: -h, x2: -1, y2: h, kind: 'filter', data: { ftype: 'bandpass', center: p.center, band: p.band } },
         { x1: 1, y1: -h, x2: 1, y2: h, kind: 'aom', data: { deflect: p.deflect, rfMHz: p.rfMHz, zero: false, eff: p.eff, gate: null } },
       ];
+    },
+  },
+
+  delayline: {
+    label: 'Mechanical delay line', category: 'Pulse Timing', size: { w: 40, h: 32 },
+    params: [
+      { key: 'delayMm', label: 'Extra optical path (mm)', type: 'number', min: 0, max: 100000, step: 1, def: 100 },
+      { key: 'aperture', label: 'Clear aperture (mm)', type: 'number', min: 6, max: 100, step: 2, def: 24 },
+    ],
+    size_: el => ({ w: 40, h: (el.params.aperture || 24) + 8 }),
+    svg(el) {
+      const h = (el.params.aperture || 24) / 2;
+      const flipped = isFlipped(el) ? 'transform="rotate(180)"' : '';
+      return `<rect x="-18" y="${-h - 3}" width="36" height="${2 * h + 6}" rx="3" fill="#d8d1ec" stroke="#69588f" stroke-width="1.4"/>` +
+        `<g ${flipped} fill="none" stroke="#514171" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">` +
+        `<path d="M -15,0 H -6 L 4,-7 H 11 L 4,0 L 11,7 H 4 L -6,0"/>` +
+        `<path d="M -1,-10 V 10" stroke-dasharray="2 2" opacity="0.65"/></g>` +
+        `<text x="0" y="${h + 1}" ${flipped} text-anchor="middle" dominant-baseline="central" font-size="7" font-weight="700" fill="#44365f">ΔL</text>`;
+    },
+    surfaces(el) {
+      const h = (el.params.aperture || 24) / 2;
+      return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'delay', data: { delayMm: el.params.delayMm } }];
     },
   },
 
@@ -1640,6 +1667,7 @@ const DIRECT = {
   beamdump: { resize: { y: 'aperture' } },
   aom: { resize: { y: 'aperture' }, tune: { key: 'deflect', short: 'deflect' } },
   aotf: { resize: { y: 'aperture' }, tune: { key: 'center', short: 'λ select' } },
+  delayline: { resize: { y: 'aperture' }, tune: { key: 'delayMm', short: 'ΔL' } },
   eom: { resize: { y: 'aperture' }, tune: { key: 'retardance', short: 'Δφ', when: p => p.modulate } },
   chopper: { resize: { uniform: 'diameter' }, tune: { key: 'chopDuty', short: 'duty', when: p => p.modulate } },
   crystal: { resize: { y: 'aperture' }, tune: { key: 'efficiency', short: 'η', when: p => p.convert !== 'none' } },
@@ -1718,8 +1746,9 @@ const ELEMENT_HELP = {
   pmt: 'Applies configurable qualitative gain and saturation to detected optical signal.',
   camera: 'Bins incident rays into a configurable one-dimensional sensor profile.',
   eye: 'Focuses through a configurable pupil and reports the qualitative retinal signal and spot.',
-  aom: 'Deflects and frequency-shifts first-order light with efficiency, zero-order, and temporal RF gating.',
+  aom: 'Deflects and frequency-shifts first-order light with efficiency, zero-order, and square or sinusoidal RF modulation.',
   aotf: 'Selects a configurable spectral band, then deflects and attenuates the selected acousto-optic order.',
+  delayline: 'Adds a configurable folded optical-path delay while preserving the outgoing beam axis.',
   eom: 'Applies voltage-controlled polarization retardance; an analyzer converts it to intensity modulation.',
   chopper: 'Gates finite-duration pulse trains in time and applies duty-averaged transmission to CW light; the wheel shows duty and pulse-clock phase.',
   crystal: 'Converts a configurable fraction of pump power into SHG, THG, supercontinuum, OPO, or custom output.',

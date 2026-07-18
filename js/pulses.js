@@ -5,14 +5,21 @@ export const C_MM_PER_NS = 299.792458;
 
 const positiveMod = (value, modulus) => ((value % modulus) + modulus) % modulus;
 
-function gateOpen(gate, emissionTimeNs) {
-  if (!Number.isFinite(gate?.opl) || !Number.isFinite(emissionTimeNs)) return true;
+function gateTransmission(gate, emissionTimeNs) {
+  if (!Number.isFinite(gate?.opl) || !Number.isFinite(emissionTimeNs)) return 1;
   const frequencyMHz = Math.min(1e6, Math.max(0.000001, gate.frequencyMHz || 1));
   const periodNs = 1000 / frequencyMHz;
   const duty = Math.min(1, Math.max(0, gate.duty ?? 0.5));
   const arrivalNs = emissionTimeNs + gate.opl / C_MM_PER_NS;
-  const open = positiveMod(arrivalNs - (gate.phaseNs || 0), periodNs) < periodNs * duty;
-  return gate.invert ? !open : open;
+  const phase = positiveMod(arrivalNs - (gate.phaseNs || 0), periodNs) / periodNs;
+  let transmission;
+  if (gate.shape === 'sine') {
+    const depth = Math.min(1, Math.max(0, gate.depth ?? 1));
+    transmission = 1 - depth * (1 - Math.cos(2 * Math.PI * phase)) / 2;
+  } else {
+    transmission = phase < duty ? 1 : 0;
+  }
+  return gate.invert ? 1 - transmission : transmission;
 }
 
 // Fraction of one finite-duration pulse that survives all gates encountered so
@@ -22,22 +29,25 @@ function gateOpen(gate, emissionTimeNs) {
 export function pulseTransmissionAt(pulse, emissionTimeNs) {
   const gates = Array.isArray(pulse?.gates) ? pulse.gates.filter(g => Number.isFinite(g?.opl)) : [];
   if (!gates.length) return 1;
+  const transmissionAt = timeNs => gates.reduce((value, gate) => value * gateTransmission(gate, timeNs), 1);
   const durationNs = Math.min(1000, Math.max(1e-6, pulse.pulseWidthFs || 100) * 1e-6);
   const gateFeatures = gates.map(gate => {
     const frequencyMHz = Math.min(1e6, Math.max(0.000001, gate.frequencyMHz || 1));
     const periodNs = 1000 / frequencyMHz;
     const duty = Math.min(1, Math.max(0, gate.duty ?? 0.5));
-    return periodNs * Math.max(1e-6, Math.min(duty, 1 - duty));
+    return gate.shape === 'sine'
+      ? periodNs / 4
+      : periodNs * Math.max(1e-6, Math.min(duty, 1 - duty));
   });
   if (durationNs < Math.min(...gateFeatures) * 0.001) {
-    return gates.every(gate => gateOpen(gate, emissionTimeNs)) ? 1 : 0;
+    return transmissionAt(emissionTimeNs);
   }
   const shortestPeriodNs = Math.min(...gates.map(g => 1000 / Math.min(1e6, Math.max(0.000001, g.frequencyMHz || 1))));
   const samples = Math.min(256, Math.max(32, Math.ceil(durationNs / shortestPeriodNs * 128)));
   let passed = 0;
   for (let i = 0; i < samples; i++) {
     const offsetNs = ((i + 0.5) / samples - 0.5) * durationNs;
-    if (gates.every(gate => gateOpen(gate, emissionTimeNs + offsetNs))) passed++;
+    passed += transmissionAt(emissionTimeNs + offsetNs);
   }
   return passed / samples;
 }

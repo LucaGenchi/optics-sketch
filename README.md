@@ -24,7 +24,8 @@ figures as SVG or PNG.
   galvo), lenses, telescopes, objectives, dichroics, filters, beamsplitters,
   polarization optics (polarizers, waveplates, PBS, isolator), gratings, prisms,
   diffusers, wavefront shapers (SLM, DMD, deformable mirror) with composable
-  optical functions, modulators (AOM/AOTF/EOM/chopper), nonlinear crystals (SHG, THG,
+  optical functions, modulators (AOM/AOTF/EOM/chopper), mechanical pulse-delay lines,
+  nonlinear crystals (SHG, THG,
   supercontinuum, OPO), fibers with per-end output specs, detectors, a focusing
   human eye, straight-sided freeform glass/prisms, and free annotations (arrows,
   labels, beam probes, and a canvas-only figure frame).
@@ -35,8 +36,9 @@ figures as SVG or PNG.
 - **Pulsed timing**: pulsed lasers animate wavelength-colored packets along the
   traced path. Physical mode uses optical-path delay and the configured repetition
   rate; schematic mode keeps packets visible at workbench scale while detector
-  delays remain physical. Choppers and gated AOM orders clip finite-duration pulses
-  with complementary, phase-aware timing. Playback can be paused, reset, and time-scaled.
+  delays remain physical. Mechanical delay lines add folded optical path, while AOMs
+  support square gating or graded sinusoidal intensity modulation. Playback can be
+  paused, reset, and time-scaled.
 - **Qualitative detector readouts**: photodetectors, PMTs, and cameras report
   relative ray signal, spectrum, polarization, and spot span at their front face;
   pulsed paths add optical-path delay and path spread. PMTs include qualitative

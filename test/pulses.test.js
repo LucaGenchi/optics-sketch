@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { C_MM_PER_NS, pointAtOpticalPath, pulseGateTransmission, pulseMarkers } from '../js/pulses.js';
+import { C_MM_PER_NS, pointAtOpticalPath, pulseGateTransmission, pulseMarkers, pulseTransmissionAt } from '../js/pulses.js';
 
 const track = {
   pts: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }],
@@ -50,6 +50,17 @@ test('pulse gating respects aligned and opposed gate phases', () => {
   const opposed = { repRateMHz: 80, phaseNs: 0, gates: [first, { ...first, phaseNs: 500 }] };
   assert.ok(Math.abs(pulseGateTransmission(aligned, 800) - 0.5) < 1e-9);
   assert.equal(pulseGateTransmission(opposed, 800), 0);
+});
+
+test('sinusoidal AOM modulation grades pulse intensity instead of imposing a half-cycle blackout', () => {
+  const pulse = {
+    pulseWidthFs: 100,
+    gates: [{ opl: 0, frequencyMHz: 1, phaseNs: 0, shape: 'sine', depth: 1 }],
+  };
+  assert.ok(Math.abs(pulseTransmissionAt(pulse, 0) - 1) < 1e-12);
+  assert.ok(Math.abs(pulseTransmissionAt(pulse, 250) - 0.5) < 1e-12);
+  assert.ok(Math.abs(pulseTransmissionAt(pulse, 500)) < 1e-12);
+  assert.ok(pulseTransmissionAt(pulse, 375) > 0 && pulseTransmissionAt(pulse, 375) < 0.5);
 });
 
 test('gate averaging spans very slow allowed gate cycles', () => {

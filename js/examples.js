@@ -264,7 +264,8 @@ export const examples = [
     build: () => ({
       elements: [
         tl('SRS microscope — synchronized pump + Stokes excitation and single-point detection', 440, 20, 14, '#333'),
-        tl('After Bertoncini et al., J. Biophotonics (2021), Fig. 1b main path; printed collector and inset hardware omitted', 440, 40, 9),
+        tl('After Bertoncini et al. (2021), Fig. 1b, with timing/detection detail from Laptenok et al. (2019)', 440, 40, 9),
+        tl('Printed collector and Figure 1c/d inset hardware intentionally omitted', 440, 54, 9),
 
         mk('laser', 70, 300, 0, {
           wavelength: 800, beamMode: 'beam', beamWidth: 6,
@@ -281,14 +282,17 @@ export const examples = [
         }, { label: 'fixed Stokes output (1040 nm)', showLabel: true, labelPos: 'r' }),
         mk('aom', 320, 175, 90, {
           deflect: 0, rfMHz: 80, zero: false, eff: 0.85,
-          modulate: true, modFreqMHz: 5, chopDuty: 0.5,
-        }, { label: 'AOM: 5 MHz amplitude modulation', showLabel: true, labelPos: 'r' }),
-        mk('filter', 320, 240, 90, { ftype: 'bandpass', center: 1040, band: 1, length: 25.4 }, {
-          label: 'Stokes spectral filter', showLabel: true, labelPos: 'r',
+          modulate: true, modShape: 'sine', modFreqMHz: 5, modDepth: 1,
+        }, { label: 'AOM: 5 MHz sinusoidal intensity modulation', showLabel: true, labelPos: 'r' }),
+        mk('delayline', 320, 215, 90, { delayMm: 40, aperture: 24 }, {
+          label: 'mechanical delay: ΔL = 40 mm', showLabel: true, labelPos: 'l',
+        }),
+        mk('filter', 320, 255, 90, { ftype: 'bandpass', center: 1040, band: 1, length: 25.4 }, {
+          label: 'folded 4f Stokes shaper (1 nm)', showLabel: true, labelPos: 'l',
         }),
 
         mk('dichroic', 320, 300, -45, { dtype: 'shortpass', cutoff: 950, length: 35 }, {
-          label: 'combiner', showLabel: true, labelPos: 't',
+          label: 'combiner', showLabel: true, labelPos: 'r',
         }),
         mk('galvo', 440, 300, 135, { length: 40, commandAngle: 0, scanMode: 'static' }, {
           label: 'galvo X', showLabel: true, labelPos: 't',
@@ -305,8 +309,8 @@ export const examples = [
         mk('sample', 735, 410, 0, { mode: 'none', transmitExc: true, transmission: 0.8, aperture: 34 }, {
           label: 'sample', showLabel: true, labelPos: 'b',
         }),
-        mk('filter', 785, 410, 0, { ftype: 'bandpass', center: 1040, band: 40, length: 34 }, {
-          label: 'Stokes filter', showLabel: true, labelPos: 't',
+        mk('filter', 785, 410, 0, { ftype: 'shortpass', cutoff: 1000, length: 34 }, {
+          label: 'Stokes-reject SP', showLabel: true, labelPos: 't',
         }),
         mk('detector', 850, 410, 0, { aperture: 34 }, {
           label: 'single-point photodetector', showLabel: true, labelPos: 'b',
@@ -314,8 +318,9 @@ export const examples = [
 
         ...tls([
           'Two source icons represent the synchronized outputs of one commercial OPO system.',
+          'The mechanical delay is adjusted so the 100 fs pump and Stokes pulses overlap at the sample.',
           'The paper\'s printed collection optic is omitted; the downstream detector path is schematic.',
-          'SRS modulation transfer, lock-in electronics and XPM are not simulated by this geometric tracer.',
+          'The detector passes pump and rejects Stokes; SRS transfer, lock-in electronics and XPM are not simulated.',
         ], 430, 520, 9),
       ],
       beams: [],

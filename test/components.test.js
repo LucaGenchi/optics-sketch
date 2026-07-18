@@ -180,6 +180,27 @@ test('AOM deflects, frequency-shifts, and attenuates first-order light', () => {
   assert.ok(reading.wavelength < laser.params.wavelength);
 });
 
+test('mechanical delay line adds bounded optical path without steering the beam', () => {
+  const laser = createElement('laser', 0, 0);
+  laser.params.temporalMode = 'pulsed';
+  const delay = createElement('delayline', 150, 0);
+  const detector = createElement('detector', 300, 0);
+
+  delay.params.delayMm = 0;
+  traceAll([laser, delay, detector]);
+  const baseline = detectorReading(detector.id).pulse.earliestPathDelayNs;
+
+  delay.params.delayMm = 250;
+  const delayedPaths = traceAll([laser, delay, detector]).filter(drawable => drawable.type === 'path');
+  const delayed = detectorReading(detector.id).pulse.earliestPathDelayNs;
+  assert.ok(Math.abs(delayed - baseline - 250 / C_MM_PER_NS) < 1e-9);
+  assert.ok(delayedPaths.every(path => path.pts.every(point => Math.abs(point.y) < 1e-9)));
+
+  delay.params.delayMm = -50;
+  traceAll([laser, delay, detector]);
+  assert.ok(Math.abs(detectorReading(detector.id).pulse.earliestPathDelayNs - baseline) < 1e-9);
+});
+
 test('AOTF selects its passband and deflects only the selected order', () => {
   const laser = createElement('laser', 0, 0);
   laser.params.wavelength = 800;

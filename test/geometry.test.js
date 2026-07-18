@@ -250,17 +250,30 @@ test('SRS microscope example preserves the paper main path without the printed c
   assert.deepEqual(lasers.map(el => el.params.wavelength).sort((a, b) => a - b), [800, 1040]);
   assert.ok(lasers.every(el => el.params.temporalMode === 'pulsed' && el.params.repRateMHz === 80));
   assert.ok(opticalElements.some(el => el.type === 'aotf' && el.params.center === 800 && el.params.band === 1));
-  assert.ok(opticalElements.some(el => el.type === 'aom' && el.params.modFreqMHz === 5));
+  assert.ok(opticalElements.some(el => el.type === 'aom'
+    && el.params.modFreqMHz === 5 && el.params.modShape === 'sine'));
+  assert.ok(opticalElements.some(el => el.type === 'delayline' && el.params.delayMm === 40));
   assert.ok(opticalElements.some(el => el.type === 'dichroic'));
   assert.equal(opticalElements.filter(el => el.type === 'galvo').length, 2);
   assert.ok(opticalElements.some(el => el.type === 'objective'));
-  assert.ok(opticalElements.some(el => el.type === 'sample'));
+  const sample = opticalElements.find(el => el.type === 'sample');
+  assert.ok(sample);
+  assert.ok(opticalElements.some(el => el.type === 'filter'
+    && el.params.ftype === 'shortpass' && el.params.cutoff === 1000));
   const detector = opticalElements.find(el => el.type === 'detector');
   assert.ok(detector);
-  traceAll(scene.elements, scene.beams);
+  const traced = traceScene(scene.elements, scene.beams);
+  const arrivals = lasers.map(laser => {
+    const track = traced.pulseTracks.find(candidate => candidate.pulse.sourceId === laser.id
+      && candidate.pts.some(point => Math.hypot(point.x - sample.x, point.y - sample.y) < 1e-6));
+    assert.ok(track, `${laser.params.wavelength} nm pulse reaches the sample`);
+    const index = track.pts.findIndex(point => Math.hypot(point.x - sample.x, point.y - sample.y) < 1e-6);
+    return track.pulse.phaseNs + track.opls[index] / C_MM_PER_NS;
+  });
+  assert.ok(Math.abs(arrivals[0] - arrivals[1]) < 1e-6, 'pump and Stokes pulses overlap at the sample');
   const reading = detectorReading(detector.id);
   assert.ok(reading?.signal > 0);
-  assert.ok(Math.abs(reading.wavelength - 1040) < 0.01);
+  assert.ok(Math.abs(reading.wavelength - 800) < 0.01, 'detector passes pump and rejects Stokes');
 });
 
 test('speckle dot drawables are included in export bounds', () => {

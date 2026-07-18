@@ -19,7 +19,7 @@ let gateTransmissionCache = new Map();
 function averageGateTransmission(pulse) {
   if (!pulse?.gates?.length) return 1;
   const key = [pulse.repRateMHz, pulse.pulseWidthFs, pulse.phaseNs, ...pulse.gates.flatMap(g => [
-    g.opl, g.frequencyMHz, g.duty, g.phaseNs, g.invert ? 1 : 0,
+    g.opl, g.frequencyMHz, g.duty, g.phaseNs, g.shape || 'square', g.depth ?? 1, g.invert ? 1 : 0,
   ])].join('|');
   if (!gateTransmissionCache.has(key)) gateTransmissionCache.set(key, pulseGateTransmission(pulse));
   return gateTransmissionCache.get(key);
@@ -566,12 +566,16 @@ function interact(ray, hit) {
       const out = [];
       const a = data.deflect * D2R, c = Math.cos(a), sn = Math.sin(a);
       const duty = data.gate ? Math.min(0.99, Math.max(0.01, data.gate.duty ?? 0.5)) : 1;
+      const shape = data.gate?.shape === 'sine' ? 'sine' : 'square';
+      const depth = Math.min(1, Math.max(0, data.gate?.depth ?? 1));
+      const averageTransmission = data.gate ? (shape === 'sine' ? 1 - depth / 2 : duty) : 1;
       let pulse = ray.pulse;
       if (data.gate && ray.pulse) {
         pulse = {
           ...ray.pulse,
           gates: [...(ray.pulse.gates || []), {
-            opl: ray.opl, frequencyMHz: data.gate.frequencyMHz || 1, duty, phaseNs: data.gate.phaseNs || 0,
+            opl: ray.opl, frequencyMHz: data.gate.frequencyMHz || 1, duty,
+            phaseNs: data.gate.phaseNs || 0, shape, depth,
           }],
         };
       }
@@ -581,7 +585,7 @@ function interact(ray, hit) {
       const shiftedWl = C_NM_PER_S / shiftedHz;
       out.push({
         d: { x: d.x * c - d.y * sn, y: d.x * sn + d.y * c },
-        wl: shiftedWl, intensity: ray.intensity * data.eff * (ray.pulse ? 1 : duty), tag: 'd1', pulse,
+        wl: shiftedWl, intensity: ray.intensity * data.eff * (ray.pulse ? 1 : averageTransmission), tag: 'd1', pulse,
       });
       if (data.zero) {
         if (data.gate && ray.pulse) {
@@ -595,12 +599,12 @@ function interact(ray, hit) {
               ...ray.pulse,
               gates: [...(ray.pulse.gates || []), {
                 opl: ray.opl, frequencyMHz: data.gate.frequencyMHz || 1, duty,
-                phaseNs: data.gate.phaseNs || 0, invert: true,
+                phaseNs: data.gate.phaseNs || 0, shape, depth, invert: true,
               }],
             },
           });
         } else {
-          out.push({ d, intensity: ray.intensity * (1 - data.eff * duty), tag: 'd0' });
+          out.push({ d, intensity: ray.intensity * (1 - data.eff * averageTransmission), tag: 'd0' });
         }
       }
       return out;
@@ -852,6 +856,17 @@ function traceRays(rays0, surfaces, couplings) {
       if (hit.ambiguous && hit.surface.kind === 'refract') break;
       r.sig += `/${interactionKey}`;
       if (hit.surface.kind === 'detector') recordDetectorHit(r, hit);
+      if (hit.surface.kind === 'delay') {
+        const extraOpl = Math.min(100000, Math.max(0, hit.surface.data.delayMm || 0));
+        if (extraOpl > 0) {
+          r.segmentIntensities.push(r.intensity);
+          r.segmentHistories.push(r.sig);
+          r.segmentEvents.push(interactionKey);
+          r.pts.push({ x: hit.p.x, y: hit.p.y });
+          r.opl += extraOpl;
+          r.opls.push(r.opl);
+        }
+      }
       if (hit.surface.kind === 'fiberin') {
         const fb = hit.surface.data.beam;
         const intoFiber = fiberEndDirection(fb.pts, hit.surface.data.end);
