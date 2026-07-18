@@ -4,7 +4,7 @@
 // polygons (beam-mode envelope between the two edge rays).
 
 import { registry, OBJ_SHAPES } from './elements.js';
-import { toWorld, rotPt, dot, sub, add, mul, norm, perp, wavelengthToColor, D2R, distToSegment } from './util.js';
+import { toLocal, toWorld, rotPt, dot, sub, add, mul, norm, perp, wavelengthToColor, D2R, distToSegment } from './util.js';
 import { C_MM_PER_NS, pulseGateTransmission } from './pulses.js';
 import {
   linearStokes, cloneStokes, retarder as applyRetarder, analyzerTransmission,
@@ -18,8 +18,8 @@ let gateTransmissionCache = new Map();
 
 function averageGateTransmission(pulse) {
   if (!pulse?.gates?.length) return 1;
-  const key = [pulse.repRateMHz, pulse.phaseNs, ...pulse.gates.flatMap(g => [
-    g.opl, g.frequencyMHz, g.duty, g.phaseNs,
+  const key = [pulse.repRateMHz, pulse.pulseWidthFs, pulse.phaseNs, ...pulse.gates.flatMap(g => [
+    g.opl, g.frequencyMHz, g.duty, g.phaseNs, g.invert ? 1 : 0,
   ])].join('|');
   if (!gateTransmissionCache.has(key)) gateTransmissionCache.set(key, pulseGateTransmission(pulse));
   return gateTransmissionCache.get(key);
@@ -54,50 +54,52 @@ function recordDetectorHit(ray, hit) {
 export function detectorReading(elementId) {
   const hits = detectorHits.get(elementId) || [];
   if (!hits.length) return null;
-  const signal = hits.reduce((sum, h) => sum + Math.max(0, h.power || 0), 0);
+  // A fully blocked pulse can still geometrically reach the detector. It must
+  // not contaminate spectrum, polarization, spot, timing, or source counts.
+  const activeHits = hits.filter(h => Number.isFinite(h.power) && h.power > 1e-12);
+  const signal = activeHits.reduce((sum, h) => sum + Math.max(0, h.power), 0);
   if (signal <= 1e-12) return null;
-  const weight = signal || hits.length;
-  const wavelength = hits.reduce((sum, h) => sum + h.wl * (h.power || 1), 0) / weight;
-  const bandMin = Math.min(...hits.map(h => h.wl - h.bw / 2));
-  const bandMax = Math.max(...hits.map(h => h.wl + h.bw / 2));
-  const us = hits.map(h => h.u);
-  const aperture = Math.max(...hits.map(h => h.aperture || 0));
+  const wavelength = activeHits.reduce((sum, h) => sum + h.wl * h.power, 0) / signal;
+  const bandMin = Math.min(...activeHits.map(h => h.wl - h.bw / 2));
+  const bandMax = Math.max(...activeHits.map(h => h.wl + h.bw / 2));
+  const us = activeHits.map(h => h.u);
+  const aperture = Math.max(...activeHits.map(h => h.aperture || 0));
   const spotSpan = aperture * (Math.max(...us) - Math.min(...us));
-  const detectorType = hits[0].detectorType || 'Detector';
-  const readoutKind = hits[0].readoutKind || 'detector';
+  const detectorType = activeHits[0].detectorType || 'Detector';
+  const readoutKind = activeHits[0].readoutKind || 'detector';
   let outputSignal = signal, saturated = false, profile = null, centroid = null;
   if (readoutKind === 'pmt') {
-    const gain = Math.max(1, hits[0].gain || 1);
-    const saturation = Math.max(1, hits[0].saturation || 100);
+    const gain = Math.max(1, activeHits[0].gain || 1);
+    const saturation = Math.max(1, activeHits[0].saturation || 100);
     outputSignal = Math.min(saturation, signal * gain);
     saturated = signal * gain >= saturation;
   } else if (readoutKind === 'camera') {
-    const count = Math.min(64, Math.max(8, Math.round(hits[0].pixels || 16)));
+    const count = Math.min(64, Math.max(8, Math.round(activeHits[0].pixels || 16)));
     profile = Array(count).fill(0);
-    for (const h of hits) {
+    for (const h of activeHits) {
       const i = Math.min(count - 1, Math.max(0, Math.floor(h.u * count)));
       profile[i] += Math.max(0, h.power || 0);
     }
     const total = profile.reduce((sum, value) => sum + value, 0);
     if (total > 0) centroid = profile.reduce((sum, value, i) => sum + value * ((i + 0.5) / count - 0.5) * aperture, 0) / total;
   }
-  const stokesHits = hits.filter(h => h.stokes);
-  const numericPol = hits.filter(h => typeof h.pol === 'number').map(h => h.pol);
+  const stokesHits = activeHits.filter(h => h.stokes);
+  const numericPol = activeHits.filter(h => typeof h.pol === 'number').map(h => h.pol);
   let polarization = 'Unpolarized';
-  if (stokesHits.length === hits.length) {
-    const sw = stokesHits.reduce((sum, h) => sum + Math.max(0, h.power || 0), 0) || stokesHits.length;
+  if (stokesHits.length === activeHits.length) {
+    const sw = stokesHits.reduce((sum, h) => sum + Math.max(0, h.power), 0);
     const mixed = {
-      s1: stokesHits.reduce((sum, h) => sum + h.stokes.s1 * (h.power || 1), 0) / sw,
-      s2: stokesHits.reduce((sum, h) => sum + h.stokes.s2 * (h.power || 1), 0) / sw,
-      s3: stokesHits.reduce((sum, h) => sum + h.stokes.s3 * (h.power || 1), 0) / sw,
+      s1: stokesHits.reduce((sum, h) => sum + h.stokes.s1 * h.power, 0) / sw,
+      s2: stokesHits.reduce((sum, h) => sum + h.stokes.s2 * h.power, 0) / sw,
+      s3: stokesHits.reduce((sum, h) => sum + h.stokes.s3 * h.power, 0) / sw,
     };
     polarization = polarizationDescription(mixed);
-  } else if (hits.every(h => h.pol === 'c')) polarization = 'Circular';
-  else if (numericPol.length === hits.length) {
+  } else if (activeHits.every(h => h.pol === 'c')) polarization = 'Circular';
+  else if (numericPol.length === activeHits.length) {
     const lo = Math.min(...numericPol), hi = Math.max(...numericPol);
     polarization = hi - lo < 0.5 ? `Linear ${Math.round((lo + hi) / 2)}°` : 'Mixed linear';
-  } else if (hits.some(h => h.pol !== undefined)) polarization = 'Mixed';
-  const pulsed = hits.filter(h => h.pulse);
+  } else if (activeHits.some(h => h.pol !== undefined)) polarization = 'Mixed';
+  const pulsed = activeHits.filter(h => h.pulse);
   let pulse = null;
   if (pulsed.length) {
     const delays = pulsed.map(h => h.pathDelayNs).filter(Number.isFinite);
@@ -110,6 +112,8 @@ export function detectorReading(elementId) {
         repRateMHz: p.repRateMHz,
         pulseWidthFs: p.pulseWidthFs,
         phaseNs: p.phaseNs,
+        gates: Array.isArray(p.gates) ? p.gates.map(g => ({ ...g })) : [],
+        pathDelayNs: h.pathDelayNs,
       });
     }
     const trains = [...trainMap.values()];
@@ -129,7 +133,7 @@ export function detectorReading(elementId) {
   }
   return {
     signal,
-    samples: hits.length,
+    samples: activeHits.length,
     wavelength,
     bandMin,
     bandMax,
@@ -153,7 +157,10 @@ export function probeAt(x, y, tol = 16) {
   for (const r of lastPaths) {
     for (let i = 0; i < r.pts.length - 1; i++) {
       const dd = distToSegment(p, r.pts[i], r.pts[i + 1]);
-      if (dd < bd) { bd = dd; best = r; }
+      if (dd < bd) {
+        bd = dd;
+        best = { ...r, intensity: r.segmentIntensities?.[i] ?? r.intensity };
+      }
     }
   }
   return best ? { wl: best.wl, bw: best.bw || 0, pol: best.pol, intensity: best.intensity } : null;
@@ -295,7 +302,16 @@ function nearestHit(p, d, surfaces, skip) {
     const t = (dp.x * e.y - dp.y * e.x) / den;       // distance along ray
     const u = (dp.x * d.y - dp.y * d.x) / den;       // position along segment
     if (t < 0.05 || u < 0 || u > 1) continue;
-    if (!best || t < best.t) best = { t, u, surface: s, p: add(p, mul(d, t)) };
+    if (!best || t < best.t - 1e-8) {
+      best = { t, u, surface: s, p: add(p, mul(d, t)), ambiguous: false };
+    } else if (Math.abs(t - best.t) <= 1e-8
+        && s.kind === 'refract' && best.surface.kind === 'refract'
+        && s.el?.id && s.el.id === best.surface.el?.id
+        && (u < 1e-7 || u > 1 - 1e-7 || best.u < 1e-7 || best.u > 1 - 1e-7)) {
+      // At an exact polygon corner either face normal would be arbitrary.
+      // Mark the hit so the tracer can terminate safely at the vertex.
+      best.ambiguous = true;
+    }
   }
   return best;
 }
@@ -412,7 +428,7 @@ function bandChild(ray, d, lo, hi, tag) {
   const nbw = hi - lo < 2 ? 0 : hi - lo;
   return {
     d, wl: (lo + hi) / 2, bw: nbw, tag,
-    intensity: ray.intensity * Math.max(0.3, (hi - lo) / ray.bw),
+    intensity: ray.intensity * Math.min(1, Math.max(0, (hi - lo) / ray.bw)),
   };
 }
 
@@ -449,29 +465,34 @@ function interact(ray, hit) {
       // beam actually fans out (e.g. white light through a prism). A fixed
       // user-set index (glass rods) has no dispersion to sample.
       const dispersive = data.material === 'bk7' && ray.bw > 0;
-      const wls = dispersive ? wlSamples(ray) : [ray.wl];
-      const out = [];
-      for (let i = 0; i < wls.length; i++) {
-        const wl = wls[i];
+      const transmitAt = (wl, intensity = ray.intensity, tag, bandwidth = ray.bw) => {
         const dispersiveIor = data.material === 'bk7' ? 1.5046 + 4680 / (wl * wl) : data.ior;
         const materialIor = Math.min(2.5, Math.max(1.01, dispersiveIor || 1.52));
-        const n1 = inside ? (ray.ior || materialIor) : (ray.ior || 1);
+        // A broadband source born inside the body initially carries one
+        // center-wavelength IOR. Once sampled at the exit, each wavelength
+        // must use its own incident index or the spectrum keeps one angle.
+        const n1 = inside ? (dispersive ? materialIor : (ray.ior || materialIor)) : (ray.ior || 1);
         const n2 = inside ? 1 : materialIor;
         const transmitted = refract(d, n, n1, n2);
-        const tag = wls.length > 1 ? 'w' + i : undefined;
         if (!transmitted) {
-          out.push({ d: reflect(d, n), wl, bw: dispersive ? 0 : ray.bw, intensity: ray.intensity / wls.length, tag });
-          continue;
+          return {
+            d: reflect(d, n), wl, bw: bandwidth, intensity,
+            ior: inside ? materialIor : (ray.ior || 1),
+            tag: tag ? `${tag}-tir` : 'tir',
+          };
         }
-        out.push({
-          d: transmitted, wl, bw: dispersive ? 0 : ray.bw,
+        return {
+          d: transmitted, wl, bw: bandwidth, tag,
           medium: inside ? null : materialId,
           ior: n2,
-          intensity: ray.intensity * Math.min(1, Math.max(0, data.transmission ?? 1)) / wls.length,
-          tag,
-        });
+          intensity: intensity * Math.min(1, Math.max(0, data.transmission ?? 1)),
+        };
+      };
+      if (dispersive) {
+        const samples = wlSamples(ray);
+        return samples.map((wl, i) => transmitAt(wl, ray.intensity / samples.length, `w${i}`, 0));
       }
-      return out;
+      return [transmitAt(ray.wl)];
     }
     case 'dichroic': {
       if (!ray.bw) return dichroicTransmits(ray.wl, data) ? [{ d }] : [{ d: reflect(d, n) }];
@@ -536,7 +557,7 @@ function interact(ray, hit) {
         // a single line ray scatters into a small speckled fan
         return [0, 1, 2, 3, 4].map(k => ({
           d: rotv(d, jitter(k * 3 + 1, sid) * div),
-          intensity: ray.intensity / 2.5, speckle: true, tag: 'd' + k,
+          intensity: ray.intensity / 5, speckle: true, tag: 'd' + k,
         }));
       }
       return [{ d: rotv(d, jitter(ray.sample, sid) * div), speckle: true }];
@@ -562,7 +583,26 @@ function interact(ray, hit) {
         d: { x: d.x * c - d.y * sn, y: d.x * sn + d.y * c },
         wl: shiftedWl, intensity: ray.intensity * data.eff * (ray.pulse ? 1 : duty), tag: 'd1', pulse,
       });
-      if (data.zero) out.push({ d, intensity: ray.intensity * (1 - data.eff * duty), tag: 'd0' });
+      if (data.zero) {
+        if (data.gate && ray.pulse) {
+          // Residual zero order exists while RF is on; the diffracted fraction
+          // returns to zero order while RF is off. Together the instantaneous
+          // first + zero order remains energy-bounded.
+          out.push({ d, intensity: ray.intensity * (1 - data.eff), tag: 'd0r' });
+          out.push({
+            d, intensity: ray.intensity * data.eff, tag: 'd0off',
+            pulse: {
+              ...ray.pulse,
+              gates: [...(ray.pulse.gates || []), {
+                opl: ray.opl, frequencyMHz: data.gate.frequencyMHz || 1, duty,
+                phaseNs: data.gate.phaseNs || 0, invert: true,
+              }],
+            },
+          });
+        } else {
+          out.push({ d, intensity: ray.intensity * (1 - data.eff * duty), tag: 'd0' });
+        }
+      }
       return out;
     }
     case 'chop': {
@@ -763,11 +803,18 @@ function traceRays(rays0, surfaces, couplings) {
   const done = [];
   const stack = rays0.map(r => {
     const opl = Number.isFinite(r.oplStart) ? r.oplStart : 0;
-    return { ...r, opl, pts: [{ x: r.x, y: r.y }], opls: [opl], sig: '', depth: 0, last: null };
+    return {
+      ...r, opl, pts: [{ x: r.x, y: r.y }], opls: [opl],
+      segmentIntensities: [], segmentHistories: [], segmentEvents: [],
+      sig: '', depth: 0, last: null,
+    };
   });
   const appendPoint = (r, p, geometricLength) => {
     const ng = Math.min(3, Math.max(1, r.ior || 1));
     r.opl += Math.max(0, geometricLength) * ng;
+    r.segmentIntensities.push(r.intensity);
+    r.segmentHistories.push(r.sig);
+    r.segmentEvents.push(null);
     r.pts.push(p);
     r.opls.push(r.opl);
   };
@@ -777,12 +824,9 @@ function traceRays(rays0, surfaces, couplings) {
       if (r.depth > MAX_DEPTH || r.intensity < MIN_INT) break;
       const hit = nearestHit({ x: r.x, y: r.y }, { x: r.dx, y: r.dy }, surfaces, r.last);
       if (r.evan) {
-        // evanescent (isotropic fluorescence, or a diagram point source):
-        // fades out within a short range unless a lens / objective / fiber
-        // tip nearby collects it. A ray can widen its own fade range (e.g.
-        // a point source's ~5x-fluorescence range) via r.evanLen.
-        const EVAN_LEN = r.evanLen || 22;
-        const CAPTURE = Math.max(120, EVAN_LEN * 1.5);
+        // evanescent (isotropic fluorescence): fades out within a short range
+        // unless a lens / objective / fiber tip nearby collects it
+        const CAPTURE = 120, EVAN_LEN = 22;
         const captured = hit && hit.t <= CAPTURE
           && (hit.surface.kind === 'lens' || hit.surface.kind === 'fiberin');
         if (!captured) {
@@ -798,6 +842,12 @@ function traceRays(rays0, surfaces, couplings) {
         break;
       }
       appendPoint(r, { x: hit.p.x, y: hit.p.y }, hit.t);
+      const interactionKey = hit.surface.el?.id
+        ? `${hit.surface.el.id}:${hit.surface.kind}${hit.surface.data.topologyKey ? `:${hit.surface.data.topologyKey}` : ''}`
+        : `surface${hit.surface.id}:${hit.surface.kind}`;
+      r.segmentEvents[r.segmentEvents.length - 1] = interactionKey;
+      if (hit.ambiguous && hit.surface.kind === 'refract') break;
+      r.sig += `/${interactionKey}`;
       if (hit.surface.kind === 'detector') recordDetectorHit(r, hit);
       if (hit.surface.kind === 'fiberin') {
         const fb = hit.surface.data.beam;
@@ -860,6 +910,9 @@ function traceRays(rays0, surfaces, couplings) {
           pts: [{ x: ox, y: oy }],
           opl: r.opl,
           opls: [r.opl],
+          segmentIntensities: [],
+          segmentHistories: [],
+          segmentEvents: [],
           sig: r.sig + '/' + (c.tag || 'w'),
           depth: r.depth + 1, last: hit.surface,
         });
@@ -877,10 +930,10 @@ function assembleDrawables(paths, opts, drawables) {
   const { K, isBeam, fixedColor } = opts;
   const colorOf = r => {
     if (fixedColor) return fixedColor;
-    if (r.bw >= 200 && r.sample != null && K > 1) {
-      // rainbow across the beam width, spanning the ray's actual band
-      return wavelengthToColor(r.wl - r.bw / 2 + r.bw * r.sample / (K - 1));
-    }
+    // Undispersed broadband light is co-propagating mixed light, not a rainbow
+    // painted across the beam aperture. Dispersive optics split it into bw=0
+    // child rays, which regain wavelength-specific color below.
+    if (r.bw >= 200) return '#cbd8ea';
     return wavelengthToColor(r.wl);
   };
   const opOf = r => Math.max(0.25, Math.min(0.95, 0.35 + 0.6 * r.intensity));
@@ -913,11 +966,11 @@ function assembleDrawables(paths, opts, drawables) {
       return;
     }
     if (r.bw >= 200 && r.sample == null) {
-      // supercontinuum line: rainbow ribbon of offset strokes across the band
-      const N = 9;
-      for (let k = 0; k < N; k++) {
-        drawables.push({ type: 'path', pts: offsetPolyline(r.pts, (k - (N - 1) / 2) * 1.2), color: wavelengthToColor(r.wl - r.bw / 2 + r.bw * k / (N - 1)), w: 1.7, opacity: 0.8, dash: dashOf(r) });
-      }
+      // Coincident spectral halo: spectrum is visible without implying spatial
+      // separation before a prism or grating.
+      drawables.push({ type: 'path', pts: r.pts, color: '#7c3aed', w: 5, opacity: 0.24, dash: dashOf(r) });
+      drawables.push({ type: 'path', pts: r.pts, color: '#f97316', w: 3.2, opacity: 0.28, dash: dashOf(r) });
+      drawables.push({ type: 'path', pts: r.pts, color: '#dbe7f5', w: 1.8, opacity: 0.95, dash: dashOf(r) });
       return;
     }
     drawables.push({ type: 'path', pts: r.pts, color: colorOf(r), w, opacity, dash: dashOf(r) });
@@ -927,28 +980,53 @@ function assembleDrawables(paths, opts, drawables) {
     for (const r of paths) pushRay(r, 2, opOf(r), false);
     return;
   }
-  // beam mode: fill an envelope strip between each pair of adjacent sample
-  // rays that share the same interaction history (branch signature).
+  // Beam mode is reconstructed one propagation segment at a time. Two nearby
+  // samples can share an upstream route and then differ when only one clips a
+  // finite optic. Pairing complete paths would erase their valid common strip;
+  // segment histories let that strip continue exactly to the first differing
+  // interaction without inventing a connection beyond it.
   const bySample = new Map();
   for (const r of paths) {
     if (r.sample === null || r.sample === undefined || r.pts.length < 2) continue;
     if (!bySample.has(r.sample)) bySample.set(r.sample, []);
-    bySample.get(r.sample).push(r);
+    for (let j = 0; j < r.pts.length - 1; j++) {
+      bySample.get(r.sample).push({
+        ...r,
+        pts: [r.pts[j], r.pts[j + 1]],
+        intensity: r.segmentIntensities?.[j] ?? r.intensity,
+        renderHistory: r.segmentHistories?.[j] ?? r.sig,
+        renderEvent: r.segmentEvents?.[j] ?? null,
+      });
+    }
   }
+  const clippedPair = (ra, rb) => {
+    const [a0, a1] = ra.pts, [b0, b1] = rb.pts;
+    const la = Math.hypot(a1.x - a0.x, a1.y - a0.y);
+    const lb = Math.hypot(b1.x - b0.x, b1.y - b0.y);
+    const shared = Math.min(la, lb);
+    const atLength = (a, b, length, total) => total <= 1e-9 ? a : {
+      x: a.x + (b.x - a.x) * Math.min(1, length / total),
+      y: a.y + (b.y - a.y) * Math.min(1, length / total),
+    };
+    return [[a0, atLength(a0, a1, shared, la)], [b0, atLength(b0, b1, shared, lb)]];
+  };
   for (let i = 0; i < K - 1; i++) {
-    const nextBySig = new Map((bySample.get(i + 1) || []).map(r => [r.sig, r]));
+    const nextByHistory = new Map((bySample.get(i + 1) || []).map(r => [r.renderHistory, r]));
     for (const ra of bySample.get(i) || []) {
       if (ra.evanFade) { pushRay(ra, 0, 0, false); continue; } // fading glow, no fill
       if (ra.speckle) { pushRay(ra, 0, 0, true); continue; } // grains, no fill
-      const rb = nextBySig.get(ra.sig);
+      const rb = nextByHistory.get(ra.renderHistory);
       if (rb && !rb.speckle) {
         const op = 0.28 * Math.max(0.4, ra.intensity);
+        const [A, B] = ra.renderEvent === rb.renderEvent
+          ? [ra.pts, rb.pts]
+          : clippedPair(ra, rb);
         if (ra.chopped) {
-          for (const q of chopStrip(ra.pts, rb.pts, ra.chopped.period, ra.chopped.duty)) {
+          for (const q of chopStrip(A, B, ra.chopped.period, ra.chopped.duty)) {
             drawables.push({ type: 'poly', pts: q, color: colorOf(ra), opacity: op });
           }
         } else {
-          drawables.push({ type: 'poly', pts: ra.pts.concat([...rb.pts].reverse()), color: colorOf(ra), opacity: op });
+          drawables.push({ type: 'poly', pts: A.concat([...B].reverse()), color: colorOf(ra), opacity: op });
         }
       }
     }
@@ -974,6 +1052,7 @@ function collectPulseTracks(paths, K, fixedColor, pulseTracks) {
       pts: r.pts.map(p => ({ x: p.x, y: p.y })),
       opls: [...r.opls],
       pulse: { ...r.pulse },
+      bw: r.bw || 0,
       color: fixedColor || wavelengthToColor(r.wl),
       intensity: r.intensity,
     });
@@ -997,8 +1076,13 @@ export function traceScene(elements, beams = []) {
     const p = el.params;
     const baseColor = p.autoColor === false && p.color ? p.color : wavelengthToColor(p.wavelength);
     const local = def.source(el);
-    const srcBw = p.bwMode === 'band' ? (p.bandwidth || 0) : p.bwMode === 'sc' ? 440 : 0;
-    const srcWl = p.bwMode === 'sc' ? 650 : p.wavelength;
+    const scLo = el.type === 'sclaser' ? Math.min(p.scMin || 430, p.scMax || 870) : 430;
+    const scHi = el.type === 'sclaser' ? Math.max(p.scMin || 430, p.scMax || 870) : 870;
+    const srcBw = el.type === 'lamp' ? (p.legacyDirectional ? 0 : (p.bandwidth ?? 400))
+      : p.bwMode === 'band' ? (p.bandwidth || 0)
+        : p.bwMode === 'sc' ? scHi - scLo : 0;
+    const srcWl = el.type === 'lamp' ? p.wavelength
+      : p.bwMode === 'sc' ? (scHi + scLo) / 2 : p.wavelength;
     const K = local.length;
     const pulse = p.temporalMode === 'pulsed' ? {
       sourceId: el.id,
@@ -1009,12 +1093,20 @@ export function traceScene(elements, beams = []) {
     const rays0 = local.map(r => {
       const o = toWorld(el, r.x, r.y);
       const d = rotPt(r.dx, r.dy, el.rot || 0);
+      const containing = elements.filter(body => {
+        const bodyDef = registry[body.type];
+        return bodyDef?.containsLocal?.(body, toLocal(body, o.x, o.y));
+      });
+      const initialBody = containing.length === 1 ? containing[0] : null;
+      const initialIor = initialBody
+        ? registry[initialBody.type].refractiveIndex?.(initialBody, srcWl) || 1
+        : 1;
       return {
         x: o.x, y: o.y, dx: d.x, dy: d.y, wl: srcWl, bw: srcBw, speckle: false,
         pol: typeof p.pol === 'number' ? p.pol : undefined,
         stokes: typeof p.pol === 'number' ? linearStokes(p.pol) : null,
         pulse,
-        evan: r.evan || false, evanLen: r.evanLen,
+        medium: initialBody?.id || null, ior: initialIor,
         intensity: 1, power: 1 / Math.max(1, K), sample: r.sample !== undefined ? r.sample : null,
       };
     });

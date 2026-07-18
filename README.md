@@ -13,15 +13,21 @@ figures as SVG or PNG.
 
 ## Highlights
 
+- **Direct manipulation**: selecting any component reveals size-backed blue
+  edge/corner handles, a rotation handle, and a component-specific purple tuning
+  knob. Freeform glass also exposes its actual boundary vertices. Right-click offers
+  duplicate, rotate, and delete without leaving the canvas.
 - **Element palette**: lasers (line or sized beam, monochromatic / broadband /
-  supercontinuum, continuous-wave or pulsed), mirrors (flat with reflectivity,
+  supercontinuum, continuous-wave or pulsed), a first-class pulsed supercontinuum
+  laser, directional LED, broadband point source, mirrors (flat with reflectivity,
   convex/concave, true parabolic,
   galvo), lenses, telescopes, objectives, dichroics, filters, beamsplitters,
   polarization optics (polarizers, waveplates, PBS, isolator), gratings, prisms,
   diffusers, wavefront shapers (SLM, DMD, deformable mirror) with composable
   optical functions, modulators (AOM/EOM/chopper), nonlinear crystals (SHG, THG,
   supercontinuum, OPO), fibers with per-end output specs, detectors, a focusing
-  human eye, and free annotations (arrows, labels, beam probes).
+  human eye, straight-sided freeform glass/prisms, and free annotations (arrows,
+  labels, beam probes, and a canvas-only figure frame).
 - **Honest capability states**: the component library and inspector distinguish
   simulated elements, elements that need setup, and intentionally diagram-only
   annotations. An unset EOM, nonlinear crystal, or SLM is labeled as needing setup;
@@ -29,7 +35,8 @@ figures as SVG or PNG.
 - **Pulsed timing**: pulsed lasers animate wavelength-colored packets along the
   traced path. Physical mode uses optical-path delay and the configured repetition
   rate; schematic mode keeps packets visible at workbench scale while detector
-  delays remain physical. Playback can be paused, reset, and time-scaled.
+  delays remain physical. Choppers and gated AOM orders clip finite-duration pulses
+  with complementary, phase-aware timing. Playback can be paused, reset, and time-scaled.
 - **Qualitative detector readouts**: photodetectors, PMTs, and cameras report
   relative ray signal, spectrum, polarization, and spot span at their front face;
   pulsed paths add optical-path delay and path spread. PMTs include qualitative
@@ -41,7 +48,9 @@ figures as SVG or PNG.
 - **Examples menu**: pedagogical image-formation setups (telescope, microscope,
   camera + depth of field, Scheimpflug, vignetting...) and laboratory sketches
   (Michelson, Mach–Zehnder, laser cavity, OPO...).
-- **Sharing**: sketches save/load as `.json` files; figures export as SVG/PNG.
+- **Paper-ready export**: sketches save/load as `.json` files; figures export as
+  SVG/PNG. An optional resizable Figure frame sets the exact export crop and never
+  appears in the exported artwork.
 
 ## Simulation scope
 
@@ -50,13 +59,24 @@ design package. It models ray paths, bounded relative power, spectral bands, Sto
 polarization, thin-lens elements, refractive boundaries, timed pulse trains, and
 simple detector responses. It does not model coherent carrier phase, interference,
 diffraction-limited propagation, material dispersion beyond the stated simplified
-models, or laboratory-specific calibration. Animated pulse packets are a canvas aid;
+models, or laboratory-specific calibration. Paraxial image markers do not account
+for downstream clipping. Animated pulse packets are a canvas aid;
 SVG and PNG exports intentionally remain static and deterministic.
+
+Freeform glass is a directly editable, straight-segment boundary with constant-index
+or qualitative BK7-like dispersion, per-surface transmission, source-inside handling,
+and total internal reflection. Exact corner hits stop safely because their surface
+normal is ambiguous. Nested or overlapping glass bodies are not surface-merged, and
+the model does not include Fresnel reflection, coatings, stress birefringence, phase,
+or manufacturing tolerances.
 
 ## Feedback
 
 Use the app, then send your exported `.json` sketch and notes to Luca. The canvas
 autosaves in your own browser, so you can't break anything for anyone else.
+
+The sanitized Codex conversations behind the major development passes are available
+in the [work-trace index](docs/codex-sessions/README.md).
 
 ## Run locally
 

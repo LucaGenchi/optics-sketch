@@ -130,11 +130,11 @@ export const examples = [
     group: 'The Optics Bench — Laboratory Setups',
     build: () => ({
       elements: [
-        tl('Linear laser cavity — standing wave between high reflector and output coupler', 420, 190, 14, '#333'),
+        tl('Linear laser cavity — geometric cavity path (carrier interference is not simulated)', 420, 190, 14, '#333'),
         mk('mirror', 150, 300, 0, { length: 50.8 }, { label: 'HR mirror (R ≈ 100%)', showLabel: true }),
         mk('box', 400, 300, 0, { text: 'Gain medium', w: 90, h: 34, behavior: 'pass', fill: '#ffe1b0' }, {}),
         mk('mirror', 650, 300, 0, { length: 50.8 }, { label: 'output coupler (R ≈ 95%)', showLabel: true }),
-        tl('⇄ intracavity standing wave', 400, 260, 10),
+        tl('⇄ counter-propagating cavity paths', 400, 260, 10),
         tl('output beam', 745, 270, 10),
       ],
       beams: [
@@ -154,8 +154,8 @@ export const examples = [
         mk('bs', 350, 300, 0, { ratio: 0.5 }, { label: '50/50 beamsplitter', showLabel: true }),
         mk('mirror', 600, 300, 0, { length: 25.4 }, { label: 'M1 (movable ⟷)', showLabel: true }),
         mk('mirror', 350, 120, 90, { length: 25.4 }, { label: 'M2', showLabel: true, labelPos: 't' }),
-        mk('detector', 350, 500, 90, {}, { label: 'detector (fringes)', showLabel: true }),
-        tl('path difference between the arms shifts the fringes', 620, 460, 10),
+        mk('detector', 350, 500, 90, {}, { label: 'recombined power detector', showLabel: true }),
+        tl('paths recombine here; phase and fringes are outside this tracer', 620, 460, 10),
       ],
       beams: [],
     }),
@@ -182,18 +182,18 @@ export const examples = [
   },
 
   {
-    name: 'Natural vignetting (cosine-fourth falloff)',
+    name: 'Geometric vignetting (ray-bundle illustration)',
     group: 'Camera Obscura — Image Formation & Photography',
     build: () => ({
       elements: [
-        tl('Natural vignetting — an off-axis point sends a narrower, skewed ray bundle through the same stop', 380, 60, 14, '#333'),
+        tl('Geometric vignetting — this illustrates clipped ray bundles; it does not calculate a cos⁴ falloff', 380, 60, 14, '#333'),
         mk('objarrow', 150, 250, 0, { height: 10, raysMode: 'fan', spread: 18, nrays: 7, showImage: false, wavelength: 520 }, { label: 'on-axis point', showLabel: true }),
         mk('objarrow', 150, 150, 15, { height: 10, raysMode: 'fan', spread: 16, nrays: 7, showImage: false, wavelength: 460 }, { label: 'off-axis point (edge of field)', showLabel: true, labelPos: 't' }),
         mk('slit', 380, 250, 0, { gap: 30, length: 130 }, { label: 'aperture stop', showLabel: true, labelPos: 't' }),
         mk('lens', 450, 250, 0, { f: 120, dia: 50.8 }, { label: 'f = 120', showLabel: true, labelPos: 'b' }),
         mk('camera', 650, 250, 0, { ch: 150 }, { label: 'sensor', showLabel: true }),
         tl('on-axis bundle fills the stop symmetrically → full brightness', 470, 300, 10),
-        ...tls(['off-axis bundle crosses the stop at an angle and foreshortened →', 'less flux reaches the sensor → darker corners (∝ cos⁴ φ)'], 470, 130, 10),
+        ...tls(['off-axis bundle crosses the stop at an angle and is clipped →', 'fewer sampled rays reach the sensor; no calibrated irradiance law is implied'], 470, 130, 10),
       ],
       beams: [],
     }),

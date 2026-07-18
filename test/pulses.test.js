@@ -60,3 +60,20 @@ test('gate averaging spans very slow allowed gate cycles', () => {
   };
   assert.ok(Math.abs(pulseGateTransmission(slowGate) - 0.5) < 0.01);
 });
+
+test('gate averaging spans the beat period of nearly synchronized clocks', () => {
+  const nearSync = {
+    repRateMHz: 1,
+    phaseNs: 0,
+    gates: [{ opl: 0, frequencyMHz: 1.0001, duty: 0.5, phaseNs: 0 }],
+  };
+  assert.ok(Math.abs(pulseGateTransmission(nearSync) - 0.5) < 0.02);
+});
+
+test('finite pulse duration is clipped by a temporal gate', () => {
+  const gate = { opl: 0, frequencyMHz: 1, duty: 0.5, phaseNs: 0 };
+  const narrow = { repRateMHz: 1, pulseWidthFs: 100, phaseNs: 0, gates: [gate] };
+  const broad = { ...narrow, pulseWidthFs: 800e6 };
+  assert.equal(pulseGateTransmission(narrow), 1);
+  assert.ok(Math.abs(pulseGateTransmission(broad) - 0.5) < 0.03);
+});

@@ -11,7 +11,35 @@ function gateOpen(gate, emissionTimeNs) {
   const periodNs = 1000 / frequencyMHz;
   const duty = Math.min(1, Math.max(0, gate.duty ?? 0.5));
   const arrivalNs = emissionTimeNs + gate.opl / C_MM_PER_NS;
-  return positiveMod(arrivalNs - (gate.phaseNs || 0), periodNs) < periodNs * duty;
+  const open = positiveMod(arrivalNs - (gate.phaseNs || 0), periodNs) < periodNs * duty;
+  return gate.invert ? !open : open;
+}
+
+// Fraction of one finite-duration pulse that survives all gates encountered so
+// far. Ultrashort pulses use the exact centre-time decision. Broader pulses are
+// integrated with deterministic midpoint samples so a chopper can clip a pulse
+// instead of treating it as an infinitely narrow timestamp.
+export function pulseTransmissionAt(pulse, emissionTimeNs) {
+  const gates = Array.isArray(pulse?.gates) ? pulse.gates.filter(g => Number.isFinite(g?.opl)) : [];
+  if (!gates.length) return 1;
+  const durationNs = Math.min(1000, Math.max(1e-6, pulse.pulseWidthFs || 100) * 1e-6);
+  const gateFeatures = gates.map(gate => {
+    const frequencyMHz = Math.min(1e6, Math.max(0.000001, gate.frequencyMHz || 1));
+    const periodNs = 1000 / frequencyMHz;
+    const duty = Math.min(1, Math.max(0, gate.duty ?? 0.5));
+    return periodNs * Math.max(1e-6, Math.min(duty, 1 - duty));
+  });
+  if (durationNs < Math.min(...gateFeatures) * 0.001) {
+    return gates.every(gate => gateOpen(gate, emissionTimeNs)) ? 1 : 0;
+  }
+  const shortestPeriodNs = Math.min(...gates.map(g => 1000 / Math.min(1e6, Math.max(0.000001, g.frequencyMHz || 1))));
+  const samples = Math.min(256, Math.max(32, Math.ceil(durationNs / shortestPeriodNs * 128)));
+  let passed = 0;
+  for (let i = 0; i < samples; i++) {
+    const offsetNs = ((i + 0.5) / samples - 0.5) * durationNs;
+    if (gates.every(gate => gateOpen(gate, emissionTimeNs + offsetNs))) passed++;
+  }
+  return passed / samples;
 }
 
 // Average passage of a discrete pulse train through every temporal gate on its
@@ -27,7 +55,16 @@ export function pulseGateTransmission(pulse, sampleCount = 4096) {
   const pulsesPerSlowCycle = Math.max(1, Math.ceil(slowestGatePeriodNs / periodNs));
   const slowCycleSamples = pulsesPerSlowCycle * 64;
   const count = Math.min(16384, Math.max(64, Math.round(sampleCount) || 4096, slowCycleSamples));
-  const sampledPulseSpan = Math.max(count, slowCycleSamples);
+  // A nearly synchronous pulse train and gate drift through one another over a
+  // long beat period. Include that full beat in the bounded sample span; only
+  // sampling the first few thousand pulses otherwise reports a false 100% pass.
+  const beatPulseSpan = Math.max(1, ...gates.map(gate => {
+    const gatePeriodNs = 1000 / Math.min(1e6, Math.max(0.000001, gate.frequencyMHz || 1));
+    const step = positiveMod(periodNs / gatePeriodNs, 1);
+    const drift = Math.min(step, 1 - step);
+    return drift < 1e-12 ? 1 : Math.ceil(1 / drift);
+  }));
+  const sampledPulseSpan = Math.max(count, slowCycleSamples, beatPulseSpan);
   let passed = 0;
   for (let i = 0; i < count; i++) {
     // When a gate cycle contains more pulses than the bounded sample count,
@@ -35,7 +72,7 @@ export function pulseGateTransmission(pulse, sampleCount = 4096) {
     // examining the tiny initial fraction of the waveform.
     const k = sampledPulseSpan === count ? i : Math.floor(i * sampledPulseSpan / count);
     const emissionTimeNs = phaseNs + k * periodNs;
-    if (gates.every(gate => gateOpen(gate, emissionTimeNs))) passed++;
+    passed += pulseTransmissionAt(pulse, emissionTimeNs);
   }
   return passed / count;
 }
@@ -99,10 +136,15 @@ export function pulseMarkers(track, timeNs, {
   for (let k = k0; k <= k1 && markers.length < maxMarkers; k += stride) {
     const opl = phase + k * spacing;
     const emissionTimeNs = timeNs - opl / speed;
-    const blocked = (track.pulse.gates || []).some(gate => opl >= gate.opl && !gateOpen(gate, emissionTimeNs));
-    if (blocked) continue;
+    const activeGates = (track.pulse.gates || []).filter(gate => opl >= gate.opl);
+    const transmission = pulseTransmissionAt({ ...track.pulse, gates: activeGates }, emissionTimeNs);
+    if (transmission <= 0) continue;
     const point = pointAtOpticalPath(track, opl);
-    if (point) markers.push({ ...point, opl, widthMm: width, physicalWidthMm: C_MM_PER_NS * pulseWidthFs * 1e-6 });
+    if (point) markers.push({
+      ...point, opl, widthMm: width,
+      physicalWidthMm: C_MM_PER_NS * pulseWidthFs * 1e-6,
+      transmission,
+    });
   }
   return markers;
 }
