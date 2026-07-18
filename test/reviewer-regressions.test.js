@@ -12,7 +12,7 @@ function closeTo(actual, expected, tolerance = 1e-9, message = '') {
   );
 }
 
-test('finite optics do not fill an envelope across adjacent hit and miss samples', () => {
+test('finite optics preserve the shared beam before adjacent samples split', () => {
   const cases = [
     ['concave mirror', 'cmirror', optic => { optic.params.length = 25.4; }],
     ['lens', 'lens', optic => { optic.params.dia = 25.4; }],
@@ -28,14 +28,23 @@ test('finite optics do not fill an envelope across adjacent hit and miss samples
 
     const polygons = traceAll([laser, optic]).filter(drawable => drawable.type === 'poly');
 
-    // Twenty-five samples make 24 possible adjacent strips. Eleven central
-    // samples hit this 25.4 mm aperture, leaving two hit/miss boundaries that
-    // must remain unfilled: 6 + 10 + 6 = 22 valid strips.
-    assert.equal(polygons.length, 22, `${label} joined a hit path to a miss path`);
-    if (type !== 'blocker') {
-      assert.ok(
-        polygons.every(poly => poly.pts.length % 2 === 0),
-        `${label} produced a polygon from paths with different vertex counts`,
+    // Twenty-five samples make 24 incident strips. Reflecting/refracting
+    // optics add ten downstream strips between the eleven samples that hit;
+    // an absorbing blocker has no downstream continuation.
+    assert.equal(polygons.length, type === 'blocker' ? 24 : 34, `${label} dropped a shared beam segment`);
+    assert.ok(polygons.every(poly => poly.pts.length === 4), `${label} produced a malformed beam strip`);
+
+    if (type === 'lens') {
+      const crosses = (poly, x) => {
+        const xs = poly.pts.map(point => point.x);
+        return Math.min(...xs) < x && Math.max(...xs) >= x;
+      };
+      const incident = polygons.filter(poly => crosses(poly, 190));
+      assert.equal(incident.length, 24, 'the incident beam has white seams before the lens');
+      assert.equal(
+        incident.filter(poly => Math.max(...poly.pts.map(point => point.x)) > 201).length,
+        12,
+        'a hit/miss boundary was falsely filled beyond the lens',
       );
     }
   }

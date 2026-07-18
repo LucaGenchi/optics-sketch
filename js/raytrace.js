@@ -805,13 +805,16 @@ function traceRays(rays0, surfaces, couplings) {
     const opl = Number.isFinite(r.oplStart) ? r.oplStart : 0;
     return {
       ...r, opl, pts: [{ x: r.x, y: r.y }], opls: [opl],
-      segmentIntensities: [], sig: '', depth: 0, last: null,
+      segmentIntensities: [], segmentHistories: [], segmentEvents: [],
+      sig: '', depth: 0, last: null,
     };
   });
   const appendPoint = (r, p, geometricLength) => {
     const ng = Math.min(3, Math.max(1, r.ior || 1));
     r.opl += Math.max(0, geometricLength) * ng;
     r.segmentIntensities.push(r.intensity);
+    r.segmentHistories.push(r.sig);
+    r.segmentEvents.push(null);
     r.pts.push(p);
     r.opls.push(r.opl);
   };
@@ -839,10 +842,11 @@ function traceRays(rays0, surfaces, couplings) {
         break;
       }
       appendPoint(r, { x: hit.p.x, y: hit.p.y }, hit.t);
-      if (hit.ambiguous && hit.surface.kind === 'refract') break;
       const interactionKey = hit.surface.el?.id
         ? `${hit.surface.el.id}:${hit.surface.kind}${hit.surface.data.topologyKey ? `:${hit.surface.data.topologyKey}` : ''}`
         : `surface${hit.surface.id}:${hit.surface.kind}`;
+      r.segmentEvents[r.segmentEvents.length - 1] = interactionKey;
+      if (hit.ambiguous && hit.surface.kind === 'refract') break;
       r.sig += `/${interactionKey}`;
       if (hit.surface.kind === 'detector') recordDetectorHit(r, hit);
       if (hit.surface.kind === 'fiberin') {
@@ -907,6 +911,8 @@ function traceRays(rays0, surfaces, couplings) {
           opl: r.opl,
           opls: [r.opl],
           segmentIntensities: [],
+          segmentHistories: [],
+          segmentEvents: [],
           sig: r.sig + '/' + (c.tag || 'w'),
           depth: r.depth + 1, last: hit.surface,
         });
@@ -974,28 +980,53 @@ function assembleDrawables(paths, opts, drawables) {
     for (const r of paths) pushRay(r, 2, opOf(r), false);
     return;
   }
-  // beam mode: fill an envelope strip between each pair of adjacent sample
-  // rays that share the same interaction history (branch signature).
+  // Beam mode is reconstructed one propagation segment at a time. Two nearby
+  // samples can share an upstream route and then differ when only one clips a
+  // finite optic. Pairing complete paths would erase their valid common strip;
+  // segment histories let that strip continue exactly to the first differing
+  // interaction without inventing a connection beyond it.
   const bySample = new Map();
   for (const r of paths) {
     if (r.sample === null || r.sample === undefined || r.pts.length < 2) continue;
     if (!bySample.has(r.sample)) bySample.set(r.sample, []);
-    bySample.get(r.sample).push(r);
+    for (let j = 0; j < r.pts.length - 1; j++) {
+      bySample.get(r.sample).push({
+        ...r,
+        pts: [r.pts[j], r.pts[j + 1]],
+        intensity: r.segmentIntensities?.[j] ?? r.intensity,
+        renderHistory: r.segmentHistories?.[j] ?? r.sig,
+        renderEvent: r.segmentEvents?.[j] ?? null,
+      });
+    }
   }
+  const clippedPair = (ra, rb) => {
+    const [a0, a1] = ra.pts, [b0, b1] = rb.pts;
+    const la = Math.hypot(a1.x - a0.x, a1.y - a0.y);
+    const lb = Math.hypot(b1.x - b0.x, b1.y - b0.y);
+    const shared = Math.min(la, lb);
+    const atLength = (a, b, length, total) => total <= 1e-9 ? a : {
+      x: a.x + (b.x - a.x) * Math.min(1, length / total),
+      y: a.y + (b.y - a.y) * Math.min(1, length / total),
+    };
+    return [[a0, atLength(a0, a1, shared, la)], [b0, atLength(b0, b1, shared, lb)]];
+  };
   for (let i = 0; i < K - 1; i++) {
-    const nextBySig = new Map((bySample.get(i + 1) || []).map(r => [r.sig, r]));
+    const nextByHistory = new Map((bySample.get(i + 1) || []).map(r => [r.renderHistory, r]));
     for (const ra of bySample.get(i) || []) {
       if (ra.evanFade) { pushRay(ra, 0, 0, false); continue; } // fading glow, no fill
       if (ra.speckle) { pushRay(ra, 0, 0, true); continue; } // grains, no fill
-      const rb = nextBySig.get(ra.sig);
+      const rb = nextByHistory.get(ra.renderHistory);
       if (rb && !rb.speckle) {
         const op = 0.28 * Math.max(0.4, ra.intensity);
+        const [A, B] = ra.renderEvent === rb.renderEvent
+          ? [ra.pts, rb.pts]
+          : clippedPair(ra, rb);
         if (ra.chopped) {
-          for (const q of chopStrip(ra.pts, rb.pts, ra.chopped.period, ra.chopped.duty)) {
+          for (const q of chopStrip(A, B, ra.chopped.period, ra.chopped.duty)) {
             drawables.push({ type: 'poly', pts: q, color: colorOf(ra), opacity: op });
           }
         } else {
-          drawables.push({ type: 'poly', pts: ra.pts.concat([...rb.pts].reverse()), color: colorOf(ra), opacity: op });
+          drawables.push({ type: 'poly', pts: A.concat([...B].reverse()), color: colorOf(ra), opacity: op });
         }
       }
     }
