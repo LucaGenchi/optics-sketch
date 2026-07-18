@@ -933,7 +933,7 @@ export const registry = {
       { key: 'tilt', label: 'Micromirror tilt (°)', type: 'number', min: 1, max: 20, step: 0.5, def: 12 },
       { key: 'pitch', label: 'Pattern pitch (mm)', type: 'number', min: 1, max: 40, step: 0.5, def: 8 },
       { key: 'duty', label: 'ON fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5 },
-      { key: 'routeOff', label: 'Show OFF order', type: 'checkbox', def: false },
+      { key: 'routeOff', label: 'Show OFF order', type: 'checkbox', def: true },
       // Retain the original layer-based DMD fields in saved sketches. They are
       // hidden for newly created binary-pattern DMDs but remain active when a
       // legacy sketch contains optical-function layers.
@@ -1115,7 +1115,7 @@ export const registry = {
       { key: 'aperture', label: 'Active aperture (mm)', type: 'number', min: 6, max: 100, step: 2, def: 26 },
       { key: 'deflect', label: 'Deflection (°)', type: 'number', min: -45, max: 45, step: 0.5, def: 4 },
       { key: 'rfMHz', label: 'RF frequency (MHz)', type: 'number', min: -10000, max: 10000, step: 1, def: 80 },
-      { key: 'zero', label: 'Keep 0th order', type: 'checkbox', def: false },
+      { key: 'zero', label: 'Keep 0th order', type: 'checkbox', def: true },
       { key: 'eff', label: 'Efficiency (0–1)', type: 'number', min: 0, max: 1, step: 0.05, def: 0.85 },
       { key: 'modulate', label: 'Gate RF on/off', type: 'checkbox', def: false },
       { key: 'modFreqMHz', label: 'Gate frequency (MHz)', type: 'number', min: 0.000001, max: 1000, step: 0.001, def: 1, show: p => p.modulate },
@@ -1267,8 +1267,10 @@ export const registry = {
       const c = p.mode === 'fluor' ? wavelengthToColor(p.fluorWl) : p.mode === 'cars' ? wavelengthToColor(p.carsWl) : '#e2758f';
       const clear = (p.aperture || 25.4) / 2, outer = clear + 12;
       return `<path d="M 8,${-outer} L -6,${-outer} L -6,${outer} L 8,${outer}" fill="none" stroke="#4d565f" stroke-width="4"/>` +
-        `<rect x="-2" y="${-clear}" width="5" height="${2 * clear}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.2"/>` +
-        `<circle cx="0.5" cy="0" r="4" fill="${c}" opacity="0.85"/>`;
+        (p.containsSample
+          ? `<rect x="-2" y="${-clear}" width="5" height="${2 * clear}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1.2"/>` +
+            `<circle cx="0.5" cy="0" r="4" fill="${c}" opacity="0.85"/>`
+          : '');
     },
     surfaces(el) {
       const clear = Math.max(2, (el.params.aperture || 25.4) / 2), outer = clear + 12;
@@ -1286,7 +1288,7 @@ export const registry = {
     params: [
       { key: 'objectiveF', label: 'Objective focal (mm)', type: 'number', min: 2, max: 100, step: 1, def: 10 },
       { key: 'tubeF', label: 'Tube lens focal (mm)', type: 'number', min: 5, max: 300, step: 5, def: 40 },
-      { key: 'housingHeight', label: 'Housing height (mm)', type: 'number', min: 20, max: 180, step: 2, def: 50 },
+      { key: 'housingHeight', label: 'Housing height (mm)', type: 'number', min: 20, max: 180, step: 2, def: 60 },
       { key: 'aperture', label: 'Clear aperture', type: 'optsize', min: 8, max: 150, def: 50.8 },
     ],
     svg(el) { return boxSVG(70, el.params.housingHeight || 50, '#e8eaee', '#7a828c', 'Microscope', '#3d444d', isFlipped(el)); },

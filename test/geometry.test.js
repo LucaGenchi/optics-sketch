@@ -7,7 +7,7 @@ import { buildSVG, exportPNG, exportSVG } from '../js/export.js';
 import { detectorReading, traceAll, traceScene } from '../js/raytrace.js';
 import { C_MM_PER_NS } from '../js/pulses.js';
 import { pulseTimelineHTML } from '../js/inspector.js';
-import { state } from '../js/state.js';
+import { state, createFiber } from '../js/state.js';
 import { distinctPoints } from '../js/util.js';
 
 const invalidNumber = /(?:NaN|undefined|Infinity)/;
@@ -25,6 +25,60 @@ test('every registered element renders and traces with valid defaults', () => {
       }
     }
   }
+});
+
+test('every registry default satisfies its declared schema', () => {
+  for (const [type, def] of Object.entries(registry)) {
+    const el = createElement(type);
+    for (const spec of def.params || []) {
+      const value = el.params[spec.key];
+      if (spec.type === 'number' || spec.type === 'optsize') {
+        assert.ok(Number.isFinite(value), `${type}.${spec.key} is finite`);
+        const comparable = spec.negative ? Math.abs(value) : value;
+        if (spec.min !== undefined) assert.ok(comparable >= spec.min, `${type}.${spec.key} >= min`);
+        if (spec.max !== undefined) assert.ok(comparable <= spec.max, `${type}.${spec.key} <= max`);
+      } else if (spec.type === 'select') {
+        assert.ok(spec.options.some(([option]) => option === value), `${type}.${spec.key} is a valid option`);
+      } else if (spec.type === 'checkbox') {
+        assert.equal(typeof value, 'boolean', `${type}.${spec.key} is boolean`);
+      }
+      if (spec.show) assert.doesNotThrow(() => spec.show(el.params), `${type}.${spec.key} visibility`);
+    }
+  }
+});
+
+test('coupled defaults describe the geometry that is actually traced', () => {
+  const microscope = createElement('microscope');
+  const [objective] = registry.microscope.surfaces(microscope);
+  assert.ok(microscope.params.aperture <= microscope.params.housingHeight);
+  assert.equal(objective.y2 - objective.y1, microscope.params.aperture);
+
+  const eye = createElement('eye');
+  assert.ok(eye.params.pupil <= eye.params.diameter);
+  const sc = createElement('sclaser');
+  assert.ok(sc.params.scMin < sc.params.scMax);
+  const slit = createElement('slit');
+  assert.ok(slit.params.gap < slit.params.length);
+});
+
+test('active branch-producing components keep all useful output by default', () => {
+  assert.equal(registry.aom.surfaces(createElement('aom'))[0].data.zero, true);
+  assert.equal(registry.dmd.surfaces(createElement('dmd'))[0].data.routeOff, true);
+});
+
+test('a newly drawn fiber couples and relaunches light by default', () => {
+  const fiber = createFiber([{ x: 100, y: 0 }, { x: 200, y: 0 }]);
+  assert.equal(fiber.propagate, true);
+  assert.notStrictEqual(fiber.out0, fiber.out1);
+  const scene = traceScene([createElement('laser', 0, 0)], [fiber]);
+  assert.ok(scene.drawables.some(d => d.type === 'poly' && d.pts.some(p => p.x > 200)));
+});
+
+test('an empty sample holder does not draw a fake installed sample', () => {
+  const holder = createElement('stage');
+  assert.doesNotMatch(registry.stage.svg(holder), /<(?:rect|circle)\b/);
+  holder.params.containsSample = true;
+  assert.match(registry.stage.svg(holder), /<rect\b/);
 });
 
 test('small custom mirrors never emit NaN hatch coordinates', () => {

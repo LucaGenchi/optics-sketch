@@ -1,7 +1,7 @@
 // SVG canvas: rendering + pointer interactions (select, move, rotate, pan, zoom,
 // element placement, manual beam drawing/editing).
 
-import { state, changed, pushUndo, findSelected } from './state.js';
+import { state, changed, pushUndo, findSelected, createFiber } from './state.js';
 import { registry, getSize, getVisualBounds, getDirectManipulation, createElement, labelSVG } from './elements.js';
 import { traceScene } from './raytrace.js';
 import { pulseMarkers } from './pulses.js';
@@ -663,12 +663,7 @@ export function finishBeam() {
     pushUndo();
     const isFiber = drawing.kindType === 'fiber';
     const beam = isFiber
-      ? {
-        id: 'b' + Math.random().toString(36).slice(2, 9), kind: 'fiber', pts, color: '#e8a800', width: 4, propagate: false,
-        inputNA: 0.22, groupIndex: 1.468, lossDbPerM: 0.2,
-        out0: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
-        out1: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
-      }
+      ? createFiber(pts)
       : { id: 'b' + Math.random().toString(36).slice(2, 9), kind: 'beam', pts, color: '#e02020', width: 2, dash: false, arrow: true };
     state.beams.push(beam);
     state.selection = { kind: 'beam', id: beam.id };

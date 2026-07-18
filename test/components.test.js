@@ -172,6 +172,7 @@ test('AOM deflects, frequency-shifts, and attenuates first-order light', () => {
   aom.params.deflect = 4;
   aom.params.eff = 0.85;
   aom.params.rfMHz = 80;
+  aom.params.zero = false;
   const detectorX = 300, faceX = detectorX - 19;
   const detector = createElement('detector', detectorX, Math.tan(4 * Math.PI / 180) * (faceX - 150));
   traceAll([laser, aom, detector]);

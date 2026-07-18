@@ -187,6 +187,18 @@ export function parseSketch(text, definitions = null) {
 
 export function onChange(fn) { listeners.push(fn); }
 
+// New fibers are optically live; imports still preserve their serialized
+// propagation flag (including the disabled behavior of legacy sketches).
+export function createFiber(points) {
+  return {
+    id: 'b' + Math.random().toString(36).slice(2, 9),
+    kind: 'fiber', pts: distinctPoints(points), color: '#e8a800', width: 4,
+    propagate: true, inputNA: 0.22, groupIndex: 1.468, lossDbPerM: 0.2,
+    out0: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
+    out1: { mode: 'diverge', na: 0.12, focal: 20, dia: 6 },
+  };
+}
+
 export function changed() {
   try { localStorage.setItem(AUTOSAVE_KEY, serialize()); } catch (_) { /* ignore */ }
   for (const fn of listeners) fn();
