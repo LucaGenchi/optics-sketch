@@ -24,7 +24,7 @@ figures as SVG or PNG.
   galvo), lenses, telescopes, objectives, dichroics, filters, beamsplitters,
   polarization optics (polarizers, waveplates, PBS, isolator), gratings, prisms,
   diffusers, wavefront shapers (SLM, DMD, deformable mirror) with composable
-  optical functions, modulators (AOM/EOM/chopper), nonlinear crystals (SHG, THG,
+  optical functions, modulators (AOM/AOTF/EOM/chopper), nonlinear crystals (SHG, THG,
   supercontinuum, OPO), fibers with per-end output specs, detectors, a focusing
   human eye, straight-sided freeform glass/prisms, and free annotations (arrows,
   labels, beam probes, and a canvas-only figure frame).

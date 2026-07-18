@@ -180,6 +180,25 @@ test('AOM deflects, frequency-shifts, and attenuates first-order light', () => {
   assert.ok(reading.wavelength < laser.params.wavelength);
 });
 
+test('AOTF selects its passband and deflects only the selected order', () => {
+  const laser = createElement('laser', 0, 0);
+  laser.params.wavelength = 800;
+  const aotf = createElement('aotf', 150, 0);
+  aotf.params.center = 800;
+  aotf.params.band = 1;
+  aotf.params.deflect = 4;
+  aotf.params.eff = 0.8;
+  const detectorX = 300, faceX = detectorX - 19;
+  const detector = createElement('detector', detectorX, Math.tan(4 * Math.PI / 180) * (faceX - 151));
+
+  traceAll([laser, aotf, detector]);
+  assert.ok(Math.abs(detectorReading(detector.id).signal - 0.8) < 1e-9);
+
+  laser.params.wavelength = 810;
+  traceAll([laser, aotf, detector]);
+  assert.equal(detectorReading(detector.id), null);
+});
+
 test('nonlinear crystal partitions converted and residual pump power', () => {
   const laser = createElement('laser', 0, 0);
   const crystal = createElement('crystal', 150, 0);

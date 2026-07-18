@@ -241,6 +241,28 @@ test('all built-in examples trace and export without invalid geometry', () => {
   }
 });
 
+test('SRS microscope example preserves the paper main path without the printed collector inset', () => {
+  const example = examples.find(item => item.name === 'SRS microscope (dual-output excitation)');
+  assert.ok(example);
+  const scene = example.build();
+  const opticalElements = scene.elements.filter(el => el.type !== 'textlabel');
+  const lasers = opticalElements.filter(el => el.type === 'laser');
+  assert.deepEqual(lasers.map(el => el.params.wavelength).sort((a, b) => a - b), [800, 1040]);
+  assert.ok(lasers.every(el => el.params.temporalMode === 'pulsed' && el.params.repRateMHz === 80));
+  assert.ok(opticalElements.some(el => el.type === 'aotf' && el.params.center === 800 && el.params.band === 1));
+  assert.ok(opticalElements.some(el => el.type === 'aom' && el.params.modFreqMHz === 5));
+  assert.ok(opticalElements.some(el => el.type === 'dichroic'));
+  assert.equal(opticalElements.filter(el => el.type === 'galvo').length, 2);
+  assert.ok(opticalElements.some(el => el.type === 'objective'));
+  assert.ok(opticalElements.some(el => el.type === 'sample'));
+  const detector = opticalElements.find(el => el.type === 'detector');
+  assert.ok(detector);
+  traceAll(scene.elements, scene.beams);
+  const reading = detectorReading(detector.id);
+  assert.ok(reading?.signal > 0);
+  assert.ok(Math.abs(reading.wavelength - 1040) < 0.01);
+});
+
 test('speckle dot drawables are included in export bounds', () => {
   state.elements = [createElement('laser', 0, 0), createElement('diffuser', 100, 0)];
   state.beams = [];

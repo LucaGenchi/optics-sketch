@@ -259,6 +259,70 @@ export const examples = [
   },
 
   {
+    name: 'SRS microscope (dual-output excitation)',
+    group: 'The Optics Bench — Laboratory Setups',
+    build: () => ({
+      elements: [
+        tl('SRS microscope — synchronized pump + Stokes excitation and single-point detection', 440, 20, 14, '#333'),
+        tl('After Bertoncini et al., J. Biophotonics (2021), Fig. 1b main path; printed collector and inset hardware omitted', 440, 40, 9),
+
+        mk('laser', 70, 300, 0, {
+          wavelength: 800, beamMode: 'beam', beamWidth: 6,
+          temporalMode: 'pulsed', repRateMHz: 80, pulseWidthFs: 100,
+        }, { label: 'tunable pump output (800 nm shown)', showLabel: true, labelPos: 't' }),
+        mk('aotf', 185, 300, 0, { center: 800, band: 1, deflect: 0, rfMHz: 80, eff: 0.8, aperture: 26 }, {
+          label: 'AOTF: scan + 1 nm selection', showLabel: true, labelPos: 'b',
+        }),
+        mk('lens', 250, 300, 0, { f: 80, dia: 25.4 }, { label: 'pump relay', showLabel: true, labelPos: 't' }),
+
+        mk('laser', 320, 90, 90, {
+          wavelength: 1040, beamMode: 'beam', beamWidth: 6,
+          temporalMode: 'pulsed', repRateMHz: 80, pulseWidthFs: 100,
+        }, { label: 'fixed Stokes output (1040 nm)', showLabel: true, labelPos: 'r' }),
+        mk('aom', 320, 175, 90, {
+          deflect: 0, rfMHz: 80, zero: false, eff: 0.85,
+          modulate: true, modFreqMHz: 5, chopDuty: 0.5,
+        }, { label: 'AOM: 5 MHz amplitude modulation', showLabel: true, labelPos: 'r' }),
+        mk('filter', 320, 240, 90, { ftype: 'bandpass', center: 1040, band: 1, length: 25.4 }, {
+          label: 'Stokes spectral filter', showLabel: true, labelPos: 'r',
+        }),
+
+        mk('dichroic', 320, 300, -45, { dtype: 'shortpass', cutoff: 950, length: 35 }, {
+          label: 'combiner', showLabel: true, labelPos: 't',
+        }),
+        mk('galvo', 440, 300, 135, { length: 40, commandAngle: 0, scanMode: 'static' }, {
+          label: 'galvo X', showLabel: true, labelPos: 't',
+        }),
+        mk('galvo', 440, 410, 135, { length: 40, commandAngle: 0, scanMode: 'static' }, {
+          label: 'galvo Y', showLabel: true, labelPos: 'l',
+        }),
+        mk('telescope', 560, 410, 0, { f1: 40, f2: 40, dia: 25.4 }, {
+          label: 'scan relay', showLabel: true, labelPos: 'b',
+        }),
+        mk('objective', 690, 410, 0, { f: 60, aperture: 34 }, {
+          label: 'high-NA objective', showLabel: true, labelPos: 't',
+        }),
+        mk('sample', 735, 410, 0, { mode: 'none', transmitExc: true, transmission: 0.8, aperture: 34 }, {
+          label: 'sample', showLabel: true, labelPos: 'b',
+        }),
+        mk('filter', 785, 410, 0, { ftype: 'bandpass', center: 1040, band: 40, length: 34 }, {
+          label: 'Stokes filter', showLabel: true, labelPos: 't',
+        }),
+        mk('detector', 850, 410, 0, { aperture: 34 }, {
+          label: 'single-point photodetector', showLabel: true, labelPos: 'b',
+        }),
+
+        ...tls([
+          'Two source icons represent the synchronized outputs of one commercial OPO system.',
+          'The paper\'s printed collection optic is omitted; the downstream detector path is schematic.',
+          'SRS modulation transfer, lock-in electronics and XPM are not simulated by this geometric tracer.',
+        ], 430, 520, 9),
+      ],
+      beams: [],
+    }),
+  },
+
+  {
     name: 'Optical parametric oscillator (OPO)',
     group: 'The Optics Bench — Laboratory Setups',
     build: () => ({

@@ -1191,6 +1191,31 @@ export const registry = {
     },
   },
 
+  aotf: {
+    label: 'AOTF', category: 'Modulators', size: { w: 56, h: 30 },
+    size_: el => ({ w: 56, h: (el.params.aperture || 26) + 4 }),
+    params: [
+      { key: 'aperture', label: 'Active aperture (mm)', type: 'number', min: 6, max: 100, step: 2, def: 26 },
+      { key: 'center', label: 'Selected wavelength (nm)', type: 'number', min: 150, max: 8000, step: 1, def: 532 },
+      { key: 'band', label: 'Passband width (nm)', type: 'number', min: 0.5, max: 2000, step: 0.5, def: 1 },
+      { key: 'deflect', label: 'Deflection (°)', type: 'number', min: -45, max: 45, step: 0.5, def: 4 },
+      { key: 'rfMHz', label: 'RF frequency (MHz)', type: 'number', min: -10000, max: 10000, step: 1, def: 80 },
+      { key: 'eff', label: 'Selected-order efficiency (0–1)', type: 'number', min: 0, max: 1, step: 0.05, def: 0.8 },
+    ],
+    svg(el) {
+      return boxSVG(52, el.params.aperture || 26, '#7fc7c4', '#397b78', 'AOTF', '#153b39', isFlipped(el));
+    },
+    surfaces(el) {
+      const p = el.params, h = (p.aperture || 26) / 2;
+      // Qualitative composition of a narrow spectral selector and its selected
+      // acousto-optic order; this does not imply a calibrated device response.
+      return [
+        { x1: -1, y1: -h, x2: -1, y2: h, kind: 'filter', data: { ftype: 'bandpass', center: p.center, band: p.band } },
+        { x1: 1, y1: -h, x2: 1, y2: h, kind: 'aom', data: { deflect: p.deflect, rfMHz: p.rfMHz, zero: false, eff: p.eff, gate: null } },
+      ];
+    },
+  },
+
   eom: {
     label: 'EOM', category: 'Modulators', size: { w: 48, h: 28 },
     size_: el => ({ w: 48, h: (el.params.aperture || 24) + 4 }),
@@ -1614,6 +1639,7 @@ const DIRECT = {
   eye: { resize: { uniform: 'diameter' }, tune: { key: 'focus', short: 'f' } },
   beamdump: { resize: { y: 'aperture' } },
   aom: { resize: { y: 'aperture' }, tune: { key: 'deflect', short: 'deflect' } },
+  aotf: { resize: { y: 'aperture' }, tune: { key: 'center', short: 'λ select' } },
   eom: { resize: { y: 'aperture' }, tune: { key: 'retardance', short: 'Δφ', when: p => p.modulate } },
   chopper: { resize: { uniform: 'diameter' }, tune: { key: 'chopDuty', short: 'duty', when: p => p.modulate } },
   crystal: { resize: { y: 'aperture' }, tune: { key: 'efficiency', short: 'η', when: p => p.convert !== 'none' } },
@@ -1693,6 +1719,7 @@ const ELEMENT_HELP = {
   camera: 'Bins incident rays into a configurable one-dimensional sensor profile.',
   eye: 'Focuses through a configurable pupil and reports the qualitative retinal signal and spot.',
   aom: 'Deflects and frequency-shifts first-order light with efficiency, zero-order, and temporal RF gating.',
+  aotf: 'Selects a configurable spectral band, then deflects and attenuates the selected acousto-optic order.',
   eom: 'Applies voltage-controlled polarization retardance; an analyzer converts it to intensity modulation.',
   chopper: 'Gates finite-duration pulse trains in time and applies duty-averaged transmission to CW light; the wheel shows duty and pulse-clock phase.',
   crystal: 'Converts a configurable fraction of pump power into SHG, THG, supercontinuum, OPO, or custom output.',
