@@ -21,6 +21,7 @@
       <button type="button" id="btnNew" title="New sketch">New</button>
       <button type="button" id="btnOpen" title="Open .json sketch">Open</button>
       <button type="button" id="btnSave" title="Save sketch as .json">Save</button>
+      <button type="button" id="btnShare" title="Copy a self-contained link to this sketch">Share</button>
     </div>
     <div class="toolgroup history-group" aria-label="History">
       <button type="button" id="btnUndo" title="Undo (⌘Z)" aria-label="Undo">↩︎</button>
@@ -36,6 +37,20 @@
     </div>
     <input type="file" id="fileInput" accept=".json,application/json" hidden>
   </header>
+  <dialog id="shareDialog" class="share-dialog" aria-labelledby="shareTitle">
+    <div class="share-dialog-head">
+      <div><span class="eyebrow">Self-contained setup</span><h2 id="shareTitle">Share this sketch</h2></div>
+      <button type="button" id="shareClose" class="icon-button" aria-label="Close share dialog">×</button>
+    </div>
+    <div id="shareQR" class="share-qr"></div>
+    <p id="shareQRNote" class="share-qr-note">Scan to open this exact optical setup.</p>
+    <label class="share-url-label" for="shareURL">Complete setup URL</label>
+    <textarea id="shareURL" class="share-url" rows="3" readonly></textarea>
+    <div class="share-actions">
+      <button type="button" id="shareCopy" class="primary">Copy link</button>
+      <button type="button" id="shareDownloadQR">Download QR SVG</button>
+    </div>
+  </dialog>
   <main>
     <aside id="palette" aria-label="Element palette"></aside>
     <div id="canvasWrap">
