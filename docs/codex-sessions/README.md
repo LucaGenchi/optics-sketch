@@ -19,6 +19,8 @@ reasoning, token-count events, and obvious secret values are excluded.
    (`019f73d2-015f-7362-a3b6-c3b9794222fa`)
 6. [Self-contained setup links and publication feasibility](2026-07-18T14-39-51Z-ricktu288-ray-optics-https-github-com-ricktu288-ray-optics-e05d41b3.md)
    (`019f75ab-58a8-7f80-9c9c-cd4be05d41b3`)
+7. [Pulsed-beam component showcase ideation](2026-07-19T18-21-33Z-can-you-make-a-new-example-which-is-basically-a-set-of-elements-forming-9708e424.md)
+   (`019f7b9c-aca7-7480-b412-b1049708e424`)
 
 The transcripts are provenance records, not product documentation. Current
 behavior and limitations are documented in the repository's main README and tests.
