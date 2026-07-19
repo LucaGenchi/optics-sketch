@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createElement, registry } from '../js/elements.js';
-import { detectorReading, traceAll, traceScene } from '../js/raytrace.js';
-import { C_MM_PER_NS } from '../js/pulses.js';
+import { createElement, registry } from '../sketch/js/elements.js';
+import { detectorReading, traceAll, traceScene } from '../sketch/js/raytrace.js';
+import { C_MM_PER_NS } from '../sketch/js/pulses.js';
 
 const paths = elements => traceAll(elements).filter(d => d.type === 'path');
 const angleOfLastSegment = path => {

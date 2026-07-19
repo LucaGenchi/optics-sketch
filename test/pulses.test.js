@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { C_MM_PER_NS, pointAtOpticalPath, pulseGateTransmission, pulseMarkers, pulseTransmissionAt } from '../js/pulses.js';
+import { C_MM_PER_NS, pointAtOpticalPath, pulseGateTransmission, pulseMarkers, pulseTransmissionAt } from '../sketch/js/pulses.js';
 
 const track = {
   pts: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }],

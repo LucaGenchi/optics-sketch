@@ -416,7 +416,7 @@ function bindToolbar() {
     setTimeout(() => { $('shareCopy').textContent = 'Copy link'; }, 1600);
   });
   $('shareDownloadQR').addEventListener('click', () => download(
-    'optics-sketch-setup-qr.svg',
+    'opticalsetup-qr.svg',
     shareQrSvg,
     'image/svg+xml',
   ));

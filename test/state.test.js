@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { registry, createElement } from '../js/elements.js';
+import { registry, createElement } from '../sketch/js/elements.js';
 import {
   state, parseSketch, deserialize, replaceScene, pushUndo, undo, redo, canUndo, canRedo,
-} from '../js/state.js';
+} from '../sketch/js/state.js';
 
 const file = (elements = [], beams = []) => JSON.stringify({ app: 'optics2d', version: 1, elements, beams });
 

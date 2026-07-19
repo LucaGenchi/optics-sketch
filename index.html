@@ -3,127 +3,115 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Optics Sketch — 2D optical setup builder</title>
-<link rel="stylesheet" href="css/style.css">
+<title>OpticalSetup — 2D optical setup builder with live ray tracing</title>
+<meta name="description" content="Sketch 2D optical setups and see the ray paths trace live. Free, no signup, runs entirely in your browser. Export publication-ready SVG/PNG figures or share a self-contained link.">
+<link rel="canonical" href="https://opticalsetup.com/">
+<meta name="robots" content="index, follow">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="OpticalSetup — 2D optical setup builder with live ray tracing">
+<meta property="og:description" content="Sketch 2D optical setups and see the ray paths trace live. Free, no signup, runs entirely in your browser.">
+<meta property="og:url" content="https://opticalsetup.com/">
+<meta property="og:site_name" content="OpticalSetup">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="OpticalSetup — 2D optical setup builder with live ray tracing">
+<meta name="twitter:description" content="Sketch 2D optical setups and see the ray paths trace live. Free, no signup, runs entirely in your browser.">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cline x1='2' y1='16' x2='30' y2='16' stroke='%232469e8' stroke-width='3'/%3E%3Cellipse cx='16' cy='16' rx='5' ry='11' fill='%23eaf1ff' stroke='%232469e8' stroke-width='2.2'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/landing.css">
+
+<script>
+  // A share link or an old-style /#scene= link may land here if it was
+  // bookmarked before the app moved to /sketch/. Forward it transparently
+  // instead of losing the shared sketch.
+  if (/^#(sketch|scene)=/.test(location.hash)) {
+    location.replace('/sketch/' + location.hash);
+  }
+</script>
 </head>
 <body>
-  <header id="toolbar" role="toolbar" aria-label="Sketch tools">
-    <div class="brandblock">
-      <span class="brand">Optics Sketch</span>
-      <span class="model-badge">Qualitative ray tracing</span>
-    </div>
-    <div class="toolgroup examples-group">
-      <select id="exampleSel" aria-label="Load a pre-made example setup" title="Load a pre-made example setup">
-        <option value="">Examples…</option>
-      </select>
-    </div>
-    <div class="toolgroup file-group" aria-label="File actions">
-      <button type="button" id="btnNew" title="New sketch">New</button>
-      <button type="button" id="btnOpen" title="Open .json sketch">Open</button>
-      <button type="button" id="btnSave" title="Save sketch as .json">Save</button>
-      <button type="button" id="btnShare" title="Copy a self-contained link to this sketch">Share</button>
-    </div>
-    <div class="toolgroup history-group" aria-label="History">
-      <button type="button" id="btnUndo" title="Undo (⌘Z)" aria-label="Undo">↩︎</button>
-      <button type="button" id="btnRedo" title="Redo (⇧⌘Z)" aria-label="Redo">↪︎</button>
-    </div>
-    <div class="toolgroup draw-group" aria-label="Drawing tools">
-      <button type="button" id="btnFiber" title="Draw an optical fiber patch cable: click waypoints, double-click to finish">Fiber</button>
-    </div>
-    <span class="spacer"></span>
-    <div class="toolgroup export-group" aria-label="Export actions">
-      <button type="button" id="btnSVG" class="primary" title="Export vector SVG">Export SVG</button>
-      <button type="button" id="btnPNG" title="Export PNG (3×)">PNG</button>
-    </div>
-    <div class="mobile-toolbar-actions">
-      <button type="button" id="btnMobileMenu" class="mobile-icon-button" aria-label="Open sketch menu" aria-haspopup="dialog">•••</button>
-    </div>
-    <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  <header class="site-header">
+    <a class="brand" href="/">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <line x1="2" y1="16" x2="30" y2="16" stroke="currentColor" stroke-width="3"/>
+        <ellipse cx="16" cy="16" rx="5" ry="11" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      </svg>
+      OpticalSetup
+    </a>
+    <a class="btn btn-primary header-cta" href="/sketch/">Open the canvas</a>
   </header>
-  <dialog id="shareDialog" class="share-dialog" aria-labelledby="shareTitle">
-    <div class="share-dialog-head">
-      <div><span class="eyebrow">Self-contained setup</span><h2 id="shareTitle">Share this sketch</h2></div>
-      <button type="button" id="shareClose" class="icon-button" aria-label="Close share dialog">×</button>
-    </div>
-    <div id="shareQR" class="share-qr"></div>
-    <p id="shareQRNote" class="share-qr-note">Scan to open this exact optical setup.</p>
-    <label class="share-url-label" for="shareURL">Complete setup URL</label>
-    <textarea id="shareURL" class="share-url" rows="3" readonly></textarea>
-    <div class="share-actions">
-      <button type="button" id="shareCopy" class="primary">Copy link</button>
-      <button type="button" id="shareDownloadQR">Download QR SVG</button>
-    </div>
-  </dialog>
-  <dialog id="mobileMenu" class="mobile-menu" aria-labelledby="mobileMenuTitle">
-    <div class="mobile-menu-head">
-      <h2 id="mobileMenuTitle">Sketch</h2>
-      <button type="button" id="mobileMenuClose" class="icon-button" aria-label="Close sketch menu">×</button>
-    </div>
-    <label class="mobile-menu-label" for="mobileExampleSel">Examples</label>
-    <select id="mobileExampleSel" aria-label="Load a pre-made example setup"><option value="">Choose an example…</option></select>
-    <div class="mobile-menu-actions">
-      <button type="button" data-mobile-action="new">New sketch</button>
-      <button type="button" data-mobile-action="open">Open .json</button>
-      <button type="button" data-mobile-action="save">Save .json</button>
-      <button type="button" data-mobile-action="share">Share link</button>
-      <button type="button" data-mobile-action="svg">Export SVG</button>
-      <button type="button" data-mobile-action="png">Export PNG</button>
-    </div>
-  </dialog>
-  <div id="mobileBackdrop" hidden></div>
+
   <main>
-    <aside id="palette" aria-label="Element palette">
-      <button type="button" id="closePalette" class="sheet-close" aria-label="Close component library">×</button>
-      <div id="paletteContent"></div>
-    </aside>
-    <div id="canvasWrap">
-      <!-- biome-ignore lint/a11y/noNoninteractiveTabindex: this SVG is the app's interactive pointer and keyboard workspace -->
-      <svg id="canvas" role="application" aria-label="Optical setup canvas" tabindex="0"></svg>
-      <div id="toolMode" role="status" aria-live="polite"></div>
-      <div id="mobileToolActions" class="mobile-tool-actions" aria-live="polite">
-        <span id="mobileToolLabel"></span>
-        <button type="button" id="btnMobileToolCancel">Cancel</button>
-        <button type="button" id="btnMobileToolDone" hidden>Done</button>
+    <section class="hero">
+      <h1>Sketch optical setups. Watch the rays trace live.</h1>
+      <p class="hero-sub">
+        A free, browser-based 2D workbench for lasers, lenses, mirrors, and everything
+        between the source and the detector. Place components on a virtual optical
+        table and the beam paths update in real time — no install, no account, no
+        server storing your work.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="/sketch/">Open the canvas →</a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/LucaGenchi/optics-sketch">View on GitHub</a>
       </div>
-      <div id="viewControls" class="canvas-controls" aria-label="Canvas view controls">
-        <button type="button" id="btnGrid" class="active" aria-pressed="true" title="Toggle table hole grid">Grid</button>
-        <button type="button" id="btnSnap" class="active" aria-pressed="true" title="Toggle snapping">Snap</button>
-        <button type="button" id="btnFocal" class="active" aria-pressed="true" title="Show focal points of lenses and curved mirrors">ƒ</button>
-        <span class="control-divider"></span>
-        <button type="button" id="btnZoomOut" title="Zoom out" aria-label="Zoom out">−</button>
-        <button type="button" id="btnZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
-        <button type="button" id="btnZoomFit" title="Fit sketch in view">Fit</button>
-        <span id="zoomReadout" class="zoom-readout" aria-live="polite">100% · 25 mm</span>
+    </section>
+
+    <section class="features" aria-label="Highlights">
+      <div class="feature">
+        <h2>Live ray tracing</h2>
+        <p>Mirrors fold, lenses focus, dichroics split by wavelength, gratings and
+          prisms disperse, samples fluoresce — every edit retraces the scene
+          instantly.</p>
       </div>
-      <div id="pulseControls" class="pulse-controls is-idle" role="toolbar" aria-label="Pulse playback controls">
-        <button type="button" id="btnPulsePlay" title="Play pulse animation" aria-label="Play pulse animation">▶</button>
-        <button type="button" id="btnPulseReset" title="Reset pulse clock" aria-label="Reset pulse clock">↺</button>
-        <select id="pulseDisplay" aria-label="Pulse display scale" aria-describedby="pulseScaleNote" title="Detector timing is physical in both modes; physical packet widths may be enlarged for visibility">
-          <option value="schematic">Schematic packets</option>
-          <option value="physical">Physical spacing</option>
-        </select>
-        <select id="pulseSpeed" aria-label="Simulation time speed">
-          <option value="1">1 ns/s</option>
-          <option value="10" selected>10 ns/s</option>
-          <option value="100">100 ns/s</option>
-        </select>
-        <span id="pulseScaleNote" class="pulse-scale-note">packets schematic · timing physical</span>
+      <div class="feature">
+        <h2>A real element library</h2>
+        <p>Lasers, LEDs and point sources, mirrors (flat, curved, galvo), lenses and
+          telescopes, polarization optics, gratings and prisms, modulators,
+          nonlinear crystals, fibers, detectors, and a focusing human eye.</p>
       </div>
-      <div id="status"></div>
-      <div id="contextMenu" class="context-menu" role="menu" aria-label="Object actions" hidden>
-        <button type="button" role="menuitem" data-action="duplicate"><span>Duplicate</span><kbd>⌘D</kbd></button>
-        <button type="button" role="menuitem" data-action="rotate"><span>Rotate 45°</span><kbd>R</kbd></button>
-        <button type="button" role="menuitem" data-action="delete" class="context-danger"><span>Delete</span><kbd>⌫</kbd></button>
+      <div class="feature">
+        <h2>Direct manipulation</h2>
+        <p>Select a component to get resize handles, a rotation handle, and a
+          tuning knob for its key parameter — right on the canvas, no dialog
+          required.</p>
       </div>
-      <button type="button" id="btnTrash" class="mobile-trash" aria-label="Delete selected element" hidden><span aria-hidden="true">🗑</span> Delete</button>
-      <button type="button" id="btnProperties" class="mobile-properties" aria-label="Show selected element properties" hidden>Properties</button>
-      <button type="button" id="btnAdd" class="mobile-add" aria-label="Add an optical element"><span aria-hidden="true">+</span> Add</button>
-    </div>
-    <aside id="inspector" aria-label="Properties">
-      <button type="button" id="closeInspector" class="sheet-close" aria-label="Close properties">×</button>
-      <div id="inspectorContent"></div>
-    </aside>
+      <div class="feature">
+        <h2>Paper-ready export</h2>
+        <p>Export a crop of your setup as SVG or PNG for a manuscript or slide
+          deck. An optional Figure frame sets the exact export bounds without
+          appearing in the artwork.</p>
+      </div>
+      <div class="feature">
+        <h2>Share a link, not a file</h2>
+        <p>The Share action compresses your sketch into the URL itself and
+          generates a QR code. Opening the link rebuilds the exact setup — no
+          account, no server-side scene storage.</p>
+      </div>
+      <div class="feature">
+        <h2>Honest about what's simulated</h2>
+        <p>Every component is labeled as simulated, needs setup, or diagram-only.
+          OpticalSetup is a qualitative geometric-optics workbench, not a
+          calibrated design package, and says so.</p>
+      </div>
+    </section>
+
+    <section class="how">
+      <h2>How it works</h2>
+      <ol class="how-steps">
+        <li><strong>Choose a source</strong> from the component library — a laser,
+          LED, or broadband point source.</li>
+        <li><strong>Place optics in the beam</strong>: lenses, mirrors, filters,
+          splitters, anything the light should pass through.</li>
+        <li><strong>Add a detector</strong> and select it to read the signal,
+          spectrum, or polarization the tracer computed.</li>
+      </ol>
+    </section>
   </main>
-  <script type="module" src="js/main.js"></script>
+
+  <footer class="site-footer">
+    <p>OpticalSetup is a qualitative ray-tracing sketch tool, not a calibrated
+      optical design package.
+      <a href="https://github.com/LucaGenchi/optics-sketch">Source on GitHub</a>.</p>
+  </footer>
 </body>
 </html>

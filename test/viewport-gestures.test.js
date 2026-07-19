@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clampZoom, gridDetailForZoom, pinchView, snapToGrid, zoomViewAt } from '../js/viewport.js';
+import { clampZoom, gridDetailForZoom, pinchView, snapToGrid, zoomViewAt } from '../sketch/js/viewport.js';
 
 test('zoomViewAt keeps the world point under its screen anchor', () => {
   const start = { x: 60, y: 40, z: 1 };

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createElement, stageYOffsetAt } from '../js/elements.js';
-import { pulseArrivalsAtPath } from '../js/pulses.js';
-import { traceScene } from '../js/raytrace.js';
+import { createElement, stageYOffsetAt } from '../sketch/js/elements.js';
+import { pulseArrivalsAtPath } from '../sketch/js/pulses.js';
+import { traceScene } from '../sketch/js/raytrace.js';
 
 const closeTo = (actual, expected, tolerance = 1e-9) => {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} is not within ${tolerance} of ${expected}`);

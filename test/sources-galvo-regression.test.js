@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createElement, galvoAngleAt, registry } from '../js/elements.js';
-import { detectorReading, traceAll } from '../js/raytrace.js';
-import { wavelengthToColor } from '../js/util.js';
+import { createElement, galvoAngleAt, registry } from '../sketch/js/elements.js';
+import { detectorReading, traceAll } from '../sketch/js/raytrace.js';
+import { wavelengthToColor } from '../sketch/js/util.js';
 
 const EPS = 1e-9;
 

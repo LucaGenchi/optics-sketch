@@ -1,10 +1,12 @@
-# Optics Sketch agent guide
+# OpticalSetup agent guide
 
 ## Purpose
 
-Optics Sketch is a dependency-light, browser-based 2D optical workbench. Preserve
-its fast local workflow and keep the UI honest about the difference between
-simulated, setup-dependent, and diagram-only components.
+OpticalSetup is a dependency-light, browser-based 2D optical workbench (the
+app lives under `sketch/`; the repo root is a static marketing/SEO landing
+page that links into it). Preserve the app's fast local workflow and keep the
+UI honest about the difference between simulated, setup-dependent, and
+diagram-only components.
 
 ## Start every task
 
@@ -17,25 +19,33 @@ simulated, setup-dependent, and diagram-only components.
 
 ## Project map
 
-- `index.html` — application shell and toolbar structure.
-- `css/style.css` — complete responsive UI styling.
-- `js/elements.js` — component registry, defaults, SVG geometry, optical
-  surfaces, sources, and capability metadata.
-- `js/raytrace.js` — ray propagation, interactions, detector readings, and
-  generated drawables.
-- `js/canvas.js` — canvas rendering and direct manipulation.
-- `js/inspector.js` — selected-component controls and measurements.
-- `js/main.js` — palette, search, file actions, examples, and app wiring.
-- `js/state.js` — scene state, normalization, undo/redo, and persistence.
-- `js/export.js` — SVG/PNG generation and fitted bounds.
-- `js/examples.js` — built-in optical layouts.
-- `test/` — dependency-free Node regression tests.
-- `serve.mjs` — local static server on port 5182.
+- `index.html` — static marketing/SEO landing page at the site root (no app
+  dependency; links to `/sketch/`).
+- `robots.txt`, `sitemap.xml` — SEO plumbing for the landing page.
+- `CNAME` — GitHub Pages custom domain (opticalsetup.com). Do not remove.
+- `sketch/index.html` — the app shell and toolbar structure.
+- `sketch/css/style.css` — complete responsive UI styling.
+- `sketch/js/elements.js` — component registry, defaults, SVG geometry,
+  optical surfaces, sources, and capability metadata.
+- `sketch/js/raytrace.js` — ray propagation, interactions, detector readings,
+  and generated drawables.
+- `sketch/js/canvas.js` — canvas rendering and direct manipulation.
+- `sketch/js/inspector.js` — selected-component controls and measurements.
+- `sketch/js/main.js` — palette, search, file actions, examples, and app
+  wiring.
+- `sketch/js/state.js` — scene state, normalization, undo/redo, and
+  persistence.
+- `sketch/js/export.js` — SVG/PNG generation and fitted bounds.
+- `sketch/js/examples.js` — built-in optical layouts.
+- `sketch/js/share.js` — self-contained share links (`#sketch=` fragment).
+- `test/` — dependency-free Node regression tests (import from `../sketch/js/`).
+- `serve.mjs` — local static server on port 5182, serving both the landing
+  page and `sketch/` from the repo root.
 
 ## Development commands
 
 ```bash
-node serve.mjs       # http://localhost:5182
+node serve.mjs       # http://localhost:5182 (landing) and /sketch/ (app)
 npm test             # full regression suite
 git diff --check     # whitespace and patch sanity
 ```
@@ -43,7 +53,7 @@ git diff --check     # whitespace and patch sanity
 Before handing off JavaScript changes, also run:
 
 ```bash
-for file in js/*.js serve.mjs; do node --check "$file"; done
+for file in sketch/js/*.js serve.mjs; do node --check "$file"; done
 ```
 
 For UI work, verify the affected interactions in a real browser at a desktop

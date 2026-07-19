@@ -5,9 +5,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createElement, registry } from '../js/elements.js';
-import { traceAll } from '../js/raytrace.js';
-import { parseSketch } from '../js/state.js';
+import { createElement, registry } from '../sketch/js/elements.js';
+import { traceAll } from '../sketch/js/raytrace.js';
+import { parseSketch } from '../sketch/js/state.js';
 
 test('point source rays fade evanescently unless a nearby lens collects them', () => {
   const src = createElement('pointsource', 0, 0);
