@@ -480,7 +480,7 @@ function bindToolbar() {
   mobileMenu.querySelectorAll('[data-mobile-action]').forEach(button => {
     button.addEventListener('click', () => {
       const target = {
-        new: 'btnNew', open: 'btnOpen', save: 'btnSave', svg: 'btnSVG', png: 'btnPNG',
+        new: 'btnNew', open: 'btnOpen', save: 'btnSave', share: 'btnShare', svg: 'btnSVG', png: 'btnPNG',
       }[button.dataset.mobileAction];
       $(target)?.click();
       mobileMenu.close();
