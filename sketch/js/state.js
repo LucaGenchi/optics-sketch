@@ -176,7 +176,7 @@ export function parseSketch(text, definitions = null) {
   if (!record(d) || !Array.isArray(d.elements) || (d.beams !== undefined && !Array.isArray(d.beams))) {
     throw new Error('Not a valid optics sketch file');
   }
-  if (d.app !== undefined && d.app !== 'optics2d') throw new Error('Not an Optics Sketch file');
+  if (d.app !== undefined && d.app !== 'optics2d') throw new Error('Not an OpticalSetup file');
   if (d.version !== undefined && d.version !== 1) throw new Error(`Unsupported sketch version: ${d.version}`);
   const used = new Set();
   return {

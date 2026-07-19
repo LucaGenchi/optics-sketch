@@ -1,8 +1,9 @@
-# Optics Sketch
+# OpticalSetup
 
 A 2D optical-setup sketch builder for scientific illustrations, with live ray tracing.
 
-**➡ Try it in your browser: https://lucagenchi.github.io/optics-sketch/**
+**➡ Try it in your browser: https://opticalsetup.com/sketch/**
+(mirror: https://lucagenchi.github.io/optics-sketch/sketch/)
 
 Search or browse optical elements, select one, and place it on a virtual optical table
 (top view). Set its parameters
@@ -59,7 +60,7 @@ figures as SVG or PNG.
 
 ## Simulation scope
 
-Optics Sketch is a qualitative geometric-optics workbench, not a calibrated optical
+OpticalSetup is a qualitative geometric-optics workbench, not a calibrated optical
 design package. It models ray paths, bounded relative power, spectral bands, Stokes
 polarization, thin-lens elements, refractive boundaries, timed pulse trains, and
 simple detector responses. It does not model coherent carrier phase, interference,
@@ -83,13 +84,19 @@ autosaves in your own browser, so you can't break anything for anyone else.
 The sanitized Codex conversations behind the major development passes are available
 in the [work-trace index](docs/codex-sessions/README.md).
 
+## Site structure
+
+The repo root is a static marketing/SEO landing page (`index.html`,
+`robots.txt`, `sitemap.xml`); the actual app lives under `sketch/`
+(`sketch/index.html`, `sketch/js/`, `sketch/css/`). Both are plain static
+files with no build step.
+
 ## Run locally
 
-No build step — plain HTML/JS/SVG:
-
 ```bash
-node serve.mjs        # serves on http://localhost:5182
-npm test              # runs the regression suite
+node serve.mjs        # landing page: http://localhost:5182
+                       # app: http://localhost:5182/sketch/
+npm test               # runs the regression suite
 ```
 
 (Any static file server works; ES modules require http(s), not file://.)

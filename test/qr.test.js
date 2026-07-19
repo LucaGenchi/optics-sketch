@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { qrMatrix, qrSVG } from '../js/qr.js';
+import { qrMatrix, qrSVG } from '../sketch/js/qr.js';
 
 test('QR matrices are square, deterministic, and include three finder patterns', () => {
   const first = qrMatrix('https://example.org/#scene=test');

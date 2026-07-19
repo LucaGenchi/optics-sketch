@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createElement } from '../js/elements.js';
-import { detectorReading, traceAll } from '../js/raytrace.js';
-import { linearStokes, retarder, polarizationDescription } from '../js/polarization.js';
+import { createElement } from '../sketch/js/elements.js';
+import { detectorReading, traceAll } from '../sketch/js/raytrace.js';
+import { linearStokes, retarder, polarizationDescription } from '../sketch/js/polarization.js';
 
 test('quarter-wave retardance respects fast-axis alignment and handedness', () => {
   const aligned = retarder(linearStokes(0), 0, 90);

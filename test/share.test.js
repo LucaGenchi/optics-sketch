@@ -6,7 +6,7 @@ import {
   decodeSharePayload,
   encodeSharePayload,
   sharedSceneFromURL,
-} from '../js/share.js';
+} from '../sketch/js/share.js';
 
 const scene = JSON.stringify({
   app: 'optics2d', version: 1,
@@ -23,8 +23,14 @@ test('uncompressed share payloads round-trip Unicode scene JSON', async () => {
 
 test('share URLs round-trip a scene without changing the host path', async () => {
   const url = await buildShareURL(scene, 'https://example.org/optics/?lang=en#old');
-  assert.match(url, /^https:\/\/example\.org\/optics\/\?lang=en#scene=/);
+  assert.match(url, /^https:\/\/example\.org\/optics\/\?lang=en#sketch=/);
   assert.deepEqual(JSON.parse(await sharedSceneFromURL(url)), JSON.parse(scene));
+});
+
+test('links generated before the #sketch= rename still open (#scene= back-compat)', async () => {
+  const payload = await encodeSharePayload(scene, { compression: false });
+  const legacyUrl = `https://example.org/sketch/#scene=${payload}`;
+  assert.deepEqual(JSON.parse(await sharedSceneFromURL(legacyUrl)), JSON.parse(scene));
 });
 
 test('compressed share payloads round-trip when stream compression is available', async (t) => {

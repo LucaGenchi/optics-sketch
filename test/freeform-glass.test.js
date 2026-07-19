@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildSVG } from '../js/export.js';
-import { createElement, getSize, registry } from '../js/elements.js';
-import { detectorReading, traceAll } from '../js/raytrace.js';
-import { parseSketch, state } from '../js/state.js';
-import { isSimplePolygon, normalizePolygonPoints, pointInPolygon } from '../js/polygon.js';
-import { toWorld } from '../js/util.js';
+import { buildSVG } from '../sketch/js/export.js';
+import { createElement, getSize, registry } from '../sketch/js/elements.js';
+import { detectorReading, traceAll } from '../sketch/js/raytrace.js';
+import { parseSketch, state } from '../sketch/js/state.js';
+import { isSimplePolygon, normalizePolygonPoints, pointInPolygon } from '../sketch/js/polygon.js';
+import { toWorld } from '../sketch/js/util.js';
 
 const file = elements => JSON.stringify({ app: 'optics2d', version: 1, elements, beams: [] });
 const finitePath = path => path.pts.every(p => Number.isFinite(p.x) && Number.isFinite(p.y));

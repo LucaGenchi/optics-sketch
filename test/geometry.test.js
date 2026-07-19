@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { registry, createElement, getElementMeta, getSize } from '../js/elements.js';
-import { examples } from '../js/examples.js';
-import { buildSVG, exportPNG, exportSVG } from '../js/export.js';
-import { detectorReading, traceAll, traceScene } from '../js/raytrace.js';
-import { C_MM_PER_NS } from '../js/pulses.js';
-import { pulseTimelineHTML } from '../js/inspector.js';
-import { state } from '../js/state.js';
-import { distinctPoints } from '../js/util.js';
+import { registry, createElement, getElementMeta, getSize } from '../sketch/js/elements.js';
+import { examples } from '../sketch/js/examples.js';
+import { buildSVG, exportPNG, exportSVG } from '../sketch/js/export.js';
+import { detectorReading, traceAll, traceScene } from '../sketch/js/raytrace.js';
+import { C_MM_PER_NS } from '../sketch/js/pulses.js';
+import { pulseTimelineHTML } from '../sketch/js/inspector.js';
+import { state } from '../sketch/js/state.js';
+import { distinctPoints } from '../sketch/js/util.js';
 
 const invalidNumber = /(?:NaN|undefined|Infinity)/;
 

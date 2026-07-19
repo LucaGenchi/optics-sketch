@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createElement, galvoAngleAt, getDirectManipulation, getSize, registry } from '../js/elements.js';
+import { createElement, galvoAngleAt, getDirectManipulation, getSize, registry } from '../sketch/js/elements.js';
 
 test('every component exposes a resize handle backed by a real size parameter', () => {
   for (const type of Object.keys(registry)) {

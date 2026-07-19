@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createElement } from '../js/elements.js';
-import { detectorReading, probeAt, traceAll, traceScene } from '../js/raytrace.js';
-import { C_MM_PER_NS } from '../js/pulses.js';
+import { createElement } from '../sketch/js/elements.js';
+import { detectorReading, probeAt, traceAll, traceScene } from '../sketch/js/raytrace.js';
+import { C_MM_PER_NS } from '../sketch/js/pulses.js';
 
 function closeTo(actual, expected, tolerance = 1e-9, message = '') {
   assert.ok(
