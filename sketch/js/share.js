@@ -2,7 +2,6 @@
 // never sent to the static host and no server-side storage is required.
 
 const SHARE_PREFIX = '#sketch=';
-const LEGACY_SHARE_PREFIX = '#scene='; // read-only: links generated before the rename
 const MAX_SHARE_HASH_CHARS = 200_000;
 const MAX_SCENE_BYTES = 1_000_000;
 
@@ -77,12 +76,9 @@ export async function buildShareURL(text, href = window.location.href, options) 
 
 export async function sharedSceneFromURL(href = window.location.href) {
   const hash = new URL(href).hash;
-  const prefix = hash.startsWith(SHARE_PREFIX) ? SHARE_PREFIX
-    : hash.startsWith(LEGACY_SHARE_PREFIX) ? LEGACY_SHARE_PREFIX
-      : null;
-  if (!prefix) return null;
+  if (!hash.startsWith(SHARE_PREFIX)) return null;
   if (hash.length > MAX_SHARE_HASH_CHARS) throw new Error('Share link is too large to open safely');
-  return decodeSharePayload(hash.slice(prefix.length));
+  return decodeSharePayload(hash.slice(SHARE_PREFIX.length));
 }
 
 export async function copyText(text) {

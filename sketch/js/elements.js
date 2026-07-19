@@ -212,17 +212,13 @@ function sampleModeParams() {
 }
 function sampleSurfaces(el, h) {
   const p = el.params;
-  // normalize legacy modes ('trans' / 'block') from older sketches
-  let m = p.mode;
-  const transmit = p.transmitExc !== undefined ? p.transmitExc : m !== 'block';
-  if (m === 'trans' || m === 'block' || m === undefined) m = 'none';
-  if (m === 'fluor') {
-    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'fluor', data: { wl: p.fluorWl, transmitExc: transmit, transmission: p.transmission, efficiency: p.signalEff } }];
+  if (p.mode === 'fluor') {
+    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'fluor', data: { wl: p.fluorWl, transmitExc: p.transmitExc, transmission: p.transmission, efficiency: p.signalEff } }];
   }
-  if (m === 'shg' || m === 'thg' || m === 'cars') {
-    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'transmit', data: { convert: m, outWl: p.carsWl, transmitExc: transmit, transmission: p.transmission, efficiency: p.signalEff } }];
+  if (p.mode === 'shg' || p.mode === 'thg' || p.mode === 'cars') {
+    return [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'transmit', data: { convert: p.mode, outWl: p.carsWl, transmitExc: p.transmitExc, transmission: p.transmission, efficiency: p.signalEff } }];
   }
-  return transmit
+  return p.transmitExc
     ? [{ x1: 0, y1: -h, x2: 0, y2: h, kind: 'attenuate', data: { transmission: p.transmission } }]
     : rectAbsorb(8, 2 * h);
 }
@@ -338,89 +334,6 @@ export const registry = {
         return out;
       }
       return [{ x: 52, y: 0, dx: 1, dy: 0 }];
-    },
-  },
-
-  // Hidden legacy source: superseded by the unified Point source below, but
-  // kept (with its exact directional geometry) so older sketches load
-  // unchanged. Not shown in the palette.
-  led: {
-    label: 'LED (legacy)', category: 'Sources', hidden: true, size: { w: 34, h: 30 },
-    size_: el => ({ w: (el.params.packageSize || 30) + 4, h: el.params.packageSize || 30 }),
-    params: [
-      P.wavelength,
-      { key: 'packageSize', label: 'Package size (mm)', type: 'number', min: 12, max: 80, step: 2, def: 30 },
-      { key: 'spread', label: 'Fan angle (°)', type: 'number', min: 0, max: 120, step: 5, def: 30 },
-      { key: 'nrays', label: 'Rays', type: 'number', min: 1, max: 11, step: 2, def: 5 },
-      P.autoColor, P.color,
-    ],
-    svg(el) {
-      const c = el.params.autoColor ? wavelengthToColor(el.params.wavelength) : el.params.color;
-      const scale = (el.params.packageSize || 30) / 30;
-      return `<g transform="scale(${scale})"><path d="M -14,-12 L 6,-12 A 12 12 0 0 1 6,12 L -14,12 Z" fill="${c}" stroke="#333" stroke-width="1.5" opacity="0.85"/>` +
-        `<line x1="-14" y1="-15" x2="-14" y2="15" stroke="#333" stroke-width="2"/>` +
-        `<text x="-3" y="0" text-anchor="middle" dominant-baseline="central" font-size="8" font-weight="700" fill="#fff">LED</text></g>`;
-    },
-    source(el) {
-      const { spread, nrays } = el.params, out = [];
-      const n = Math.max(1, Math.round(nrays));
-      for (let i = 0; i < n; i++) {
-        const a = n === 1 ? 0 : (-spread / 2 + spread * i / (n - 1)) * Math.PI / 180;
-        out.push({ x: (el.params.packageSize || 30) / 2 + 4, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
-      }
-      return out;
-    },
-  },
-
-  // Hidden legacy source: superseded by the unified Point source below.
-  // Old sketches load with their exact original directional behavior via the
-  // legacyDirectional migration in state.js.
-  lamp: {
-    label: 'Light source (legacy)', category: 'Sources', hidden: true, size: { w: 38, h: 38 },
-    labelFor: el => el.params.legacyDirectional ? 'Legacy light source' : 'Broadband point source',
-    size_: el => ({ w: el.params.packageSize || 38, h: el.params.packageSize || 38 }),
-    params: [
-      { ...P.wavelength, label: 'Spectrum center (nm)', def: 580 },
-      { key: 'packageSize', label: 'Bulb size (mm)', type: 'number', min: 16, max: 100, step: 2, def: 38 },
-      { key: 'bandwidth', label: 'Spectrum width (nm)', type: 'number', min: 10, max: 600, step: 10, def: 400, show: p => !p.legacyDirectional },
-      { key: 'spread', label: 'Emission angle (°)', type: 'number', min: 10, max: 360, step: 10, def: 360 },
-      { key: 'nrays', label: 'Ray samples', type: 'number', min: 3, max: 25, step: 2, def: 13 },
-      // Old sketches used `lamp` for a monochromatic forward fan. Keep an
-      // explicit, serialized discriminator so loading them never changes the
-      // source spectrum or moves its emission plane.
-      { key: 'legacyDirectional', label: 'Legacy directional emission', type: 'checkbox', def: false, hidden: true },
-      P.autoColor, P.color,
-    ],
-    svg(el) {
-      if (el.params.legacyDirectional) {
-        return `<circle r="13" fill="#fff3c4" stroke="#333" stroke-width="1.5"/>` +
-          `<path d="M -5,-5 Q 0,5 5,-5" fill="none" stroke="#333" stroke-width="1.2"/>` +
-          `<line x1="-9" y1="-9" x2="-13" y2="-13" stroke="#333" stroke-width="1"/><line x1="-9" y1="9" x2="-13" y2="13" stroke="#333" stroke-width="1"/>`;
-      }
-      const scale = (el.params.packageSize || 38) / 38;
-      return `<g transform="scale(${scale})"><circle r="13" fill="#fff8dc" stroke="#333" stroke-width="1.5"/>` +
-        `<path d="M -5,-5 Q 0,5 5,-5" fill="none" stroke="#333" stroke-width="1.2"/>` +
-        `<g stroke="#d2a21b" stroke-width="1.2"><line x1="-16" y1="0" x2="-19" y2="0"/><line x1="16" y1="0" x2="19" y2="0"/><line x1="0" y1="-16" x2="0" y2="-19"/><line x1="0" y1="16" x2="0" y2="19"/><line x1="-11" y1="-11" x2="-14" y2="-14"/><line x1="11" y1="11" x2="14" y2="14"/></g></g>`;
-    },
-    source(el) {
-      const { spread, nrays } = el.params, out = [];
-      const n = Math.max(1, Math.round(nrays));
-      if (el.params.legacyDirectional) {
-        for (let i = 0; i < n; i++) {
-          const a = n === 1 ? 0 : (-spread / 2 + spread * i / (n - 1)) * Math.PI / 180;
-          out.push({ x: 15, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
-        }
-        return out;
-      }
-      for (let i = 0; i < n; i++) {
-        // A full-circle source must not duplicate the -180°/+180° sample.
-        const aDeg = spread >= 359.999
-          ? 360 * i / n
-          : (n === 1 ? 0 : -spread / 2 + spread * i / (n - 1));
-        const a = aDeg * Math.PI / 180;
-        out.push({ x: 0, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
-      }
-      return out;
     },
   },
 
@@ -986,12 +899,6 @@ export const registry = {
       { key: 'pitch', label: 'Pattern pitch (mm)', type: 'number', min: 1, max: 40, step: 0.5, def: 8 },
       { key: 'duty', label: 'ON fraction (0–1)', type: 'number', min: 0.05, max: 0.95, step: 0.05, def: 0.5 },
       { key: 'routeOff', label: 'Show OFF order', type: 'checkbox', def: false },
-      // Retain the original layer-based DMD fields in saved sketches. They are
-      // hidden for newly created binary-pattern DMDs but remain active when a
-      // legacy sketch contains optical-function layers.
-      { key: 'zeroOrder', label: 'Legacy 0th order', type: 'checkbox', def: false, show: () => false },
-      { key: 'zeroFrac', label: 'Legacy 0th-order fraction', type: 'number', min: 0.01, max: 0.9, step: 0.01, def: 0.1, show: () => false },
-      { ...layersParam, show: () => false },
     ],
     size_: el => ({ w: 30, h: el.params.length + 10 }),
     svg(el) {
@@ -1003,15 +910,6 @@ export const registry = {
     },
     surfaces(el) {
       const L = el.params.length / 2;
-      if (Array.isArray(el.params.layers) && el.params.layers.length) {
-        return [{
-          x1: -9, y1: -L, x2: -9, y2: L, kind: 'shaper',
-          data: {
-            layers: el.params.layers, length: el.params.length, transmissive: false,
-            zeroOrder: !!el.params.zeroOrder, zeroFrac: el.params.zeroFrac || 0.1,
-          },
-        }, ...shaperBody(-9, 11, L, L + 3)];
-      }
       return [{
         x1: -9, y1: -L, x2: -9, y2: L, kind: 'dmd',
         data: {
@@ -1028,7 +926,6 @@ export const registry = {
       { key: 'length', label: 'Aperture (mm)', type: 'number', min: 10, max: 100, step: 2, def: 50 },
       { key: 'f', label: 'Defocus focal length (mm)', type: 'number', min: -3000, max: 3000, step: 5, def: 200 },
       { key: 'steer', label: 'Tip / tilt (°)', type: 'number', min: -30, max: 30, step: 0.5, def: 0 },
-      { ...layersParam, show: () => false },
     ],
     size_: el => ({ w: 22, h: el.params.length + 6 }),
     svg(el) {
@@ -1049,12 +946,6 @@ export const registry = {
     },
     surfaces(el) {
       const L = el.params.length / 2;
-      if (Array.isArray(el.params.layers) && el.params.layers.length) {
-        return [{
-          x1: 0, y1: -L, x2: 0, y2: L, kind: 'shaper',
-          data: { layers: el.params.layers, length: el.params.length, transmissive: false },
-        }, ...shaperBody(0, 12, L, L)];
-      }
       return [{
         x1: 0, y1: -L, x2: 0, y2: L, kind: 'dm',
         data: { f: el.params.f, steer: el.params.steer },
@@ -1631,8 +1522,6 @@ registry.sclaser = {
 const DIRECT = {
   laser: { resize: { y: 'beamWidth', set: { beamMode: 'beam' } }, tune: { key: 'wavelength', short: 'λ', when: p => p.bwMode !== 'sc' } },
   sclaser: { resize: { y: 'beamWidth', set: { beamMode: 'beam' } }, tune: { key: 'scMax', short: 'λ max' } },
-  led: { resize: { uniform: 'packageSize' }, tune: { key: 'spread', short: 'cone' } },
-  lamp: { resize: { uniform: 'packageSize' }, tune: { key: 'spread', short: 'angle' } },
   pointsource: { resize: { uniform: 'displayScale' }, tune: { key: 'spread', short: 'angle' } },
   objarrow: { resize: { y: 'height' }, tune: { key: 'spread', short: 'fan', when: p => p.raysMode === 'fan' } },
   mirror: { resize: { y: 'length' }, tune: { key: 'refl', short: 'R' } },
@@ -1710,8 +1599,6 @@ export function getDirectManipulation(el) {
 const ELEMENT_HELP = {
   laser: 'Emits a CW or pulsed monochromatic, broadband, supercontinuum, or sized collimated beam.',
   sclaser: 'Emits a configurable pulsed supercontinuum band as a collimated beam.',
-  led: 'Emits a directional narrowband fan from an LED package.',
-  lamp: 'Emits a broad visible spectrum over a near-isotropic angular fan.',
   pointsource: 'Emits isotropic light (360° by default, optionally broadband) that fades over a short evanescent range unless captured by a nearby lens, objective, or fiber tip.',
   objarrow: 'Traces object-tip rays and draws an ideal paraxial image; the image marker does not model downstream clipping.',
   mirror: 'Reflects rays with configurable size and reflectivity.',
@@ -1770,10 +1657,7 @@ export function getElementMeta(type, params = {}) {
   let note = '';
   let description = ELEMENT_HELP[type] || 'Optical workbench component.';
 
-  if (type === 'lamp' && params.legacyDirectional) {
-    description = 'Preserved monochromatic forward-fan light source from an older sketch.';
-    note = 'This legacy source keeps its original spectrum and emission plane. Add a new Broadband point source for radial white-light emission.';
-  } else if (type === 'eom' && !params.modulate) {
+  if (type === 'eom' && !params.modulate) {
     tier = 'configurable';
     note = 'Apply voltage to set a polarization retardance; use a downstream polarizer or PBS for amplitude modulation.';
   } else if (type === 'crystal' && (!params.convert || params.convert === 'none')) {

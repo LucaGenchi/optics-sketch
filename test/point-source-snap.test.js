@@ -1,13 +1,12 @@
 // Regression coverage for the feedback-round-1 features re-applied on top of
-// the direct-manipulation branch: unified evanescent point source, hidden
-// legacy sources, concave-lens outline, and surface-aware snap anchors.
+// the direct-manipulation branch: unified evanescent point source,
+// concave-lens outline, and surface-aware snap anchors.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createElement, registry } from '../sketch/js/elements.js';
 import { traceAll } from '../sketch/js/raytrace.js';
-import { parseSketch } from '../sketch/js/state.js';
 
 test('point source rays fade evanescently unless a nearby lens collects them', () => {
   const src = createElement('pointsource', 0, 0);
@@ -37,23 +36,13 @@ test('point source emission angle restricts the fan without duplicate full-circl
   assert.ok(cone.every(r => Math.abs(Math.atan2(r.dy, r.dx)) <= (30 + 1e-9) * Math.PI / 180));
 });
 
-test('legacy led and lamp stay loadable but hidden from the palette', () => {
-  assert.ok(registry.led.hidden, 'led is hidden');
-  assert.ok(registry.lamp.hidden, 'lamp is hidden');
+test('led and lamp were fully removed, superseded by Point source', () => {
+  assert.equal(Object.hasOwn(registry, 'led'), false);
+  assert.equal(Object.hasOwn(registry, 'lamp'), false);
   assert.ok(!registry.pointsource.hidden, 'pointsource is visible');
-
-  const scene = parseSketch(JSON.stringify({
-    app: 'optics2d', version: 1,
-    elements: [
-      { type: 'led', x: 0, y: 0, params: { wavelength: 470, spread: 30, nrays: 5, autoColor: true } },
-      { type: 'lamp', x: 100, y: 0, params: { wavelength: 550, spread: 40, nrays: 3, autoColor: true } },
-    ],
-  }), registry);
-  assert.equal(scene.elements.length, 2);
-  // legacy lamp keeps its original forward-fan geometry via the migration flag
-  assert.equal(scene.elements[1].params.legacyDirectional, true);
-  const rays = registry.lamp.source(scene.elements[1]);
-  assert.ok(rays.every(r => r.x === 15 && !r.evan), 'legacy lamp emits its original directional fan');
+  // still searchable under their old names
+  assert.ok(registry.pointsource.aliases.includes('led'));
+  assert.ok(registry.pointsource.aliases.includes('lamp'));
 });
 
 test('concave lens outline curves on the vertical refracting faces', () => {

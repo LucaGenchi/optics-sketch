@@ -1108,11 +1108,9 @@ export function traceScene(elements, beams = []) {
     const local = def.source(el);
     const scLo = el.type === 'sclaser' ? Math.min(p.scMin || 430, p.scMax || 870) : 430;
     const scHi = el.type === 'sclaser' ? Math.max(p.scMin || 430, p.scMax || 870) : 870;
-    const srcBw = el.type === 'lamp' ? (p.legacyDirectional ? 0 : (p.bandwidth ?? 400))
-      : p.bwMode === 'band' ? (p.bandwidth || 0)
-        : p.bwMode === 'sc' ? scHi - scLo : 0;
-    const srcWl = el.type === 'lamp' ? p.wavelength
-      : p.bwMode === 'sc' ? (scHi + scLo) / 2 : p.wavelength;
+    const srcBw = p.bwMode === 'band' ? (p.bandwidth || 0)
+      : p.bwMode === 'sc' ? scHi - scLo : 0;
+    const srcWl = p.bwMode === 'sc' ? (scHi + scLo) / 2 : p.wavelength;
     const K = local.length;
     const pulse = p.temporalMode === 'pulsed' ? {
       sourceId: el.id,

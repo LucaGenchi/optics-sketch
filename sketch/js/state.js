@@ -92,27 +92,6 @@ function normalizeElement(raw, definitions, used) {
     if (!record(raw.params)) throw new Error(`Element ${raw.type} has invalid parameters`);
     Object.assign(params, raw.params);
   }
-  // Preserve the old sample/stage pass/block convention while migrating it.
-  if ((raw.type === 'sample' || raw.type === 'stage') && (raw.params?.mode === 'trans' || raw.params?.mode === 'block')) {
-    params.mode = 'none';
-    params.transmitExc = raw.params.mode === 'trans';
-    // The legacy "trans" mode was lossless. Preserve that behavior instead
-    // of silently applying the newer sample's default attenuation.
-    if (raw.params.mode === 'trans') params.transmission = 1;
-  }
-  if (raw.type === 'stage' && raw.params?.containsSample === undefined
-      && raw.params?.mode && !['none', 'trans', 'block'].includes(raw.params.mode)) {
-    params.containsSample = true;
-  }
-  // Before the broadband point source existed, `lamp` was a monochromatic
-  // forward fan emitted from local x=15. Preserve both its spectrum and
-  // geometry instead of silently applying the newer radial-source defaults.
-  if (raw.type === 'lamp' && raw.params?.legacyDirectional === undefined
-      && raw.params?.bandwidth === undefined && raw.params?.packageSize === undefined) {
-    params.legacyDirectional = true;
-    params.bandwidth = 0;
-    params.packageSize = 34;
-  }
   const rot = def?.rotatable === false ? 0 : finite(raw.rot) ? ((raw.rot % 360) + 360) % 360 : 0;
   let x = raw.x, y = raw.y;
   // Keep editable polygon bounds centered on the element transform. This makes
@@ -135,8 +114,8 @@ function normalizeElement(raw, definitions, used) {
   };
 }
 
-function normalizeFiberOutput(raw, legacy = {}) {
-  raw = record(raw) ? raw : legacy;
+function normalizeFiberOutput(raw) {
+  raw = record(raw) ? raw : {};
   return {
     mode: raw.mode === 'focus' ? 'focus' : 'diverge',
     na: clamp(finite(raw.na) ? raw.na : 0.12, 0.01, 0.95),
@@ -157,15 +136,14 @@ function normalizeBeam(raw, used) {
     width: clamp(finite(raw.width) ? raw.width : (kind === 'fiber' ? 4 : 2), 0.5, 20),
   };
   if (kind === 'fiber') {
-    const legacy = { mode: raw.outMode, na: raw.na, focal: raw.focal, dia: raw.outDia };
     return {
       ...base,
       propagate: raw.propagate === true,
       inputNA: clamp(finite(raw.inputNA) ? raw.inputNA : 0.22, 0.01, 0.95),
       groupIndex: clamp(finite(raw.groupIndex) ? raw.groupIndex : 1.468, 1, 2.2),
       lossDbPerM: clamp(finite(raw.lossDbPerM) ? raw.lossDbPerM : 0.2, 0, 100),
-      out0: normalizeFiberOutput(raw.out0, legacy),
-      out1: normalizeFiberOutput(raw.out1, legacy),
+      out0: normalizeFiberOutput(raw.out0),
+      out1: normalizeFiberOutput(raw.out1),
     };
   }
   return { ...base, dash: raw.dash === true, arrow: raw.arrow !== false };

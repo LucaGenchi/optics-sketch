@@ -79,36 +79,6 @@ test('a broadband filter transmits the true spectral overlap without a visibilit
   assert.equal(detectorReading(detector.id), null);
 });
 
-test('the broadband lamp is radial and spectrally distinct from the directional LED', () => {
-  const lamp = createElement('lamp', 0, 0);
-  const led = createElement('led', 0, 0);
-  assert.equal(lamp.params.spread, 360);
-  assert.ok(lamp.params.bandwidth > 0);
-  assert.equal(Object.hasOwn(led.params, 'bandwidth'), false);
-
-  const lampRays = registry.lamp.source(lamp);
-  const directionKeys = new Set(lampRays.map(ray => `${ray.dx.toFixed(9)},${ray.dy.toFixed(9)}`));
-  assert.equal(directionKeys.size, lampRays.length, 'a full circle must not duplicate its end direction');
-  assert.ok(lampRays.some(ray => ray.dx < -0.9), 'lamp emits backward');
-  assert.ok(lampRays.some(ray => ray.dx > 0.9), 'lamp emits forward');
-  assert.ok(lampRays.some(ray => ray.dy < -0.9), 'lamp emits upward');
-  assert.ok(lampRays.some(ray => ray.dy > 0.9), 'lamp emits downward');
-  assert.ok(registry.led.source(led).every(ray => ray.dx > 0), 'LED remains a forward cone');
-
-  const detector = createElement('detector', 300, 0);
-  traceAll([lamp, detector]);
-  const lampReading = detectorReading(detector.id);
-  assert.ok(lampReading);
-  nearly(lampReading.bandMin, lamp.params.wavelength - lamp.params.bandwidth / 2);
-  nearly(lampReading.bandMax, lamp.params.wavelength + lamp.params.bandwidth / 2);
-
-  traceAll([led, detector]);
-  const ledReading = detectorReading(detector.id);
-  assert.ok(ledReading);
-  nearly(ledReading.bandMin, led.params.wavelength);
-  nearly(ledReading.bandMax, led.params.wavelength);
-});
-
 test('one broadband source produces wavelength-dependent paths through a prism', () => {
   const source = createElement('sclaser', 0, 0);
   source.params.beamMode = 'line';

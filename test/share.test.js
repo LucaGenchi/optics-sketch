@@ -27,12 +27,6 @@ test('share URLs round-trip a scene without changing the host path', async () =>
   assert.deepEqual(JSON.parse(await sharedSceneFromURL(url)), JSON.parse(scene));
 });
 
-test('links generated before the #sketch= rename still open (#scene= back-compat)', async () => {
-  const payload = await encodeSharePayload(scene, { compression: false });
-  const legacyUrl = `https://example.org/sketch/#scene=${payload}`;
-  assert.deepEqual(JSON.parse(await sharedSceneFromURL(legacyUrl)), JSON.parse(scene));
-});
-
 test('compressed share payloads round-trip when stream compression is available', async (t) => {
   if (typeof CompressionStream !== 'function' || typeof DecompressionStream !== 'function') {
     t.skip('stream compression is unavailable in this runtime');
@@ -46,5 +40,5 @@ test('compressed share payloads round-trip when stream compression is available'
 
 test('non-share fragments are ignored and damaged links fail closed', async () => {
   assert.equal(await sharedSceneFromURL('https://example.org/#section'), null);
-  await assert.rejects(() => sharedSceneFromURL('https://example.org/#scene=g.not-valid'), /damaged|invalid/i);
+  await assert.rejects(() => sharedSceneFromURL('https://example.org/#sketch=g.not-valid'), /damaged|invalid/i);
 });

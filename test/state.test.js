@@ -64,18 +64,11 @@ test('legacy lasers without temporal fields remain continuous-wave sources', () 
   assert.equal(loaded.params.pulsePhaseNs, 0);
 });
 
-test('legacy lamps retain their monochromatic forward-fan emission', () => {
-  const raw = {
-    id: 'legacy-lamp', type: 'lamp', x: 10, y: 20, rot: 15,
-    params: { wavelength: 532, spread: 40, nrays: 3, autoColor: true, color: '#e8a800' },
-  };
-  const [loaded] = parseSketch(file([raw]), registry).elements;
-  assert.equal(loaded.params.legacyDirectional, true);
-  assert.equal(loaded.params.bandwidth, 0);
-  assert.equal(loaded.params.packageSize, 34);
-  const rays = registry.lamp.source(loaded);
-  assert.deepEqual(rays.map(ray => ray.x), [15, 15, 15]);
-  assert.ok(rays.every(ray => ray.dx > 0), 'legacy lamp remains a forward fan');
+test('sketches from before the LED/lamp -> Point source merge no longer load', () => {
+  // No back-compat is kept at this stage: an old element type is simply an
+  // unknown type, same as any other invalid sketch reference.
+  assert.throws(() => parseSketch(file([{ type: 'led', x: 0, y: 0, params: {} }]), registry), /unknown element/);
+  assert.throws(() => parseSketch(file([{ type: 'lamp', x: 0, y: 0, params: {} }]), registry), /unknown element/);
 });
 
 test('duplicate object ids are repaired during import', () => {
@@ -86,19 +79,20 @@ test('duplicate object ids are repaired during import', () => {
   assert.notEqual(scene.elements[0].id, scene.elements[1].id);
 });
 
-test('legacy sample block/pass modes retain their behavior', () => {
-  const blocked = createElement('sample', 0, 0);
-  blocked.params = { mode: 'block' };
-  const passed = createElement('stage', 20, 0);
-  passed.params = { mode: 'trans' };
-  const scene = parseSketch(file([blocked, passed]), registry);
-  assert.deepEqual(scene.elements.map(el => [el.params.mode, el.params.transmitExc]), [
-    ['none', false], ['none', true],
+test('pre-checkbox sample mode strings fall back to current schema defaults', () => {
+  // No migration is kept at this stage: 'trans'/'block' aren't valid `mode`
+  // options anymore, so they're treated like any other invalid enum value.
+  const sample = createElement('sample', 0, 0);
+  sample.params = { mode: 'block' };
+  const stage = createElement('stage', 20, 0);
+  stage.params = { mode: 'trans' };
+  const scene = parseSketch(file([sample, stage]), registry);
+  assert.deepEqual(scene.elements.map(el => [el.params.mode, el.params.transmitExc, el.params.transmission]), [
+    ['none', true, 0.8], ['none', true, 0.8],
   ]);
-  assert.equal(scene.elements[1].params.transmission, 1);
 });
 
-test('legacy layer-based DMD settings keep their zero-order branch', () => {
+test('DMD no longer accepts the superseded layer-based shaping fields', () => {
   const dmd = createElement('dmd', 100, 0);
   dmd.params = {
     length: 40,
@@ -107,12 +101,11 @@ test('legacy layer-based DMD settings keep their zero-order branch', () => {
     layers: [{ type: 'steer', angle: 8 }],
   };
   const [loaded] = parseSketch(file([dmd]), registry).elements;
-  assert.equal(loaded.params.zeroOrder, true);
-  assert.equal(loaded.params.zeroFrac, 0.25);
-  assert.equal(loaded.params.layers.length, 1);
+  assert.equal(Object.hasOwn(loaded.params, 'zeroOrder'), false);
+  assert.equal(Object.hasOwn(loaded.params, 'layers'), false);
   const data = registry.dmd.surfaces(loaded)[0].data;
-  assert.equal(data.zeroOrder, true);
-  assert.equal(data.zeroFrac, 0.25);
+  assert.equal(data.length, 40);
+  assert.equal(Object.hasOwn(data, 'layers'), false);
 });
 
 test('scene replacement remains undoable when requested by the caller', () => {
