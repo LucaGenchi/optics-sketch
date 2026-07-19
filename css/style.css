@@ -273,7 +273,7 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
   padding: 16px 14px 20px;
 }
 
-.mobile-toolbar-actions, .mobile-add, .mobile-properties, .mobile-tool-actions, .sheet-close { display: none; }
+.mobile-toolbar-actions, .mobile-add, .mobile-properties, .mobile-trash, .mobile-tool-actions, .sheet-close { display: none; }
 
 .mobile-menu {
   width: min(360px, calc(100vw - 28px)); margin: auto; padding: 18px;
@@ -380,10 +380,17 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
     display: block; min-height: 37px; padding: 6px 11px; border-color: #b7ccf2; border-radius: 999px;
     background: rgba(255,255,255,.96); color: #285cae; box-shadow: 0 5px 15px rgba(30,50,80,.12); font-size: 11px; font-weight: 700;
   }
+  .mobile-trash:not([hidden]) {
+    position: absolute; z-index: 8; right: max(14px, env(safe-area-inset-right)); bottom: calc(116px + env(safe-area-inset-bottom));
+    display: inline-flex; align-items: center; gap: 5px; min-height: 37px; padding: 6px 11px;
+    border-color: #e5b9b9; border-radius: 999px; background: rgba(255,255,255,.96); color: #b33636;
+    box-shadow: 0 5px 15px rgba(80,30,30,.12); font-size: 11px; font-weight: 700;
+  }
+  .mobile-trash:not([hidden]):active { background: #fbeaea; }
   #inspector .field { min-height: 38px; margin-bottom: 10px; }
   #inspector .field input[type="number"], #inspector .field input[type="text"], #inspector .field select { min-height: 34px; }
   #inspector .btnrow button { min-height: 42px; }
-  #canvas.tool-active ~ .mobile-add, #canvas.tool-active ~ .mobile-properties { display: none; }
+  #canvas.tool-active ~ .mobile-add, #canvas.tool-active ~ .mobile-properties, #canvas.tool-active ~ .mobile-trash { display: none; }
 }
 #inspector h3 { font-size: 15px; letter-spacing: -0.15px; margin: 0; }
 .inspector-head { margin-bottom: 15px; }

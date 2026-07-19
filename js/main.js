@@ -158,6 +158,9 @@ function syncMobileSelection() {
   const properties = $('btnProperties');
   if (!properties) return;
   properties.hidden = !state.selection;
+  // no keyboard on touch devices: a floating trash button stands in for
+  // the Delete/Backspace shortcut whenever something is selected
+  $('btnTrash').hidden = !state.selection;
 }
 
 function renderSelection(detail = {}) {
@@ -489,6 +492,7 @@ function bindToolbar() {
 
   $('btnAdd').addEventListener('click', () => setMobileSheet('palette', true));
   $('btnProperties').addEventListener('click', () => setMobileSheet('inspector', true));
+  $('btnTrash').addEventListener('click', () => { deleteSelected(); renderSelection(); });
   $('closePalette').addEventListener('click', () => closeMobileSheet('palette'));
   $('closeInspector').addEventListener('click', () => closeMobileSheet('inspector'));
   $('mobileBackdrop').addEventListener('click', () => {

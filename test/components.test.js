@@ -84,16 +84,53 @@ test('sample attenuation and holder aperture have distinct bounded behavior', ()
   assert.equal(detectorReading(detector.id), null);
 });
 
-test('fluorescence shares a bounded emitted-power budget', () => {
+test('uncollected fluorescence fades within 25 mm and never reaches a bare detector', () => {
   const laser = createElement('laser', 0, 0);
   const sample = createElement('sample', 150, 0);
   sample.params.mode = 'fluor';
   sample.params.transmission = 0.8;
   sample.params.signalEff = 0.1;
   const detector = createElement('detector', 300, 0);
-  traceAll([laser, sample, detector]);
+  const drawables = traceAll([laser, sample, detector]);
+  // the detector (131 mm away, not a collection optic) reads ONLY the
+  // transmitted excitation; the isotropic fluorescence dies evanescently
   const reading = detectorReading(detector.id);
-  assert.ok(reading.signal > 0.8 && reading.signal < 0.81);
+  assert.ok(Math.abs(reading.signal - 0.8) < 1e-9, `bare detector reads excitation only, got ${reading.signal}`);
+  // fluorescence glow segments exist and none extend beyond 25 mm of the sample
+  const glow = drawables.filter(d => d.type === 'path'
+    && d.pts.every(p => Math.hypot(p.x - 150, p.y) < 25 + 1e-6)
+    && d.pts.some(p => Math.hypot(p.x - 150, p.y) > 1));
+  assert.ok(glow.length > 0, 'evanescent fluorescence glow is drawn near the sample');
+  // the drawn glow decays with distance (1/r² profile: near-segment opacity
+  // strictly higher than far-segment opacity along the same direction)
+  const upward = glow.filter(d => d.pts.every(p => Math.abs(p.x - 150) < 1e-6 && p.y < 0));
+  const nearest = upward.reduce((a, b) => (Math.abs(a.pts[0].y) < Math.abs(b.pts[0].y) ? a : b));
+  const farthest = upward.reduce((a, b) => (Math.abs(a.pts[1].y) > Math.abs(b.pts[1].y) ? a : b));
+  assert.ok(nearest.opacity > farthest.opacity * 3, 'glow opacity falls off steeply with distance');
+});
+
+test('fluorescence collected by a nearby objective propagates to a detector', () => {
+  const laser = createElement('laser', 0, 0);
+  const sample = createElement('sample', 150, 0);
+  sample.params.mode = 'fluor';
+  sample.params.transmission = 0.8;
+  sample.params.signalEff = 0.1;
+  // objective lens plane (local x = -16) sits 20 mm from the sample: within
+  // the 1.5x capture window of the 25 mm evanescent range
+  const objective = createElement('objective', 186, 0);
+  objective.params.f = 20;
+  const detector = createElement('detector', 320, 0);
+  traceAll([laser, sample, objective, detector]);
+  const reading = detectorReading(detector.id);
+  // transmitted excitation AND collected fluorescence both arrive
+  assert.ok(reading.signal > 0.8 + 1e-4, `collected fluorescence adds to the excitation signal, got ${reading.signal}`);
+  assert.ok(reading.bandMax >= 520, 'the detected spectrum includes the emission wavelength');
+
+  // move the objective far beyond the capture window: fluorescence dies again
+  objective.x = 260; // lens plane 94 mm from the sample
+  traceAll([laser, sample, objective, detector]);
+  const uncollected = detectorReading(detector.id);
+  assert.ok(Math.abs(uncollected.signal - 0.8) < 1e-9, 'a distant objective no longer collects the evanescent light');
 });
 
 test('PMT gain/saturation and camera pixels produce detector-specific readings', () => {

@@ -645,9 +645,11 @@ function interact(ray, hit) {
       return out;
     }
     case 'fluor': {
-      // fluorescence is isotropic and weak: emitted in all directions from the
-      // sample as evanescent rays that fade out unless a lens / objective /
-      // fiber tip nearby captures them (the tracer clears `evan` on capture)
+      // fluorescence is isotropic and weak: emitted in all directions from
+      // the sample as EVANESCENT rays whose drawn glow decays like 1/r² and
+      // dies within 25 mm unless a lens / objective / fiber tip nearby
+      // collects it (the tracer clears `evan` on capture; collected light
+      // propagates normally and can reach detectors downstream)
       const out = [];
       const emitting = ray.sample == null || ray.sample === 0; // once per beam
       const transmission = data.transmitExc ? Math.min(1, Math.max(0, data.transmission ?? 1)) : 0;
@@ -659,6 +661,7 @@ function interact(ray, hit) {
           const a = i * 2 * Math.PI / N;
           out.push({
             d: { x: Math.cos(a), y: Math.sin(a) }, wl: data.wl, bw: 0, pol: undefined, stokes: null,
+            evan: true, evanLen: 25,
             intensity: emitted > 0 ? 0.25 : 0, power: Number.isFinite(ray.power) ? ray.power * (1 - transmission) * Math.min(1, Math.max(0, data.efficiency ?? 0.1)) / N : undefined,
             tag: 'f' + i,
           });
@@ -829,11 +832,14 @@ function traceRays(rays0, surfaces, couplings) {
       const hit = nearestHit({ x: r.x, y: r.y }, { x: r.dx, y: r.dy }, surfaces, r.last);
       if (r.evan) {
         // evanescent (isotropic fluorescence, or a diagram point source):
-        // fades out within a short range unless a lens / objective / fiber
-        // tip nearby collects it. A ray can widen its own fade range (e.g.
-        // a point source's ~5x-fluorescence range) via r.evanLen.
+        // the glow decays like 1/r² and dies within the ray's evanescent
+        // range (fluorescence: 25 mm, point source: 110 mm) unless a lens /
+        // objective / fiber tip collects it first. The collector must sit
+        // within 1.5x that range (a small grace margin so an optic right at
+        // the fade boundary still counts); otherwise the light is simply
+        // gone and never reaches downstream detectors.
         const EVAN_LEN = r.evanLen || 22;
-        const CAPTURE = Math.max(120, EVAN_LEN * 1.5);
+        const CAPTURE = EVAN_LEN * 1.5;
         const captured = hit && hit.t <= CAPTURE
           && (hit.surface.kind === 'lens' || hit.surface.kind === 'fiberin');
         if (!captured) {
@@ -915,6 +921,7 @@ function traceRays(rays0, surfaces, couplings) {
           speckle: c.speckle || r.speckle || false,
           chopped: c.chopped || r.chopped || undefined,
           evan: c.evan || false,
+          evanLen: c.evanLen,
           pol: 'pol' in c ? c.pol : r.pol,
           stokes: 'stokes' in c ? cloneStokes(c.stokes) : cloneStokes(r.stokes),
           medium: 'medium' in c ? c.medium : r.medium,
@@ -962,13 +969,18 @@ function assembleDrawables(paths, opts, drawables) {
   const pushRay = (r, w, opacity, thin) => {
     if (r.pts.length < 2) return;
     if (r.evanFade) {
-      // evanescent glow: short stroke fading to nothing
+      // evanescent glow: uncollected isotropic emission decays like 1/r²
+      // and visually dies out by the end of its evanescent range
       const a = r.pts[r.pts.length - 2], b = r.pts[r.pts.length - 1];
-      const col = colorOf(r), S = 4;
+      const col = colorOf(r), S = 6;
       for (let i = 0; i < S; i++) {
         const t0 = i / S, t1 = (i + 1) / S;
+        const tm = (t0 + t1) / 2;
+        // inverse-square profile, softened at r→0 so the origin stays finite:
+        // full brightness at the source, ~1/20 of it at the fade boundary
+        const opacity = Math.max(0.02, 0.55 / ((1 + 3.5 * tm) ** 2));
         drawables.push({
-          type: 'path', color: col, w: 1.8, opacity: 0.5 * (1 - t0) + 0.06,
+          type: 'path', color: col, w: 1.8, opacity,
           pts: [
             { x: a.x + (b.x - a.x) * t0, y: a.y + (b.y - a.y) * t0 },
             { x: a.x + (b.x - a.x) * t1, y: a.y + (b.y - a.y) * t1 },
