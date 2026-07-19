@@ -377,15 +377,21 @@ function bindToolbar() {
     try {
       const url = await buildShareURL(serialize());
       history.replaceState(null, '', url);
-      await copyText(url);
+      // The auto-copy is best-effort: restrictive clipboard permissions must
+      // not block the dialog, which offers its own Copy button and a
+      // selectable URL field as the fallback.
+      let copied = true;
+      try { await copyText(url); } catch (_) { copied = false; }
       shareUrl = url;
       shareQrSvg = qrSVG(url);
       $('shareURL').value = url;
       $('shareQR').innerHTML = shareQrSvg;
       $('shareQRNote').textContent = 'Scan to open this exact optical setup.';
       $('shareDialog').showModal();
-      button.textContent = 'Copied!';
-      setTimeout(() => { button.textContent = 'Share'; }, 1600);
+      if (copied) {
+        button.textContent = 'Copied!';
+        setTimeout(() => { button.textContent = 'Share'; }, 1600);
+      }
     } catch (err) {
       alert('Could not create share link: ' + err.message);
     } finally {
