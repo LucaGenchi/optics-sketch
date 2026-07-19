@@ -90,7 +90,6 @@ button.danger:hover { background: #fdf0ee; }
 .share-qr { width: min(290px, 100%); margin: 17px auto 10px; padding: 9px; border: 1px solid var(--border); border-radius: 9px; background: #fff; }
 .share-qr svg { display: block; width: 100%; height: auto; }
 .share-qr-note { min-height: 18px; text-align: center; color: var(--muted); font-size: 10.5px; }
-.share-qr-note.easter-egg { color: #9a4d08; font-weight: 650; }
 .share-url-label { display: block; margin: 14px 0 5px; color: var(--muted); font-size: 9px; font-weight: 720; letter-spacing: .45px; text-transform: uppercase; }
 .share-url { width: 100%; resize: none; padding: 8px 9px; border: 1px solid var(--border); border-radius: 7px; background: #f7f9fb; color: #4d5865; font: 9.5px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .share-actions { display: flex; gap: 7px; margin-top: 12px; }

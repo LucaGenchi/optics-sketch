@@ -10,8 +10,6 @@ const NUM_ERROR_CORRECTION_BLOCKS = [
   8, 9, 9, 10, 12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25, 25,
 ];
 
-export const RICKROLL_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-
 function appendBits(bits, value, length) {
   for (let i = length - 1; i >= 0; i--) bits.push((value >>> i) & 1);
 }
@@ -221,9 +219,4 @@ export function qrSVG(text, { border = 4 } = {}) {
     if (matrix[y][x]) path.push(`M${x + border},${y + border}h1v1h-1z`);
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="100%" height="100%" fill="white"/><path d="${path.join('')}" fill="black"/></svg>`;
-}
-
-export function qrTargetForGeneration(setupURL, generation) {
-  const easterEgg = Number.isInteger(generation) && generation > 0 && generation % 40 === 0;
-  return { target: easterEgg ? RICKROLL_URL : setupURL, easterEgg };
 }

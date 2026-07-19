@@ -13,7 +13,7 @@ import { exportSVG, exportPNG } from './export.js';
 import { examples } from './examples.js';
 import { download, esc } from './util.js';
 import { buildShareURL, copyText, sharedSceneFromURL } from './share.js';
-import { qrSVG, qrTargetForGeneration } from './qr.js';
+import { qrSVG } from './qr.js';
 
 const $ = id => document.getElementById(id);
 
@@ -331,7 +331,7 @@ function syncPulseControls(detail = getPulsePlayback()) {
 }
 
 function bindToolbar() {
-  let shareUrl = '', shareQrSvg = '', shareQrIsEasterEgg = false;
+  let shareUrl = '', shareQrSvg = '';
   const closeShare = () => $('shareDialog').close();
   $('shareClose').addEventListener('click', closeShare);
   $('shareDialog').addEventListener('click', event => { if (event.target === $('shareDialog')) closeShare(); });
@@ -341,7 +341,7 @@ function bindToolbar() {
     setTimeout(() => { $('shareCopy').textContent = 'Copy link'; }, 1600);
   });
   $('shareDownloadQR').addEventListener('click', () => download(
-    shareQrIsEasterEgg ? 'optics-sketch-rickroll.svg' : 'optics-sketch-setup-qr.svg',
+    'optics-sketch-setup-qr.svg',
     shareQrSvg,
     'image/svg+xml',
   ));
@@ -378,21 +378,11 @@ function bindToolbar() {
       const url = await buildShareURL(serialize());
       history.replaceState(null, '', url);
       await copyText(url);
-      let generation = 1;
-      try {
-        generation = Math.max(0, parseInt(localStorage.getItem('optics2d.qrGeneration') || '0', 10) || 0) + 1;
-        localStorage.setItem('optics2d.qrGeneration', String(generation));
-      } catch (_) { /* private browsing may disable storage */ }
-      const qr = qrTargetForGeneration(url, generation);
       shareUrl = url;
-      shareQrIsEasterEgg = qr.easterEgg;
-      shareQrSvg = qrSVG(qr.target);
+      shareQrSvg = qrSVG(url);
       $('shareURL').value = url;
       $('shareQR').innerHTML = shareQrSvg;
-      $('shareQRNote').textContent = qr.easterEgg
-        ? '40th-code easter egg: this QR is a Rickroll. The copied setup link above is still correct.'
-        : 'Scan to open this exact optical setup.';
-      $('shareQRNote').classList.toggle('easter-egg', qr.easterEgg);
+      $('shareQRNote').textContent = 'Scan to open this exact optical setup.';
       $('shareDialog').showModal();
       button.textContent = 'Copied!';
       setTimeout(() => { button.textContent = 'Share'; }, 1600);

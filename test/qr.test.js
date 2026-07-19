@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { qrMatrix, qrSVG, qrTargetForGeneration, RICKROLL_URL } from '../js/qr.js';
+import { qrMatrix, qrSVG } from '../js/qr.js';
 
 test('QR matrices are square, deterministic, and include three finder patterns', () => {
   const first = qrMatrix('https://example.org/#scene=test');
@@ -26,12 +26,4 @@ test('long self-contained setup URLs fit while oversized inputs fail clearly', (
   const svg = qrSVG(`https://example.org/#scene=${'a'.repeat(1800)}`);
   assert.match(svg, /<path/);
   assert.throws(() => qrMatrix('x'.repeat(4000)), /too long/i);
-});
-
-test('only each fortieth generated QR uses the visible Rickroll easter egg', () => {
-  const setup = 'https://example.org/#scene=correct';
-  assert.deepEqual(qrTargetForGeneration(setup, 39), { target: setup, easterEgg: false });
-  assert.deepEqual(qrTargetForGeneration(setup, 40), { target: RICKROLL_URL, easterEgg: true });
-  assert.deepEqual(qrTargetForGeneration(setup, 41), { target: setup, easterEgg: false });
-  assert.deepEqual(qrTargetForGeneration(setup, 80), { target: RICKROLL_URL, easterEgg: true });
 });
