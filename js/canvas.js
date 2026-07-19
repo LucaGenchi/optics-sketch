@@ -7,6 +7,7 @@ import { traceScene } from './raytrace.js';
 import { pulseMarkers } from './pulses.js';
 import { toLocal, toWorld, rotPt, distToSegment, distinctPoints, manualBeamSVG } from './util.js';
 import { canAppendPolygonPoint, isSimplePolygon, polygonBounds } from './polygon.js';
+import { pinchView, zoomViewAt } from './viewport.js';
 
 let svg, viewport, gridLayer, beamLayer, pulseLayer, manualLayer, elementLayer, overlayLayer;
 let statusEl;
@@ -579,6 +580,8 @@ let drawing = null;  // manual beam in progress {pts:[], cursor}
 let placing = null;  // {el, pos}
 let polygonDrawing = null; // registry-driven closed polygon construction
 let spaceDown = false;
+const activeTouches = new Map(); // pointer id -> canvas-local point
+let touchGesture = null; // two-finger viewport gesture start state
 // Manual double-click detection for finishing a beam/fiber/polygon. The
 // native 'dblclick' listener is kept as a backup, but some input paths
 // (trackpad double-taps, remote/automated pointer events) don't reliably
@@ -595,6 +598,59 @@ function isManualDoubleClick(e) {
   return isDouble;
 }
 
+function localTouchPoint(e) {
+  const rect = svg.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function touchPair() {
+  const points = [...activeTouches.values()];
+  if (points.length < 2) return null;
+  const [a, b] = points;
+  return {
+    center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    distance: Math.hypot(b.x - a.x, b.y - a.y),
+  };
+}
+
+function beginTouchGesture() {
+  const pair = touchPair();
+  if (!pair) return;
+  // A second finger always controls the viewport. Dropping an in-progress
+  // pointer drag prevents object mutations or placement while pinching.
+  drag = null;
+  touchGesture = { view: { ...state.view }, center: pair.center, distance: Math.max(1, pair.distance) };
+  setStatus('');
+}
+
+function updateTouchGesture() {
+  const pair = touchPair();
+  if (!touchGesture || !pair) return;
+  state.view = pinchView(touchGesture.view, touchGesture.center, touchGesture.distance, pair.center, pair.distance);
+  renderAll();
+}
+
+function continueTouchPan() {
+  const point = [...activeTouches.values()][0];
+  if (!point) return;
+  drag = { mode: 'pan', sx: point.x, sy: point.y, vx: state.view.x, vy: state.view.y, touch: true };
+}
+
+function placeCurrentElement(w, keepPlacing = false, bypassSnap = false) {
+  if (!placing) return false;
+  pushUndo();
+  const el = placing.el;
+  const sp = snapElPos(el, w.x, w.y, bypassSnap);
+  el.x = sp.x; el.y = sp.y;
+  state.elements.push(el);
+  state.selection = { kind: 'element', id: el.id };
+  const type = el.type;
+  placing = keepPlacing ? { el: createElement(type), pos: { x: sp.x, y: sp.y } } : null;
+  if (!placing) { state.tool = 'select'; setStatus(''); notifyTool(); }
+  changed(); onSelectionChange({ openMobile: true });
+  return true;
+}
+
 function notifyTool(detail = { mode: 'select' }) {
   document.dispatchEvent(new CustomEvent('optics:toolchange', { detail }));
 }
@@ -606,7 +662,7 @@ export function startPlacing(type) {
     const existing = state.elements.find(el => el.type === type);
     if (existing) {
       placing = null; state.tool = 'select'; state.selection = { kind: 'element', id: existing.id };
-      setStatus(`${def.label} already exists`); notifyTool(); renderAll(); onSelectionChange();
+      setStatus(`${def.label} already exists`); notifyTool(); renderAll(); onSelectionChange({ openMobile: true });
       return;
     }
   }
@@ -686,7 +742,7 @@ export function finishPolygon() {
   state.elements.push(el);
   state.selection = { kind: 'element', id: el.id };
   polygonDrawing = null; state.tool = 'select'; setStatus(''); notifyTool();
-  changed(); renderAll(); onSelectionChange();
+  changed(); renderAll(); onSelectionChange({ openMobile: true });
   return true;
 }
 
@@ -708,7 +764,7 @@ export function finishBeam() {
     drawing = null; state.tool = 'select';
     setStatus('');
     notifyTool();
-    changed(); onSelectionChange();
+    changed(); onSelectionChange({ openMobile: true });
   } else {
     cancelTool();
   }
@@ -732,7 +788,7 @@ function bindPointer() {
     const inCurrentGroup = state.selection?.kind === 'multi'
       && (el ? state.selection.els.includes(hit.id) : state.selection.beams.includes(hit.id));
     if (!inCurrentGroup) state.selection = { kind: el ? 'element' : 'beam', id: hit.id };
-    renderAll(); onSelectionChange();
+    renderAll(); onSelectionChange({ openMobile: e.pointerType !== 'touch' });
     document.dispatchEvent(new CustomEvent('optics:contextmenu', {
       detail: {
         clientX: e.clientX, clientY: e.clientY,
@@ -760,6 +816,14 @@ function bindPointer() {
 
 function onDown(e) {
   svg.focus({ preventScroll: true });
+  if (e.pointerType === 'touch') {
+    activeTouches.set(e.pointerId, localTouchPoint(e));
+    if (activeTouches.size >= 2) {
+      beginTouchGesture();
+      svg.setPointerCapture(e.pointerId);
+      return;
+    }
+  }
   if (e.button === 1 || spaceDown) {
     drag = { mode: 'pan', sx: e.clientX, sy: e.clientY, vx: state.view.x, vy: state.view.y };
     svg.setPointerCapture(e.pointerId);
@@ -799,16 +863,14 @@ function onDown(e) {
   }
 
   if (placing) {
-    pushUndo();
-    const el = placing.el;
-    const sp = snapElPos(el, w.x, w.y, e.altKey);
-    el.x = sp.x; el.y = sp.y;
-    state.elements.push(el);
-    state.selection = { kind: 'element', id: el.id };
-    const type = el.type;
-    placing = e.shiftKey ? { el: createElement(type), pos: { x: sp.x, y: sp.y } } : null;
-    if (!placing) { state.tool = 'select'; setStatus(''); notifyTool(); }
-    changed(); onSelectionChange();
+    if (e.pointerType === 'touch') {
+      // Touch placement commits on release so a two-finger gesture can pan or
+      // zoom the canvas without accidentally dropping the ghost element.
+      drag = { mode: 'touchplace' };
+      svg.setPointerCapture(e.pointerId);
+      return;
+    }
+    placeCurrentElement(w, e.shiftKey, e.altKey);
     return;
   }
 
@@ -915,7 +977,7 @@ function onDown(e) {
     state.selection = { kind: 'element', id: el.id };
     drag = { mode: 'move', el, ox: el.x - w.x, oy: el.y - w.y, moved: false };
     svg.setPointerCapture(e.pointerId);
-    renderAll(); onSelectionChange();
+    renderAll(); onSelectionChange({ openMobile: e.pointerType !== 'touch' });
     return;
   }
   // manual beam?
@@ -924,7 +986,7 @@ function onDown(e) {
     state.selection = { kind: 'beam', id: b.id };
     drag = { mode: 'movebeam', beam: b, lx: w.x, ly: w.y, moved: false };
     svg.setPointerCapture(e.pointerId);
-    renderAll(); onSelectionChange();
+    renderAll(); onSelectionChange({ openMobile: e.pointerType !== 'touch' });
     return;
   }
   // empty space: deselect + pan
@@ -934,6 +996,13 @@ function onDown(e) {
 }
 
 function onMove(e) {
+  if (e.pointerType === 'touch' && activeTouches.has(e.pointerId)) {
+    activeTouches.set(e.pointerId, localTouchPoint(e));
+    if (touchGesture) {
+      updateTouchGesture();
+      return;
+    }
+  }
   const w = screenToWorld(e.clientX, e.clientY);
   if (statusEl && !drag && !placing && state.tool === 'select') {
     statusEl.textContent = `x ${Math.round(w.x)} mm,  y ${Math.round(w.y)} mm`;
@@ -1056,6 +1125,21 @@ function onMove(e) {
 }
 
 function onUp(e) {
+  if (e.pointerType === 'touch' && activeTouches.has(e.pointerId)) {
+    activeTouches.delete(e.pointerId);
+    if (touchGesture) {
+      touchGesture = null;
+      if (activeTouches.size === 1) continueTouchPan();
+      return;
+    }
+    if (drag?.mode === 'touchplace') {
+      drag = null;
+      if (e.type === 'pointercancel') { renderAll(); return; }
+      const w = screenToWorld(e.clientX, e.clientY);
+      placeCurrentElement(w, false, false);
+      return;
+    }
+  }
   if (!drag) return;
   if (e.type === 'pointercancel') {
     const wasChange = drag.moved === true && ['move', 'rotate', 'resize', 'tune', 'editpoint', 'vertex', 'movebeam', 'movemulti'].includes(drag.mode);
@@ -1077,9 +1161,11 @@ function onUp(e) {
     renderAll(); onSelectionChange();
     return;
   }
-  const wasChange = drag.moved === true && ['move', 'rotate', 'resize', 'tune', 'editpoint', 'vertex', 'movebeam', 'movemulti'].includes(drag.mode);
+  const dragMode = drag.mode;
+  const wasChange = drag.moved === true && ['move', 'rotate', 'resize', 'tune', 'editpoint', 'vertex', 'movebeam', 'movemulti'].includes(dragMode);
   drag = null;
   if (wasChange) { setStatus(''); changed(); onSelectionChange(); }
+  else if (e.pointerType === 'touch' && (dragMode === 'move' || dragMode === 'movebeam')) onSelectionChange({ openMobile: true });
 }
 
 function bindWheel() {
@@ -1090,10 +1176,7 @@ function bindWheel() {
       const r = svg.getBoundingClientRect();
       const mx = e.clientX - r.left, my = e.clientY - r.top;
       const factor = Math.exp(-e.deltaY * 0.012);
-      const z2 = Math.min(8, Math.max(0.15, v.z * factor));
-      v.x = mx - (mx - v.x) * (z2 / v.z);
-      v.y = my - (my - v.y) * (z2 / v.z);
-      v.z = z2;
+      state.view = zoomViewAt(v, { x: mx, y: my }, factor);
     } else {
       v.x -= e.deltaX;
       v.y -= e.deltaY;
@@ -1106,10 +1189,7 @@ export function zoomBy(factor) {
   const r = svg.getBoundingClientRect();
   const v = state.view;
   const mx = r.width / 2, my = r.height / 2;
-  const z2 = Math.min(8, Math.max(0.15, v.z * factor));
-  v.x = mx - (mx - v.x) * (z2 / v.z);
-  v.y = my - (my - v.y) * (z2 / v.z);
-  v.z = z2;
+  state.view = zoomViewAt(v, { x: mx, y: my }, factor);
   renderAll();
 }
 

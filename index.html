@@ -35,6 +35,9 @@
       <button type="button" id="btnSVG" class="primary" title="Export vector SVG">Export SVG</button>
       <button type="button" id="btnPNG" title="Export PNG (3×)">PNG</button>
     </div>
+    <div class="mobile-toolbar-actions">
+      <button type="button" id="btnMobileMenu" class="mobile-icon-button" aria-label="Open sketch menu" aria-haspopup="dialog">•••</button>
+    </div>
     <input type="file" id="fileInput" accept=".json,application/json" hidden>
   </header>
   <dialog id="shareDialog" class="share-dialog" aria-labelledby="shareTitle">
@@ -51,12 +54,36 @@
       <button type="button" id="shareDownloadQR">Download QR SVG</button>
     </div>
   </dialog>
+  <dialog id="mobileMenu" class="mobile-menu" aria-labelledby="mobileMenuTitle">
+    <div class="mobile-menu-head">
+      <h2 id="mobileMenuTitle">Sketch</h2>
+      <button type="button" id="mobileMenuClose" class="icon-button" aria-label="Close sketch menu">×</button>
+    </div>
+    <label class="mobile-menu-label" for="mobileExampleSel">Examples</label>
+    <select id="mobileExampleSel" aria-label="Load a pre-made example setup"><option value="">Choose an example…</option></select>
+    <div class="mobile-menu-actions">
+      <button type="button" data-mobile-action="new">New sketch</button>
+      <button type="button" data-mobile-action="open">Open .json</button>
+      <button type="button" data-mobile-action="save">Save .json</button>
+      <button type="button" data-mobile-action="svg">Export SVG</button>
+      <button type="button" data-mobile-action="png">Export PNG</button>
+    </div>
+  </dialog>
+  <div id="mobileBackdrop" hidden></div>
   <main>
-    <aside id="palette" aria-label="Element palette"></aside>
+    <aside id="palette" aria-label="Element palette">
+      <button type="button" id="closePalette" class="sheet-close" aria-label="Close component library">×</button>
+      <div id="paletteContent"></div>
+    </aside>
     <div id="canvasWrap">
       <!-- biome-ignore lint/a11y/noNoninteractiveTabindex: this SVG is the app's interactive pointer and keyboard workspace -->
       <svg id="canvas" role="application" aria-label="Optical setup canvas" tabindex="0"></svg>
       <div id="toolMode" role="status" aria-live="polite"></div>
+      <div id="mobileToolActions" class="mobile-tool-actions" aria-live="polite">
+        <span id="mobileToolLabel"></span>
+        <button type="button" id="btnMobileToolCancel">Cancel</button>
+        <button type="button" id="btnMobileToolDone" hidden>Done</button>
+      </div>
       <div id="viewControls" class="canvas-controls" aria-label="Canvas view controls">
         <button type="button" id="btnGrid" class="active" aria-pressed="true" title="Toggle table hole grid">Grid</button>
         <button type="button" id="btnSnap" class="active" aria-pressed="true" title="Toggle snapping">Snap</button>
@@ -86,8 +113,13 @@
         <button type="button" role="menuitem" data-action="rotate"><span>Rotate 45°</span><kbd>R</kbd></button>
         <button type="button" role="menuitem" data-action="delete" class="context-danger"><span>Delete</span><kbd>⌫</kbd></button>
       </div>
+      <button type="button" id="btnProperties" class="mobile-properties" aria-label="Show selected element properties" hidden>Properties</button>
+      <button type="button" id="btnAdd" class="mobile-add" aria-label="Add an optical element"><span aria-hidden="true">+</span> Add</button>
     </div>
-    <aside id="inspector" aria-label="Properties"></aside>
+    <aside id="inspector" aria-label="Properties">
+      <button type="button" id="closeInspector" class="sheet-close" aria-label="Close properties">×</button>
+      <div id="inspectorContent"></div>
+    </aside>
   </main>
   <script type="module" src="js/main.js"></script>
 </body>
