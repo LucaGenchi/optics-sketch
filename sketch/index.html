@@ -4,13 +4,40 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OpticalSetup — 2D optical setup builder</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cline x1='2' y1='16' x2='30' y2='16' stroke='%232469e8' stroke-width='3'/%3E%3Cellipse cx='16' cy='16' rx='5' ry='11' fill='%23eaf1ff' stroke='%232469e8' stroke-width='2.2'/%3E%3C/svg%3E">
+<meta name="description" content="Build and share a live optical setup: place lasers, lenses, and mirrors on a virtual table and watch the ray paths trace instantly.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="OpticalSetup — 2D optical setup builder">
+<meta property="og:description" content="Build and share a live optical setup: place lasers, lenses, and mirrors on a virtual table and watch the ray paths trace instantly.">
+<meta property="og:site_name" content="OpticalSetup">
+<meta property="og:image" content="https://opticalsetup.com/assets/og-image.jpg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="OpticalSetup — 2D optical setup builder">
+<meta name="twitter:description" content="Build and share a live optical setup: place lasers, lenses, and mirrors on a virtual table and watch the ray paths trace instantly.">
+<meta name="twitter:image" content="https://opticalsetup.com/assets/og-image.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 130 85'%3E%3Cg stroke='%231361fa' stroke-width='6' stroke-linecap='round'%3E%3Cline x1='22' y1='45' x2='29' y2='45'/%3E%3Cline x1='18' y1='49' x2='18' y2='56'/%3E%3Cline x1='14' y1='45' x2='7' y2='45'/%3E%3Cline x1='18' y1='41' x2='18' y2='34'/%3E%3C/g%3E%3Cline x1='29' y1='45' x2='77' y2='45' stroke='%231361fa' stroke-width='6' stroke-linecap='round'/%3E%3Cpolygon points='64,12 42,68 86,68' fill='none' stroke='%230a1a33' stroke-width='7' stroke-linejoin='round'/%3E%3Cg stroke='%231361fa' stroke-width='4' stroke-linecap='round'%3E%3Cline x1='77' y1='45' x2='112' y2='28'/%3E%3Cline x1='77' y1='45' x2='112' y2='45'/%3E%3Cline x1='77' y1='45' x2='112' y2='62'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header id="toolbar" role="toolbar" aria-label="Sketch tools">
     <div class="brandblock">
-      <a class="brand" href="/">OpticalSetup</a>
+      <a class="brand" href="/">
+        <svg class="brand-mark" viewBox="0 0 130 85" aria-hidden="true">
+          <g stroke="#1361fa" stroke-width="6" stroke-linecap="round">
+            <line x1="22" y1="45" x2="29" y2="45"/>
+            <line x1="18" y1="49" x2="18" y2="56"/>
+            <line x1="14" y1="45" x2="7" y2="45"/>
+            <line x1="18" y1="41" x2="18" y2="34"/>
+          </g>
+          <line x1="29" y1="45" x2="77" y2="45" stroke="#1361fa" stroke-width="6" stroke-linecap="round"/>
+          <polygon points="64,12 42,68 86,68" fill="none" stroke="#0a1a33" stroke-width="7" stroke-linejoin="round"/>
+          <g stroke="#1361fa" stroke-width="4" stroke-linecap="round">
+            <line x1="77" y1="45" x2="112" y2="28"/>
+            <line x1="77" y1="45" x2="112" y2="45"/>
+            <line x1="77" y1="45" x2="112" y2="62"/>
+          </g>
+        </svg>
+        <span class="brand-word"><span class="brand-ink">Optical</span><span class="brand-accent">Setup</span></span>
+      </a>
       <span class="model-badge">Qualitative ray tracing</span>
     </div>
     <div class="toolgroup examples-group">

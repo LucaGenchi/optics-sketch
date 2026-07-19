@@ -6,8 +6,9 @@
   --border: #dfe3e8;
   --text: #252b33;
   --muted: #5b6472;
-  --accent: #2469e8;
+  --accent: #1361fa;
   --accent-soft: #eaf1ff;
+  --ink: #0a1a33;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -17,8 +18,9 @@
     --border: #2c323b;
     --text: #e7eaee;
     --muted: #9aa3b0;
-    --accent: #5b9bff;
+    --accent: #5b8cff;
     --accent-soft: #1d2c47;
+    --ink: #e7eaee;
   }
 }
 
@@ -47,14 +49,17 @@ a { color: var(--accent); }
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   font-weight: 760;
-  font-size: 17px;
+  font-size: 18px;
   letter-spacing: -0.2px;
-  color: var(--text);
   text-decoration: none;
 }
-.brand-mark { width: 22px; height: 22px; color: var(--accent); flex: 0 0 auto; }
+.brand-mark { width: 30px; height: 20px; flex: 0 0 auto; }
+.brand-ink { color: var(--ink); }
+.brand-accent { color: var(--accent); }
+.mark-ink { stroke: var(--ink); }
+.mark-accent { stroke: var(--accent); }
 
 .btn {
   display: inline-flex;

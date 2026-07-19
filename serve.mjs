@@ -10,7 +10,8 @@ const PORT = parseInt(process.env.PORT, 10) || 5182;
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
   '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml',
-  '.png': 'image/png', '.ico': 'image/x-icon',
+  '.png': 'image/png', '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.xml': 'application/xml', '.txt': 'text/plain',
 };
 
 createServer(async (req, res) => {
