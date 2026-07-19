@@ -1809,6 +1809,7 @@ export const categories = [
   'Wavefront Shaping',
   'Detectors',
   'Modulators',
+  'Pulse Timing',
   'Nonlinear Optics',
   'Microscopy',
   'Custom',
