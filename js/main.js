@@ -17,7 +17,7 @@ const $ = id => document.getElementById(id);
 
 // ---------- palette ----------
 function buildPalette() {
-  const pal = $('palette');
+  const pal = $('paletteContent');
   let h = `<div class="library-head">
     <div class="library-title-row"><span class="library-title">Component library</span><span id="libraryCount" class="library-count"></span></div>
     <div class="palette-search-wrap"><input id="paletteSearch" type="search" placeholder="Search components…" autocomplete="off" aria-label="Search components"><span class="search-shortcut">/</span></div>
@@ -74,8 +74,11 @@ function buildPalette() {
   pal.innerHTML = h;
   $('libraryCount').textContent = `${total} components`;
   pal.querySelectorAll('.palitem').forEach(item => {
-    if (item.dataset.tool === 'drawarrow') { item.addEventListener('click', () => startBeamTool('beam')); return; }
-    item.addEventListener('click', () => startPlacing(item.dataset.type));
+    if (item.dataset.tool === 'drawarrow') {
+      item.addEventListener('click', () => { startBeamTool('beam'); closeMobileSheet('palette'); });
+      return;
+    }
+    item.addEventListener('click', () => { startPlacing(item.dataset.type); closeMobileSheet('palette'); });
   });
 
   const search = $('paletteSearch');
@@ -103,9 +106,14 @@ function buildPalette() {
 function syncToolMode(detail = { mode: 'select' }) {
   const active = detail.mode !== 'select';
   const mode = $('toolMode');
+  const mobileActions = $('mobileToolActions');
   const canvas = $('canvas');
   canvas.classList.toggle('tool-active', active);
   mode.classList.toggle('is-visible', active);
+  mobileActions.classList.toggle('is-visible', active);
+  $('mobileToolLabel').textContent = active ? `Adding ${detail.label}` : '';
+  const canFinishMobileTool = detail.mode === 'beam' || detail.mode === 'fiber' || detail.mode === 'polygon';
+  $('btnMobileToolDone').hidden = !canFinishMobileTool;
   document.querySelectorAll('.palitem').forEach(item => item.classList.toggle('is-active',
     ((detail.mode === 'place' || detail.mode === 'polygon') && !item.dataset.tool && item.dataset.type === detail.type) ||
     (detail.mode === 'beam' && item.dataset.tool === 'drawarrow')));
@@ -116,6 +124,47 @@ function syncToolMode(detail = { mode: 'select' }) {
     : detail.mode === 'polygon'
       ? `${detail.label} · click corners · click first point, double-click, or Enter closes · Shift constrains · Option bypasses snap`
       : `${detail.label} · click waypoints · double-click or Enter finishes · Esc cancels`;
+}
+
+const mobileQuery = window.matchMedia('(max-width: 899px)');
+
+function isMobileLayout() { return mobileQuery.matches; }
+
+function syncMobileSheets() {
+  const mobile = isMobileLayout();
+  const paletteOpen = $('palette').classList.contains('mobile-open');
+  const inspectorOpen = $('inspector').classList.contains('mobile-open');
+  $('palette').inert = mobile && !paletteOpen;
+  $('inspector').inert = mobile && !inspectorOpen;
+  $('mobileBackdrop').hidden = !mobile || (!paletteOpen && !inspectorOpen);
+}
+
+function setMobileSheet(id, open) {
+  const sheet = $(id);
+  if (!isMobileLayout()) { sheet.classList.remove('mobile-open'); syncMobileSheets(); return; }
+  if (open) {
+    const other = id === 'palette' ? $('inspector') : $('palette');
+    other.classList.remove('mobile-open');
+  }
+  sheet.classList.toggle('mobile-open', open);
+  syncMobileSheets();
+}
+
+function closeMobileSheet(id) { setMobileSheet(id, false); }
+
+function syncMobileSelection() {
+  const properties = $('btnProperties');
+  if (!properties) return;
+  properties.hidden = !state.selection;
+}
+
+function renderSelection(detail = {}) {
+  renderInspector();
+  syncToolbar();
+  syncMobileSelection();
+  if (isMobileLayout() && detail.openMobile === true && state.selection && state.tool === 'select') {
+    setMobileSheet('inspector', true);
+  }
 }
 
 // ---------- selection / deletion ----------
@@ -267,35 +316,44 @@ function bindKeys() {
 }
 
 // ---------- examples dropdown ----------
+function loadExample(index) {
+  if (index === '') return;
+  const ex = examples[+index];
+  if (!ex) return;
+  if (hasScene() && !confirm(`Load example “${ex.name}”? This replaces the current sketch (Undo brings it back).`)) return;
+  pushUndo();
+  cancelTool();
+  const scene = ex.build();
+  replaceScene({ elements: scene.elements, beams: scene.beams || [] });
+  renderSelection();
+  zoomFit();
+}
+
 function bindExamples() {
-  const sel = $('exampleSel');
+  const selects = [$('exampleSel'), $('mobileExampleSel')].filter(Boolean);
   const groups = new Map(); // group label -> <optgroup>
   examples.forEach((ex, i) => {
-    let og = groups.get(ex.group);
-    if (!og) {
-      og = document.createElement('optgroup');
-      og.label = ex.group || 'Examples';
-      sel.appendChild(og);
-      groups.set(ex.group, og);
+    for (const sel of selects) {
+      const key = `${sel.id}:${ex.group}`;
+      let og = groups.get(key);
+      if (!og) {
+        og = document.createElement('optgroup');
+        og.label = ex.group || 'Examples';
+        sel.appendChild(og);
+        groups.set(key, og);
+      }
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = ex.name;
+      og.appendChild(o);
     }
-    const o = document.createElement('option');
-    o.value = String(i);
-    o.textContent = ex.name;
-    og.appendChild(o);
   });
-  sel.addEventListener('change', () => {
+  selects.forEach(sel => sel.addEventListener('change', () => {
     const i = sel.value;
     sel.value = ''; // reset so the same example can be re-chosen later
-    if (i === '') return;
-    const ex = examples[+i];
-    if (hasScene() && !confirm(`Load example “${ex.name}”? This replaces the current sketch (Undo brings it back).`)) return;
-    pushUndo();
-    cancelTool();
-    const scene = ex.build();
-    replaceScene({ elements: scene.elements, beams: scene.beams || [] });
-    renderInspector();
-    zoomFit();
-  });
+    loadExample(i);
+    if (sel.id === 'mobileExampleSel') $('mobileMenu').close();
+  }));
 }
 
 // ---------- toolbar ----------
@@ -309,6 +367,7 @@ function syncToolbar() {
     button.classList.toggle('active', pressed);
     button.setAttribute('aria-pressed', String(pressed));
   }
+  syncMobileSelection();
 }
 
 function syncPulseControls(detail = getPulsePlayback()) {
@@ -370,6 +429,35 @@ function bindToolbar() {
   $('btnPulseReset').addEventListener('click', resetPulseTime);
   $('pulseDisplay').addEventListener('change', e => setPulseDisplayMode(e.target.value));
   $('pulseSpeed').addEventListener('change', e => setPulseSpeed(parseFloat(e.target.value)));
+
+  const mobileMenu = $('mobileMenu');
+  $('btnMobileMenu').addEventListener('click', () => mobileMenu.showModal());
+  $('mobileMenuClose').addEventListener('click', () => mobileMenu.close());
+  mobileMenu.addEventListener('click', event => { if (event.target === mobileMenu) mobileMenu.close(); });
+  mobileMenu.querySelectorAll('[data-mobile-action]').forEach(button => {
+    button.addEventListener('click', () => {
+      const target = {
+        new: 'btnNew', open: 'btnOpen', save: 'btnSave', svg: 'btnSVG', png: 'btnPNG',
+      }[button.dataset.mobileAction];
+      $(target)?.click();
+      mobileMenu.close();
+    });
+  });
+
+  $('btnAdd').addEventListener('click', () => setMobileSheet('palette', true));
+  $('btnProperties').addEventListener('click', () => setMobileSheet('inspector', true));
+  $('closePalette').addEventListener('click', () => closeMobileSheet('palette'));
+  $('closeInspector').addEventListener('click', () => closeMobileSheet('inspector'));
+  $('mobileBackdrop').addEventListener('click', () => {
+    closeMobileSheet('palette');
+    closeMobileSheet('inspector');
+  });
+  $('btnMobileToolCancel').addEventListener('click', cancelTool);
+  $('btnMobileToolDone').addEventListener('click', () => {
+    if (state.tool === 'beam') finishBeam();
+    else if (isPolygonDrawing()) finishPolygon();
+    renderSelection();
+  });
 }
 
 function bindContextMenu() {
@@ -423,14 +511,14 @@ document.addEventListener('optics:pulsestate', e => syncPulseControls(e.detail))
 // ---------- boot ----------
 window.addEventListener('DOMContentLoaded', () => {
   initCanvas($('canvas'), $('status'));
-  initInspector($('inspector'));
+  initInspector($('inspectorContent'));
   buildPalette();
   syncToolMode();
     bindToolbar();
     bindContextMenu();
   bindExamples();
   bindKeys();
-  setSelectionCallback(renderInspector);
+  setSelectionCallback(renderSelection);
   onChange(() => { renderAll(); syncToolbar(); refreshMeasurements(); });
 
   if (!loadAutosave(registry)) {
@@ -452,8 +540,16 @@ window.addEventListener('DOMContentLoaded', () => {
     );
   }
   renderAll();
-  renderInspector();
+  renderSelection();
   syncToolbar();
   syncPulseControls();
-  window.addEventListener('resize', renderAll);
+  syncMobileSheets();
+  window.addEventListener('resize', () => {
+    renderAll();
+    if (!isMobileLayout()) {
+      $('palette').classList.remove('mobile-open');
+      $('inspector').classList.remove('mobile-open');
+    }
+    syncMobileSheets();
+  });
 });
