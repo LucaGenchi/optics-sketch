@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { qrMatrix, qrSVG } from '../sketch/js/qr.js';
+import { qrMatrix, qrSVG, qrSVGIfFits } from '../sketch/js/qr.js';
 
 test('QR matrices are square, deterministic, and include three finder patterns', () => {
   const first = qrMatrix('https://example.org/#scene=test');
@@ -26,4 +26,10 @@ test('long self-contained setup URLs fit while oversized inputs fail clearly', (
   const svg = qrSVG(`https://example.org/#scene=${'a'.repeat(1800)}`);
   assert.match(svg, /<path/);
   assert.throws(() => qrMatrix('x'.repeat(4000)), /too long/i);
+});
+
+test('oversized QR inputs can be skipped without discarding the share URL', () => {
+  const url = `https://example.org/#sketch=${'a'.repeat(4000)}`;
+  assert.equal(qrSVGIfFits(url), null);
+  assert.match(qrSVGIfFits('https://example.org/#sketch=small'), /^<svg/);
 });

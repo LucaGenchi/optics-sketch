@@ -101,6 +101,8 @@ function alignmentPositions(version) {
   return result;
 }
 
+class QRCapacityError extends Error {}
+
 function encodeData(text) {
   const bytes = [...new TextEncoder().encode(text)];
   let version = 1;
@@ -108,7 +110,7 @@ function encodeData(text) {
     const countBits = version < 10 ? 8 : 16;
     if (bytes.length < (1 << countBits) && 4 + countBits + bytes.length * 8 <= dataCodewords(version) * 8) break;
   }
-  if (version > 40) throw new Error('Share link is too long for a QR code');
+  if (version > 40) throw new QRCapacityError('Share link is too long for a QR code');
 
   const capacity = dataCodewords(version) * 8;
   const bits = [];
@@ -219,4 +221,13 @@ export function qrSVG(text, { border = 4 } = {}) {
     if (matrix[y][x]) path.push(`M${x + border},${y + border}h1v1h-1z`);
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="100%" height="100%" fill="white"/><path d="${path.join('')}" fill="black"/></svg>`;
+}
+
+export function qrSVGIfFits(text, options) {
+  try {
+    return qrSVG(text, options);
+  } catch (error) {
+    if (error instanceof QRCapacityError) return null;
+    throw error;
+  }
 }

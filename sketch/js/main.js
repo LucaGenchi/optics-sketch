@@ -13,7 +13,7 @@ import { exportSVG, exportPNG } from './export.js';
 import { examples } from './examples.js';
 import { download, esc } from './util.js';
 import { buildShareURL, copyText, sharedSceneFromURL } from './share.js';
-import { qrSVG } from './qr.js';
+import { qrSVGIfFits } from './qr.js';
 
 const $ = id => document.getElementById(id);
 
@@ -458,10 +458,15 @@ function bindToolbar() {
       let copied = true;
       try { await copyText(url); } catch (_) { copied = false; }
       shareUrl = url;
-      shareQrSvg = qrSVG(url);
+      shareQrSvg = qrSVGIfFits(url) || '';
       $('shareURL').value = url;
       $('shareQR').innerHTML = shareQrSvg;
-      $('shareQRNote').textContent = 'Scan to open this exact optical setup.';
+      const hasQr = Boolean(shareQrSvg);
+      $('shareQR').hidden = !hasQr;
+      $('shareDownloadQR').hidden = !hasQr;
+      $('shareQRNote').textContent = hasQr
+        ? 'Scan to open this exact optical setup.'
+        : 'This setup link is too long for a QR code. Copy the complete link below.';
       $('shareDialog').showModal();
       if (copied) {
         button.textContent = 'Copied!';
