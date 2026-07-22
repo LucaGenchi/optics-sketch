@@ -10,7 +10,7 @@ import {
 } from './canvas.js';
 import { initInspector, renderInspector, refreshMeasurements } from './inspector.js';
 import { exportSVG, exportPNG } from './export.js';
-import { examples } from './examples.js';
+import { examples } from './examples-data.js';
 import { download, esc } from './util.js';
 import { buildShareURL, copyText, sharedSceneFromURL } from './share.js';
 import { qrSVG } from './qr.js';
@@ -426,17 +426,27 @@ function bindKeys() {
 }
 
 // ---------- examples dropdown ----------
-function loadExample(index) {
+// Examples are plain sketch .json files under Examples/<Category>/ (the
+// same format the "Save" button writes) — see tools/build-examples.mjs,
+// which turns that folder into ./examples-data.js. Loading one is just a
+// fetch + the same parseSketch() the "Open" button uses.
+async function loadExample(index) {
   if (index === '') return;
   const ex = examples[+index];
   if (!ex) return;
   if (hasScene() && !confirm(`Load example “${ex.name}”? This replaces the current sketch (Undo brings it back).`)) return;
-  pushUndo();
-  cancelTool();
-  const scene = ex.build();
-  replaceScene({ elements: scene.elements, beams: scene.beams || [] });
-  renderSelection();
-  zoomFit();
+  try {
+    const res = await fetch(ex.path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const scene = parseSketch(await res.text(), registry);
+    pushUndo();
+    cancelTool();
+    replaceScene(scene);
+    renderSelection();
+    zoomFit();
+  } catch (err) {
+    alert('Could not load example: ' + err.message);
+  }
 }
 
 function bindExamples() {

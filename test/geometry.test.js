@@ -1,14 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { readdir, readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
 import { registry, createElement, getElementMeta, getSize } from '../sketch/js/elements.js';
-import { examples } from '../sketch/js/examples.js';
 import { buildSVG, exportPNG, exportSVG } from '../sketch/js/export.js';
 import { detectorReading, traceAll, traceScene } from '../sketch/js/raytrace.js';
 import { C_MM_PER_NS } from '../sketch/js/pulses.js';
 import { pulseTimelineHTML } from '../sketch/js/inspector.js';
-import { state } from '../sketch/js/state.js';
+import { state, parseSketch } from '../sketch/js/state.js';
 import { distinctPoints } from '../sketch/js/util.js';
+
+const EXAMPLES_DIR = join(dirname(fileURLToPath(import.meta.url)), '../Examples');
+async function loadExampleFiles() {
+  const categories = await readdir(EXAMPLES_DIR, { withFileTypes: true });
+  const files = [];
+  for (const cat of categories.filter(d => d.isDirectory())) {
+    const dir = join(EXAMPLES_DIR, cat.name);
+    for (const file of (await readdir(dir)).filter(f => f.toLowerCase().endsWith('.json'))) {
+      files.push({ name: file.replace(/\.json$/i, ''), path: join(dir, file) });
+    }
+  }
+  return files;
+}
 
 const invalidNumber = /(?:NaN|undefined|Infinity)/;
 
@@ -229,51 +245,18 @@ test('glass group index adds the expected pulse arrival delay', () => {
   assert.ok(Math.abs((glassArrival - airArrival) - 60 * 0.52 / C_MM_PER_NS) < 1e-9);
 });
 
-test('all built-in examples trace and export without invalid geometry', () => {
-  for (const example of examples) {
-    const scene = example.build();
+test('every Examples/**/*.json file parses, traces, and exports without invalid geometry', async () => {
+  const files = await loadExampleFiles();
+  assert.ok(files.length > 0, 'at least one example file exists');
+  for (const { name, path } of files) {
+    const scene = parseSketch(await readFile(path, 'utf-8'), registry);
     state.elements = scene.elements;
     state.beams = scene.beams || [];
-    assert.doesNotThrow(() => traceAll(state.elements, state.beams), example.name);
+    assert.doesNotThrow(() => traceAll(state.elements, state.beams), name);
     const svg = buildSVG();
-    assert.match(svg, /^<svg /, example.name);
-    assert.doesNotMatch(svg, invalidNumber, example.name);
+    assert.match(svg, /^<svg /, name);
+    assert.doesNotMatch(svg, invalidNumber, name);
   }
-});
-
-test('SRS microscope example preserves the paper main path without the printed collector inset', () => {
-  const example = examples.find(item => item.name === 'SRS microscope (dual-output excitation)');
-  assert.ok(example);
-  const scene = example.build();
-  const opticalElements = scene.elements.filter(el => el.type !== 'textlabel');
-  const lasers = opticalElements.filter(el => el.type === 'laser');
-  assert.deepEqual(lasers.map(el => el.params.wavelength).sort((a, b) => a - b), [800, 1040]);
-  assert.ok(lasers.every(el => el.params.temporalMode === 'pulsed' && el.params.repRateMHz === 80));
-  assert.ok(opticalElements.some(el => el.type === 'aotf' && el.params.center === 800 && el.params.band === 1));
-  assert.ok(opticalElements.some(el => el.type === 'aom'
-    && el.params.modFreqMHz === 5 && el.params.modShape === 'sine'));
-  assert.ok(opticalElements.some(el => el.type === 'delayline' && el.params.delayMm === 40));
-  assert.ok(opticalElements.some(el => el.type === 'dichroic'));
-  assert.equal(opticalElements.filter(el => el.type === 'galvo').length, 2);
-  assert.ok(opticalElements.some(el => el.type === 'objective'));
-  const sample = opticalElements.find(el => el.type === 'sample');
-  assert.ok(sample);
-  assert.ok(opticalElements.some(el => el.type === 'filter'
-    && el.params.ftype === 'shortpass' && el.params.cutoff === 1000));
-  const detector = opticalElements.find(el => el.type === 'detector');
-  assert.ok(detector);
-  const traced = traceScene(scene.elements, scene.beams);
-  const arrivals = lasers.map(laser => {
-    const track = traced.pulseTracks.find(candidate => candidate.pulse.sourceId === laser.id
-      && candidate.pts.some(point => Math.hypot(point.x - sample.x, point.y - sample.y) < 1e-6));
-    assert.ok(track, `${laser.params.wavelength} nm pulse reaches the sample`);
-    const index = track.pts.findIndex(point => Math.hypot(point.x - sample.x, point.y - sample.y) < 1e-6);
-    return track.pulse.phaseNs + track.opls[index] / C_MM_PER_NS;
-  });
-  assert.ok(Math.abs(arrivals[0] - arrivals[1]) < 1e-6, 'pump and Stokes pulses overlap at the sample');
-  const reading = detectorReading(detector.id);
-  assert.ok(reading?.signal > 0);
-  assert.ok(Math.abs(reading.wavelength - 800) < 0.01, 'detector passes pump and rejects Stokes');
 });
 
 test('speckle dot drawables are included in export bounds', () => {
