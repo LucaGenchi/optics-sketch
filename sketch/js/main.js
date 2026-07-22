@@ -82,6 +82,25 @@ const demoScenes = {
     mkDemo('laser', 60, 200, 0),
     mkDemo('detector', 220, 200, 0),
   ],
+  cmirror: () => [
+    mkDemo('laser', 60, 150, 0, { beamMode: 'beam', beamWidth: 20 }),
+    mkDemo('cmirror', 220, 150, 45, { f: 100, length: 50.8 }),
+    mkDemo('box', 220, 50, 0, { text: '', w: 70, h: 2, behavior: 'pass', fill: '#c9d4e0' }, { label: 'focus (f = 100 mm)', showLabel: true, labelPos: 't' }),
+  ],
+  cmirrorx: () => [
+    mkDemo('laser', 60, 150, 0, { beamMode: 'beam', beamWidth: 20 }),
+    mkDemo('cmirrorx', 220, 150, 45, { f: -100, length: 50.8 }),
+    mkDemo('box', 220, 50, 0, { text: '', w: 70, h: 2, behavior: 'pass', fill: '#c9d4e0' }, { label: 'diverges — virtual focus behind mirror', showLabel: true, labelPos: 't' }),
+  ],
+  oap: () => [
+    mkDemo('laser', 60, 300, 0, { beamMode: 'beam', beamWidth: 20 }),
+    mkDemo('oap', 300, 300, 0, { f: 50, length: 80 }),
+  ],
+  galvo: () => [
+    mkDemo('laser', 60, 200, 0),
+    mkDemo('galvo', 220, 200, 45, { scanMode: 'sine', scanAmplitude: 8, scanFrequencyHz: 0.4 }),
+    mkDemo('box', 220, 60, 0, { text: '', w: 200, h: 2, behavior: 'block', fill: '#f2f3f5' }, { label: 'screen — the reflected beam sweeps back and forth', showLabel: true, labelPos: 't' }),
+  ],
 };
 
 // ---------- palette ----------
