@@ -380,7 +380,7 @@ export const registry = {
 
   // ---------------- Mirrors ----------------
   mirror: {
-    label: 'Mirror', category: 'Mirrors', size: { w: 14, h: 56 },
+    label: 'Mirror', category: 'Mirrors', paletteOrder: 0, size: { w: 14, h: 56 },
     params: [
       { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
       { key: 'refl', label: 'Reflectivity (%)', type: 'number', min: 1, max: 100, step: 1, def: 100 },
@@ -398,7 +398,7 @@ export const registry = {
   },
 
   galvo: {
-    label: 'Galvo mirror', category: 'Mirrors', size: { w: 30, h: 40 },
+    label: 'Galvo mirror', category: 'Mirrors', paletteOrder: 4, size: { w: 30, h: 40 },
     size_: el => {
       const L = Math.max(6, el.params.length || 20);
       const sweep = Math.abs(el.params.commandAngle || 0) + (el.params.scanMode === 'static' ? 0 : Math.abs(el.params.scanAmplitude || 0));
@@ -430,7 +430,7 @@ export const registry = {
   },
 
   cmirrorx: {
-    label: 'Convex mirror', category: 'Mirrors', size: { w: 18, h: 56 },
+    label: 'Convex mirror', category: 'Mirrors', paletteOrder: 1, size: { w: 18, h: 56 },
     params: [
       { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
       { key: 'f', label: 'Focal length (mm)', type: 'number', min: 5, max: 2000, step: 5, def: -100, negative: true },
@@ -448,7 +448,7 @@ export const registry = {
   },
 
   cmirror: {
-    label: 'Concave mirror', category: 'Mirrors', size: { w: 18, h: 56 },
+    label: 'Concave mirror', category: 'Mirrors', paletteOrder: 2, size: { w: 18, h: 56 },
     params: [
       { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
       { key: 'f', label: 'Focal length (mm)', type: 'number', min: 5, max: 2000, step: 5, def: 100 },
@@ -466,7 +466,7 @@ export const registry = {
   },
 
   oap: {
-    label: 'Parabolic mirror', category: 'Mirrors', size: { w: 40, h: 90 },
+    label: 'Parabolic mirror', category: 'Mirrors', paletteOrder: 3, size: { w: 40, h: 90 },
     params: [
       { key: 'length', label: 'Optic size', type: 'optsize', def: 80 },
       { key: 'f', label: 'Focal length (mm)', type: 'number', min: 5, max: 2000, step: 5, def: 50 },

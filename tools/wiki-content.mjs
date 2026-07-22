@@ -386,6 +386,41 @@ export const wikiEntries = [
   },
 
   {
+    type: 'cmirrorx',
+    title: 'Convex mirror',
+    category: 'Mirrors',
+    realWorld: {
+      html: `
+        <p>A convex (diverging) spherical mirror bulges toward the incoming light and
+        spreads a reflected beam out rather than focusing it. It obeys the same mirror
+        equation as a concave mirror, but with a negative focal length — object rays
+        reflect as if diverging from a virtual focus behind the mirror, forming an
+        upright, reduced virtual image. This is the geometry behind car passenger-side
+        mirrors and wide-field security mirrors, both chosen for their expanded field of
+        view rather than any focusing power.</p>`,
+      formulas: [
+        { tex: 'f = \\frac{R}{2} < 0, \\qquad \\frac{1}{f} = \\frac{1}{d_o} + \\frac{1}{d_i}', caption: 'Same mirror equation as the concave case, with f negative by convention.' },
+      ],
+    },
+    inOpticalSetup: {
+      html: `
+        <p>Identical implementation to the <a href="../cmirror/">concave mirror</a> —
+        exact vector reflection off the drawn line, followed by the lens-style paraxial
+        correction <span class="w">u' = u − h/f</span> — just with a negative focal
+        length, which is why the reflected beam here visibly spreads instead of
+        converging.</p>`,
+      formulas: [],
+      limitations: `<p>Same caveat as the concave mirror: the curvature drawn in the icon
+        is cosmetic, the correction is exact at every ray height (no spherical
+        aberration), and there's no wavelength- or angle-dependent reflectivity.</p>`,
+    },
+    related: ['cmirror', 'mirror', 'oap'],
+    resources: [
+      { label: 'RP Photonics Encyclopedia — Mirrors', url: 'https://www.rp-photonics.com/mirrors.html' },
+    ],
+  },
+
+  {
     type: 'cmirror',
     title: 'Concave mirror',
     category: 'Mirrors',
@@ -422,41 +457,6 @@ export const wikiEntries = [
         mirror whose curvature is actually ray-traced, see the parabolic mirror.</p>`,
     },
     related: ['cmirrorx', 'mirror', 'oap'],
-    resources: [
-      { label: 'RP Photonics Encyclopedia — Mirrors', url: 'https://www.rp-photonics.com/mirrors.html' },
-    ],
-  },
-
-  {
-    type: 'cmirrorx',
-    title: 'Convex mirror',
-    category: 'Mirrors',
-    realWorld: {
-      html: `
-        <p>A convex (diverging) spherical mirror bulges toward the incoming light and
-        spreads a reflected beam out rather than focusing it. It obeys the same mirror
-        equation as a concave mirror, but with a negative focal length — object rays
-        reflect as if diverging from a virtual focus behind the mirror, forming an
-        upright, reduced virtual image. This is the geometry behind car passenger-side
-        mirrors and wide-field security mirrors, both chosen for their expanded field of
-        view rather than any focusing power.</p>`,
-      formulas: [
-        { tex: 'f = \\frac{R}{2} < 0, \\qquad \\frac{1}{f} = \\frac{1}{d_o} + \\frac{1}{d_i}', caption: 'Same mirror equation as the concave case, with f negative by convention.' },
-      ],
-    },
-    inOpticalSetup: {
-      html: `
-        <p>Identical implementation to the <a href="../cmirror/">concave mirror</a> —
-        exact vector reflection off the drawn line, followed by the lens-style paraxial
-        correction <span class="w">u' = u − h/f</span> — just with a negative focal
-        length, which is why the reflected beam here visibly spreads instead of
-        converging.</p>`,
-      formulas: [],
-      limitations: `<p>Same caveat as the concave mirror: the curvature drawn in the icon
-        is cosmetic, the correction is exact at every ray height (no spherical
-        aberration), and there's no wavelength- or angle-dependent reflectivity.</p>`,
-    },
-    related: ['cmirror', 'mirror', 'oap'],
     resources: [
       { label: 'RP Photonics Encyclopedia — Mirrors', url: 'https://www.rp-photonics.com/mirrors.html' },
     ],
