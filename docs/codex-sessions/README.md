@@ -19,6 +19,8 @@ reasoning, token-count events, and obvious secret values are excluded.
    (`019f73d2-015f-7362-a3b6-c3b9794222fa`)
 6. [Self-contained setup links and publication feasibility](2026-07-18T14-39-51Z-ricktu288-ray-optics-https-github-com-ricktu288-ray-optics-e05d41b3.md)
    (`019f75ab-58a8-7f80-9c9c-cd4be05d41b3`)
+7. [Paper-to-setup reconstruction skill](2026-07-22T04-14-50Z-i-would-like-to-have-a-skill-for-building-setups-the-project-has-no-mcp-a001a718.md)
+   (`019f8808-9199-74b2-829c-734ca001a718`)
 
 The transcripts are provenance records, not product documentation. Current
 behavior and limitations are documented in the repository's main README and tests.

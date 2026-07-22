@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "components": "node tools/list-components.mjs",
+    "scene:build": "node tools/build-scene.mjs",
+    "scene:validate": "node tools/validate-scene.mjs"
   }
 }

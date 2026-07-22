@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build OpticalSetup from Paper"
+  short_description: "Reconstruct paper setups as verified scenes"
+  default_prompt: "Use $build-opticalsetup-from-paper to reconstruct the optical setup in this paper as a verified, loadable OpticalSetup scene."

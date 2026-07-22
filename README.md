@@ -100,3 +100,25 @@ npm test               # runs the regression suite
 ```
 
 (Any static file server works; ES modules require http(s), not file://.)
+
+## Reconstruct a setup from a paper
+
+The repository includes a Codex skill for turning a scientific-paper PDF into an
+evidence-backed, loadable OpticalSetup scene. It requires the agent to inspect the
+rendered setup figure, read the caption and methods (including cited instrument
+papers), explain the measurement, and validate the traced result against a contract
+written before the scene. Start with
+[`skills/build-opticalsetup-from-paper/SKILL.md`](skills/build-opticalsetup-from-paper/SKILL.md).
+
+The helper commands query the live component registry, build a normalized scene,
+and check evidence-linked path, timing, and detector claims:
+
+```bash
+npm run components -- delay
+npm run scene:build -- setup-spec.json setup.opticalsetup.json
+npm run scene:validate -- setup.opticalsetup.json setup-contract.json
+```
+
+Codex users can copy the skill folder into `~/.codex/skills/` for automatic
+discovery; other local agents can read the checked-in `SKILL.md` directly. No MCP
+server or additional package is required.
