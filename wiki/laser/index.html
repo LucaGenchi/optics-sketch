@@ -109,14 +109,35 @@
 
       <h2 class="section-head real"><span class="sw"></span>In the real world</h2>
       
-        <p>A laser produces light by stimulated emission inside a resonant cavity: a gain
-        medium bounded by two mirrors amplifies a specific wavelength every round trip,
-        while losses (mirror transmission, absorption, scattering) drain it. Above
-        threshold — the pump rate at which round-trip gain first equals round-trip loss —
-        the cavity sustains a stable, highly monochromatic, spatially coherent beam.</p>
-        <p>The output isn't a perfectly parallel ray bundle: real laser beams are Gaussian
-        and diverge with propagation. For a beam with waist radius <span class="w">w₀</span>,
-        the far-field half-angle divergence is</p>
+        <p>Laser technology occupies a central position within photonics because laser
+        light exhibits several properties that distinguish it from conventional light
+        sources, beyond simple monochromaticity. A laser beam is characterized by high
+        spatial coherence, which permits propagation over considerable distances with
+        minimal divergence — frequently limited only by diffraction — and allows the beam
+        to be focused to a very small spot, yielding a correspondingly high intensity.</p>
+        <p>This coherence typically extends to the temporal domain as well: most lasers
+        emit within a very narrow spectral bandwidth, in contrast to sources such as
+        incandescent or gas-discharge lamps, which radiate across a broad spectral range.
+        An exception exists among ultrafast lasers, several of which are inherently
+        broadband, since a sufficiently short pulse duration necessarily corresponds to a
+        correspondingly broad frequency spectrum.</p>
+        <p>Laser emission may be continuous or pulsed, with pulse durations ranging from
+        microseconds down to a few femtoseconds. Concentrating a given pulse energy into a
+        shorter duration — in addition to spatial concentration at a focus — enables
+        substantially higher intensities than continuous-wave operation can achieve; the
+        most extreme intensities produced this way are employed in high-field physics.</p>
+        <p>The theoretical foundation for the laser predates its experimental realization:
+        Townes, Schawlow, Basov, and Prokhorov independently developed the theory of
+        stimulated emission as a mechanism for light amplification, building on the
+        microwave maser Townes had demonstrated in 1953 — the concept was initially termed
+        the "optical maser" before "laser" became standard usage. Theodore Maiman first
+        realized this theory experimentally in 1960, constructing the first laser: a
+        pulsed, lamp-pumped ruby crystal. The same year saw two further milestones: the
+        helium–neon laser, the first to operate with a gaseous gain medium, and the first
+        semiconductor laser diode.</p>
+        <p>Real laser beams are not perfectly collimated: they exhibit Gaussian
+        propagation and diverge with distance. For a beam of waist radius
+        <span class="w">w₀</span>, the far-field half-angle divergence is given by</p>
       <div class="formula">
       <div class="katex-render"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>θ</mi><mo>≈</mo><mfrac><mi>λ</mi><mrow><mi>π</mi><msub><mi>w</mi><mn>0</mn></msub></mrow></mfrac></mrow><annotation encoding="application/x-tex">\theta \approx \frac{\lambda}{\pi w_0}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal" style="margin-right:0.0278em;">θ</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:2.2074em;vertical-align:-0.836em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3714em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0359em;">π</span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0269em;">w</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3011em;"><span style="top:-2.55em;margin-left:-0.0269em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight">0</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal">λ</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.836em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span></div>
       <div class="caption">Far-field divergence half-angle of a Gaussian beam (small-angle, TEM₀₀ mode).</div>
@@ -125,6 +146,12 @@
       <div class="caption">Photon energy — why shorter wavelengths (blue, UV) carry more energy per photon than longer ones (red, IR).</div>
     </div>
       
+        <p>These properties originate from stimulated emission within a resonant cavity:
+        a gain medium bounded by two mirrors amplifies a specific wavelength on each round
+        trip, while losses — mirror transmission, absorption, scattering — deplete it.
+        Above threshold, the pump rate at which round-trip gain first equals round-trip
+        loss, the cavity sustains the stable, highly monochromatic, spatially coherent
+        beam described above.</p>
 
       <h2 class="section-head sim"><span class="sw"></span>In OpticalSetup</h2>
       <div class="sim-block">
@@ -155,7 +182,7 @@
       
       <h2 class="section-head real"><span class="sw"></span>Further reading</h2>
       <ul class="resource-list">
-        <li><a href="https://www.rp-photonics.com/lasers.html" target="_blank" rel="noopener">RP Photonics Encyclopedia — Lasers</a></li>
+        <li><a href="https://www.rp-photonics.com/lasers.html" target="_blank" rel="noopener">RP Photonics Encyclopedia — Lasers</a></li><li><a href="https://www.rp-photonics.com/laser_light.html" target="_blank" rel="noopener">RP Photonics Encyclopedia — Laser Light</a></li>
       </ul>
     </main>
   </div>

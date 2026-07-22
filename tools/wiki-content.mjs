@@ -14,18 +14,46 @@ export const wikiEntries = [
     category: 'Sources',
     realWorld: {
       html: `
-        <p>A laser produces light by stimulated emission inside a resonant cavity: a gain
-        medium bounded by two mirrors amplifies a specific wavelength every round trip,
-        while losses (mirror transmission, absorption, scattering) drain it. Above
-        threshold — the pump rate at which round-trip gain first equals round-trip loss —
-        the cavity sustains a stable, highly monochromatic, spatially coherent beam.</p>
-        <p>The output isn't a perfectly parallel ray bundle: real laser beams are Gaussian
-        and diverge with propagation. For a beam with waist radius <span class="w">w₀</span>,
-        the far-field half-angle divergence is</p>`,
+        <p>Laser technology occupies a central position within photonics because laser
+        light exhibits several properties that distinguish it from conventional light
+        sources, beyond simple monochromaticity. A laser beam is characterized by high
+        spatial coherence, which permits propagation over considerable distances with
+        minimal divergence — frequently limited only by diffraction — and allows the beam
+        to be focused to a very small spot, yielding a correspondingly high intensity.</p>
+        <p>This coherence typically extends to the temporal domain as well: most lasers
+        emit within a very narrow spectral bandwidth, in contrast to sources such as
+        incandescent or gas-discharge lamps, which radiate across a broad spectral range.
+        An exception exists among ultrafast lasers, several of which are inherently
+        broadband, since a sufficiently short pulse duration necessarily corresponds to a
+        correspondingly broad frequency spectrum.</p>
+        <p>Laser emission may be continuous or pulsed, with pulse durations ranging from
+        microseconds down to a few femtoseconds. Concentrating a given pulse energy into a
+        shorter duration — in addition to spatial concentration at a focus — enables
+        substantially higher intensities than continuous-wave operation can achieve; the
+        most extreme intensities produced this way are employed in high-field physics.</p>
+        <p>The theoretical foundation for the laser predates its experimental realization:
+        Townes, Schawlow, Basov, and Prokhorov independently developed the theory of
+        stimulated emission as a mechanism for light amplification, building on the
+        microwave maser Townes had demonstrated in 1953 — the concept was initially termed
+        the "optical maser" before "laser" became standard usage. Theodore Maiman first
+        realized this theory experimentally in 1960, constructing the first laser: a
+        pulsed, lamp-pumped ruby crystal. The same year saw two further milestones: the
+        helium–neon laser, the first to operate with a gaseous gain medium, and the first
+        semiconductor laser diode.</p>
+        <p>Real laser beams are not perfectly collimated: they exhibit Gaussian
+        propagation and diverge with distance. For a beam of waist radius
+        <span class="w">w₀</span>, the far-field half-angle divergence is given by</p>`,
       formulas: [
         { tex: '\\theta \\approx \\frac{\\lambda}{\\pi w_0}', caption: 'Far-field divergence half-angle of a Gaussian beam (small-angle, TEM₀₀ mode).' },
         { tex: 'E_{\\text{photon}} = \\frac{hc}{\\lambda}', caption: 'Photon energy — why shorter wavelengths (blue, UV) carry more energy per photon than longer ones (red, IR).' },
       ],
+      html2: `
+        <p>These properties originate from stimulated emission within a resonant cavity:
+        a gain medium bounded by two mirrors amplifies a specific wavelength on each round
+        trip, while losses — mirror transmission, absorption, scattering — deplete it.
+        Above threshold, the pump rate at which round-trip gain first equals round-trip
+        loss, the cavity sustains the stable, highly monochromatic, spatially coherent
+        beam described above.</p>`,
     },
     inOpticalSetup: {
       html: `
@@ -48,6 +76,7 @@ export const wikiEntries = [
     related: ['sclaser', 'pointsource', 'mirror'],
     resources: [
       { label: 'RP Photonics Encyclopedia — Lasers', url: 'https://www.rp-photonics.com/lasers.html' },
+      { label: 'RP Photonics Encyclopedia — Laser Light', url: 'https://www.rp-photonics.com/laser_light.html' },
     ],
   },
 
