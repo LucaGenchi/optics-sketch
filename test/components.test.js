@@ -115,9 +115,10 @@ test('fluorescence collected by a nearby objective propagates to a detector', ()
   sample.params.mode = 'fluor';
   sample.params.transmission = 0.8;
   sample.params.signalEff = 0.1;
-  // objective lens plane (local x = -16) sits 20 mm from the sample: within
-  // the 1.5x capture window of the 25 mm evanescent range
-  const objective = createElement('objective', 186, 0);
+  // objective lens plane (local x = +16, the sample-facing front tip) sits
+  // 20 mm from the sample: within the 1.5x capture window of the 25 mm
+  // evanescent range
+  const objective = createElement('objective', 154, 0);
   objective.params.f = 20;
   const detector = createElement('detector', 320, 0);
   traceAll([laser, sample, objective, detector]);
@@ -127,7 +128,7 @@ test('fluorescence collected by a nearby objective propagates to a detector', ()
   assert.ok(reading.bandMax >= 520, 'the detected spectrum includes the emission wavelength');
 
   // move the objective far beyond the capture window: fluorescence dies again
-  objective.x = 260; // lens plane 94 mm from the sample
+  objective.x = 228; // lens plane 94 mm from the sample
   traceAll([laser, sample, objective, detector]);
   const uncollected = detectorReading(detector.id);
   assert.ok(Math.abs(uncollected.signal - 0.8) < 1e-9, 'a distant objective no longer collects the evanescent light');

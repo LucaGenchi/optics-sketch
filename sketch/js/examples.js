@@ -303,7 +303,7 @@ export const examples = [
         mk('telescope', 560, 410, 0, { f1: 40, f2: 40, dia: 25.4 }, {
           label: 'scan relay', showLabel: true, labelPos: 'b',
         }),
-        mk('objective', 690, 410, 0, { f: 60, aperture: 34 }, {
+        mk('objective', 658, 410, 0, { f: 60, aperture: 34 }, {
           label: 'high-NA objective', showLabel: true, labelPos: 't',
         }),
         mk('sample', 735, 410, 0, { mode: 'none', transmitExc: true, transmission: 0.8, aperture: 34 }, {

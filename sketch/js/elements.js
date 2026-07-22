@@ -550,22 +550,27 @@ export const registry = {
   },
 
   objective: {
+    // Back (tube-lens/infinity side, where a telescope or scan relay
+    // delivers collimated light) is the wide barrel at local x=-16; front
+    // (sample side) is the narrow tip and glass at local x=+16, which is
+    // also where the single thin-lens surface actually bends rays — so the
+    // drawing and the physics agree on which end focuses light.
     label: 'Objective', category: 'Lenses', paletteOrder: 3, size: { w: 36, h: 40 },
-    snapPt: { x: -16, y: 0 }, // lens plane
+    snapPt: { x: 16, y: 0 }, // lens plane (sample-facing front tip)
     size_: el => ({ w: 36, h: (el.params.aperture || 20) + 20 }),
     params: [
-      { key: 'f', label: 'Focal length (mm)', type: 'number', min: 1, max: 500, step: 1, def: 20 },
+      { key: 'f', label: 'Focal length (mm)', type: 'number', min: 1, max: 500, step: 1, def: 10 },
       { key: 'aperture', label: 'Clear aperture (mm)', type: 'number', min: 5, max: 100, step: 1, def: 20 },
     ],
     svg(el) {
       const h = (el.params.aperture || 20) / 2, outer = h + 7;
-      return `<path d="M -16,${-h} L 6,${-outer} L 16,${-outer} L 16,${outer} L 6,${outer} L -16,${h} Z" fill="#8d98a5" stroke="#4d565f" stroke-width="1.5"/>` +
-        `<line x1="6" y1="${-outer}" x2="6" y2="${outer}" stroke="#4d565f" stroke-width="1"/>` +
-        `<rect x="-17.5" y="${-h}" width="3" height="${2 * h}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1"/>`;
+      return `<path d="M 16,${-h} L -2,${-outer} L -16,${-outer} L -16,${outer} L -2,${outer} L 16,${h} Z" fill="#8d98a5" stroke="#4d565f" stroke-width="1.5"/>` +
+        `<line x1="-2" y1="${-outer}" x2="-2" y2="${outer}" stroke="#4d565f" stroke-width="1"/>` +
+        `<rect x="14.5" y="${-h}" width="3" height="${2 * h}" fill="${GLASS}" stroke="${GLASS_S}" stroke-width="1"/>`;
     },
     surfaces(el) {
       const h = (el.params.aperture || 20) / 2;
-      return [{ x1: -16, y1: -h, x2: -16, y2: h, kind: 'lens', data: { f: el.params.f } }];
+      return [{ x1: 16, y1: -h, x2: 16, y2: h, kind: 'lens', data: { f: el.params.f } }];
     },
   },
 
