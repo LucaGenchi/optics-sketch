@@ -14,18 +14,45 @@ export const wikiEntries = [
     category: 'Sources',
     realWorld: {
       html: `
-        <p>A laser produces light by stimulated emission inside a resonant cavity: a gain
-        medium bounded by two mirrors amplifies a specific wavelength every round trip,
-        while losses (mirror transmission, absorption, scattering) drain it. Above
-        threshold — the pump rate at which round-trip gain first equals round-trip loss —
-        the cavity sustains a stable, highly monochromatic, spatially coherent beam.</p>
-        <p>The output isn't a perfectly parallel ray bundle: real laser beams are Gaussian
-        and diverge with propagation. For a beam with waist radius <span class="w">w₀</span>,
-        the far-field half-angle divergence is</p>`,
+        <p>Lasers sit at the center of photonics largely because laser light breaks from
+        ordinary light in a few fundamental ways, not just by being one color. A laser
+        beam is highly directional: its spatial coherence lets it travel a long way with
+        very little spreading — often limited only by diffraction itself — and lets it be
+        brought down to a tiny focused spot, concentrating its energy into a very high
+        intensity.</p>
+        <p>That same coherence usually carries over into time as well. Most lasers emit
+        within an extremely narrow slice of the spectrum, essentially a single color,
+        unlike an incandescent bulb or a gas-discharge lamp, which radiate across a broad
+        stretch of wavelengths at once. The exception is ultrafast lasers: several of
+        those are deliberately broadband, because a pulse that short in time necessarily
+        carries a correspondingly wide spread of frequencies.</p>
+        <p>Output can run continuously or in pulses lasting anywhere from microseconds
+        down to a handful of femtoseconds. Packing the same — or more — energy into a much
+        shorter interval, on top of concentrating it spatially at a focus, is what lets
+        pulsed lasers reach intensities a continuous beam never could; the most extreme
+        pulses are a standard tool in high-field physics.</p>
+        <p>The laser's theory predates the device by years: Townes, Schawlow, Basov, and
+        Prokhorov independently worked out how stimulated emission could amplify light,
+        building on the microwave maser Townes had already built in 1953 — the whole idea
+        was first called the "optical maser," before "laser" stuck. Theodore Maiman turned
+        the theory into hardware in 1960 with the first working laser, a pulsed,
+        lamp-pumped ruby crystal. Two more firsts followed within the same year: the
+        helium–neon laser, the first to run on a gas rather than a solid, and the first
+        semiconductor laser diode.</p>
+        <p>The output isn't a perfectly parallel ray bundle, either: real laser beams are
+        Gaussian and diverge with propagation. For a beam with waist radius
+        <span class="w">w₀</span>, the far-field half-angle divergence is</p>`,
       formulas: [
         { tex: '\\theta \\approx \\frac{\\lambda}{\\pi w_0}', caption: 'Far-field divergence half-angle of a Gaussian beam (small-angle, TEM₀₀ mode).' },
         { tex: 'E_{\\text{photon}} = \\frac{hc}{\\lambda}', caption: 'Photon energy — why shorter wavelengths (blue, UV) carry more energy per photon than longer ones (red, IR).' },
       ],
+      html2: `
+        <p>Mechanically, a laser produces this light by stimulated emission inside a
+        resonant cavity: a gain medium bounded by two mirrors amplifies a specific
+        wavelength every round trip, while losses — mirror transmission, absorption,
+        scattering — drain it. Above threshold, the pump rate at which round-trip gain
+        first equals round-trip loss, the cavity sustains the stable, highly monochromatic,
+        spatially coherent beam described above.</p>`,
     },
     inOpticalSetup: {
       html: `
@@ -48,6 +75,7 @@ export const wikiEntries = [
     related: ['sclaser', 'pointsource', 'mirror'],
     resources: [
       { label: 'RP Photonics Encyclopedia — Lasers', url: 'https://www.rp-photonics.com/lasers.html' },
+      { label: 'RP Photonics Encyclopedia — Laser Light', url: 'https://www.rp-photonics.com/laser_light.html' },
     ],
   },
 
