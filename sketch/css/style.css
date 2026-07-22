@@ -58,7 +58,7 @@ button {
   white-space: nowrap;
 }
 button:hover { background: #f1f4f8; border-color: var(--border-strong); }
-button:focus-visible, select:focus-visible, input:focus-visible, #canvas:focus-visible {
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, #canvas:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -96,6 +96,29 @@ button.danger:hover { background: #fdf0ee; }
 .share-url-label { display: block; margin: 14px 0 5px; color: var(--muted); font-size: 9px; font-weight: 720; letter-spacing: .45px; text-transform: uppercase; }
 .share-url { width: 100%; resize: none; padding: 8px 9px; border: 1px solid var(--border); border-radius: 7px; background: #f7f9fb; color: #4d5865; font: 9.5px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .share-actions { display: flex; gap: 7px; margin-top: 12px; }
+
+.proposal-dialog {
+  width: min(510px, calc(100vw - 28px)); max-height: calc(100vh - 28px); overflow: auto;
+  margin: auto; padding: 22px; border: 1px solid var(--border-strong); border-radius: 13px;
+  background: var(--panel); color: var(--text); box-shadow: 0 24px 70px rgba(22, 31, 44, .24);
+}
+.proposal-dialog::backdrop { background: rgba(28, 36, 48, .38); backdrop-filter: blur(2px); }
+.proposal-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.proposal-dialog h2 { margin-top: 2px; font-size: 19px; letter-spacing: -.3px; }
+.proposal-intro { margin: 14px 0 17px; color: #56616e; font-size: 12px; line-height: 1.5; }
+.proposal-field { display: block; margin-top: 13px; }
+.proposal-field > span { display: block; margin-bottom: 6px; color: #59636f; font-size: 10px; font-weight: 730; letter-spacing: .35px; text-transform: uppercase; }
+.proposal-field input, .proposal-field textarea {
+  width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: #fbfcfd; color: var(--text); font: inherit; line-height: 1.4;
+}
+.proposal-field textarea { resize: vertical; min-height: 92px; }
+.proposal-field input:focus, .proposal-field textarea:focus { border-color: var(--accent); background: #fff; outline: 2px solid rgba(36,105,232,.13); }
+.proposal-consent { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px; align-items: start; margin-top: 15px; color: #586370; font-size: 11px; line-height: 1.45; }
+.proposal-consent input { width: 16px; height: 16px; margin-top: 1px; accent-color: var(--accent); }
+.proposal-error { margin-top: 13px; padding: 8px 10px; border-left: 2px solid #c94c42; background: #fff3f1; color: #96362f; font-size: 11px; line-height: 1.4; }
+.proposal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.proposal-footnote { margin-top: 12px; color: #7a838d; font-size: 9.5px; line-height: 1.45; }
 
 /* ---------- layout ---------- */
 main { flex: 1; display: flex; min-height: 0; position: relative; }

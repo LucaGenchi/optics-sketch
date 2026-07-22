@@ -78,8 +78,12 @@ or manufacturing tolerances.
 
 ## Feedback
 
-Use the app, then send your exported `.json` sketch and notes to Luca. The canvas
-autosaves in your own browser, so you can't break anything for anyone else.
+Use **Propose** in the workbench to send the current setup to GitHub for public
+review. GitHub handles sign-in and confirmation; an automated workflow validates
+the scene and opens a draft pull request without giving the static site access to
+your GitHub account. A maintainer still reviews the optical explanation and decides
+whether to promote it into the curated Examples menu. The canvas autosaves in your
+own browser, so you can't break anything for anyone else.
 
 The sanitized Codex conversations behind the major development passes are available
 in the [work-trace index](docs/codex-sessions/README.md).
