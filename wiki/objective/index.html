@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Objective — Optics Encyclopedia | OpticalSetup</title>
-<meta name="description" content="Applies a compact focusing thin-lens model. Real-world physics and formulas, plus exactly how OpticalSetup models it.">
+<meta name="description" content="Applies a compact focusing thin-lens model; ƒ also sets the distance to the back focal plane (BFP) behind the lens — the plane a telescope or scan relay should image onto for pupil-matched scanning. Real-world physics and formulas, plus exactly how OpticalSetup models it.">
 <link rel="canonical" href="https://opticalsetup.com/wiki/objective/">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Objective — OpticalSetup Encyclopedia">
-<meta property="og:description" content="Applies a compact focusing thin-lens model.">
+<meta property="og:description" content="Applies a compact focusing thin-lens model; ƒ also sets the distance to the back focal plane (BFP) behind the lens — the plane a telescope or scan relay should image onto for pupil-matched scanning.">
 <meta property="og:url" content="https://opticalsetup.com/wiki/objective/">
 <meta property="og:image" content="https://opticalsetup.com/assets/og-image.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 130 85'%3E%3Cg stroke='%231361fa' stroke-width='6' stroke-linecap='round'%3E%3Cline x1='22' y1='45' x2='29' y2='45'/%3E%3Cline x1='18' y1='49' x2='18' y2='56'/%3E%3Cline x1='14' y1='45' x2='7' y2='45'/%3E%3Cline x1='18' y1='41' x2='18' y2='34'/%3E%3C/g%3E%3Cline x1='29' y1='45' x2='77' y2='45' stroke='%231361fa' stroke-width='6' stroke-linecap='round'/%3E%3Cpolygon points='64,12 42,68 86,68' fill='none' stroke='%230a1a33' stroke-width='7' stroke-linejoin='round'/%3E%3Cg stroke='%231361fa' stroke-width='4' stroke-linecap='round'%3E%3Cline x1='77' y1='45' x2='112' y2='28'/%3E%3Cline x1='77' y1='45' x2='112' y2='45'/%3E%3Cline x1='77' y1='45' x2='112' y2='62'/%3E%3C/g%3E%3C/svg%3E">
@@ -97,7 +97,7 @@
           <h1>Objective</h1>
         </div>
       </div>
-      <p class="tagline">Applies a compact focusing thin-lens model.</p>
+      <p class="tagline">Applies a compact focusing thin-lens model; ƒ also sets the distance to the back focal plane (BFP) behind the lens — the plane a telescope or scan relay should image onto for pupil-matched scanning.</p>
       <a class="place-cta" href="../../sketch/?place=objective">Open in the canvas →</a>
 
       <div class="embed-wrap">
@@ -119,22 +119,45 @@
       <div class="formula">
       <div class="katex-render"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>d</mi><mo>≈</mo><mfrac><mi>λ</mi><mrow><mn>2</mn><mtext> </mtext><mrow><mi mathvariant="normal">N</mi><mi mathvariant="normal">A</mi></mrow></mrow></mfrac></mrow><annotation encoding="application/x-tex">d \approx \frac{\lambda}{2\,\mathrm{NA}}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6944em;"></span><span class="mord mathnormal">d</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:2.0574em;vertical-align:-0.686em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.3714em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">2</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathrm">NA</span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal">λ</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></span></div>
       <div class="caption">The Abbe diffraction limit — the smallest resolvable feature size, set by wavelength and numerical aperture alone.</div>
+    </div><div class="formula">
+      <div class="katex-render"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>r</mi><mtext>BFP</mtext></msub><mo>≈</mo><mi>f</mi><mo>⋅</mo><mrow><mi mathvariant="normal">N</mi><mi mathvariant="normal">A</mi></mrow></mrow><annotation encoding="application/x-tex">r_{\text{BFP}} \approx f \cdot \mathrm{NA}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="katex-base"><span class="katex-strut" style="height:0.6331em;vertical-align:-0.15em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0278em;">r</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3283em;"><span style="top:-2.55em;margin-left:-0.0278em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="katex-sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord text mtight"><span class="mord mtight">BFP</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.1076em;">f</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">⋅</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="katex-base"><span class="katex-strut" style="height:0.6833em;"></span><span class="mord"><span class="mord mathrm">NA</span></span></span></span></span></span></div>
+      <div class="caption">Entrance-pupil radius at the back focal plane, for a well-corrected objective (the Abbe sine condition).</div>
     </div>
       
+        <p>Modern objectives are almost always <strong>infinity-corrected</strong>: a
+        point at the sample (the front focal plane) emits a cone that leaves the back of
+        the objective as a <em>collimated</em> beam, which a separate tube lens then
+        focuses onto a camera or eyepiece — nothing focuses light directly behind an
+        infinity objective on its own. The reference plane a focal length
+        <span class="w">f</span> behind the objective, on that tube-lens side, is the
+        <strong>back focal plane (BFP)</strong> — where the objective's entrance pupil
+        (radius above) is imaged. It matters most in laser-scanning microscopy: a scan
+        mirror, or its relayed image via a scan lens and tube lens, is deliberately
+        positioned at a plane conjugate to the BFP, so that as the mirror tilts, the beam
+        pivots around a fixed point inside the pupil instead of walking across it —
+        keeping the full aperture illuminated at every scan angle.</p>
 
       <h2 class="section-head sim"><span class="sw"></span>In OpticalSetup</h2>
       <div class="sim-block">
         
-        <p>Despite the multi-element housing drawn in the icon, this is optically
-        identical to the plain <a href="../lens/">lens</a> element: one thin-lens
-        surface at the lens plane, using the same paraxial ray-transfer relation
-        <span class="w">u' = u − h/f</span>, just with a short default focal length and a
-        drawn clear aperture typical of a real objective.</p>
+        <p>Optically this is the same single thin-lens surface as the plain
+        <a href="../lens/">lens</a> element, using the same paraxial ray-transfer
+        relation <span class="w">u' = u − h/f</span> at the lens plane marked by the
+        housing's flat front glass — just with a short default focal length and a drawn
+        clear aperture typical of a real objective. What's modeled precisely, though, is
+        <em>where the back focal plane actually sits</em>: toggle "Show focal points"
+        (the <span class="w">ƒ</span> button) or select the objective, and a marker
+        labeled <span class="w">BFP</span> appears exactly <span class="w">f</span>
+        behind the lens plane, on the side the beam arrives from — the real coordinate to
+        position (or image, via a <a href="../telescope/">telescope</a>) a scan mirror
+        onto for correct pupil-matched scanning, not just an illustrative icon.</p>
         
-        <div class="limitations"><span class="lbl">Simplified vs. reality</span><p>None of what makes a real objective hard to design is modeled —
-        no numerical aperture, no aberration correction across many elements, no
-        immersion media, no working-distance or field-flatness limits. It's a single
-        idealized thin lens wearing an objective's housing.</p></div>
+        <div class="limitations"><span class="lbl">Simplified vs. reality</span><p>The BFP's <em>position</em> is geometrically exact for this
+        thin-lens model, but its <em>size</em> is not modeled — there's no numerical
+        aperture parameter, so the pupil radius formula above isn't computed or enforced
+        anywhere, and no aberration correction, immersion media, or field-flatness
+        limits exist either. It's a single idealized thin lens wearing an objective's
+        housing, with one genuinely precise feature: the BFP marker's location.</p></div>
       </div>
 
       
