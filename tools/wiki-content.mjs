@@ -14,45 +14,46 @@ export const wikiEntries = [
     category: 'Sources',
     realWorld: {
       html: `
-        <p>Lasers sit at the center of photonics largely because laser light breaks from
-        ordinary light in a few fundamental ways, not just by being one color. A laser
-        beam is highly directional: its spatial coherence lets it travel a long way with
-        very little spreading — often limited only by diffraction itself — and lets it be
-        brought down to a tiny focused spot, concentrating its energy into a very high
-        intensity.</p>
-        <p>That same coherence usually carries over into time as well. Most lasers emit
-        within an extremely narrow slice of the spectrum, essentially a single color,
-        unlike an incandescent bulb or a gas-discharge lamp, which radiate across a broad
-        stretch of wavelengths at once. The exception is ultrafast lasers: several of
-        those are deliberately broadband, because a pulse that short in time necessarily
-        carries a correspondingly wide spread of frequencies.</p>
-        <p>Output can run continuously or in pulses lasting anywhere from microseconds
-        down to a handful of femtoseconds. Packing the same — or more — energy into a much
-        shorter interval, on top of concentrating it spatially at a focus, is what lets
-        pulsed lasers reach intensities a continuous beam never could; the most extreme
-        pulses are a standard tool in high-field physics.</p>
-        <p>The laser's theory predates the device by years: Townes, Schawlow, Basov, and
-        Prokhorov independently worked out how stimulated emission could amplify light,
-        building on the microwave maser Townes had already built in 1953 — the whole idea
-        was first called the "optical maser," before "laser" stuck. Theodore Maiman turned
-        the theory into hardware in 1960 with the first working laser, a pulsed,
-        lamp-pumped ruby crystal. Two more firsts followed within the same year: the
-        helium–neon laser, the first to run on a gas rather than a solid, and the first
+        <p>Laser technology occupies a central position within photonics because laser
+        light exhibits several properties that distinguish it from conventional light
+        sources, beyond simple monochromaticity. A laser beam is characterized by high
+        spatial coherence, which permits propagation over considerable distances with
+        minimal divergence — frequently limited only by diffraction — and allows the beam
+        to be focused to a very small spot, yielding a correspondingly high intensity.</p>
+        <p>This coherence typically extends to the temporal domain as well: most lasers
+        emit within a very narrow spectral bandwidth, in contrast to sources such as
+        incandescent or gas-discharge lamps, which radiate across a broad spectral range.
+        An exception exists among ultrafast lasers, several of which are inherently
+        broadband, since a sufficiently short pulse duration necessarily corresponds to a
+        correspondingly broad frequency spectrum.</p>
+        <p>Laser emission may be continuous or pulsed, with pulse durations ranging from
+        microseconds down to a few femtoseconds. Concentrating a given pulse energy into a
+        shorter duration — in addition to spatial concentration at a focus — enables
+        substantially higher intensities than continuous-wave operation can achieve; the
+        most extreme intensities produced this way are employed in high-field physics.</p>
+        <p>The theoretical foundation for the laser predates its experimental realization:
+        Townes, Schawlow, Basov, and Prokhorov independently developed the theory of
+        stimulated emission as a mechanism for light amplification, building on the
+        microwave maser Townes had demonstrated in 1953 — the concept was initially termed
+        the "optical maser" before "laser" became standard usage. Theodore Maiman first
+        realized this theory experimentally in 1960, constructing the first laser: a
+        pulsed, lamp-pumped ruby crystal. The same year saw two further milestones: the
+        helium–neon laser, the first to operate with a gaseous gain medium, and the first
         semiconductor laser diode.</p>
-        <p>The output isn't a perfectly parallel ray bundle, either: real laser beams are
-        Gaussian and diverge with propagation. For a beam with waist radius
-        <span class="w">w₀</span>, the far-field half-angle divergence is</p>`,
+        <p>Real laser beams are not perfectly collimated: they exhibit Gaussian
+        propagation and diverge with distance. For a beam of waist radius
+        <span class="w">w₀</span>, the far-field half-angle divergence is given by</p>`,
       formulas: [
         { tex: '\\theta \\approx \\frac{\\lambda}{\\pi w_0}', caption: 'Far-field divergence half-angle of a Gaussian beam (small-angle, TEM₀₀ mode).' },
         { tex: 'E_{\\text{photon}} = \\frac{hc}{\\lambda}', caption: 'Photon energy — why shorter wavelengths (blue, UV) carry more energy per photon than longer ones (red, IR).' },
       ],
       html2: `
-        <p>Mechanically, a laser produces this light by stimulated emission inside a
-        resonant cavity: a gain medium bounded by two mirrors amplifies a specific
-        wavelength every round trip, while losses — mirror transmission, absorption,
-        scattering — drain it. Above threshold, the pump rate at which round-trip gain
-        first equals round-trip loss, the cavity sustains the stable, highly monochromatic,
-        spatially coherent beam described above.</p>`,
+        <p>These properties originate from stimulated emission within a resonant cavity:
+        a gain medium bounded by two mirrors amplifies a specific wavelength on each round
+        trip, while losses — mirror transmission, absorption, scattering — deplete it.
+        Above threshold, the pump rate at which round-trip gain first equals round-trip
+        loss, the cavity sustains the stable, highly monochromatic, spatially coherent
+        beam described above.</p>`,
     },
     inOpticalSetup: {
       html: `
