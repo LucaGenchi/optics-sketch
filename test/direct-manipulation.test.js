@@ -26,12 +26,22 @@ test('every component exposes a resize handle backed by a real size parameter', 
   }
 });
 
-test('galvo scan amplitude is constrained without flat-topped clipping', () => {
+test('galvo scan amplitude is capped at 10 degrees regardless of the requested value', () => {
   const params = {
-    commandAngle: 30, scanMode: 'sine', scanAmplitude: 30,
+    commandAngle: 0, scanMode: 'sine', scanAmplitude: 30,
+    scanFrequencyHz: 1, scanPhaseDeg: 0,
+  };
+  assert.equal(galvoAngleAt(params, 0.25), 10);
+  assert.equal(galvoAngleAt(params, 0.75), -10);
+  assert.ok(galvoAngleAt(params, 0.125) < 10);
+});
+
+test('galvo scan amplitude is also constrained without flat-topped clipping near the mechanical limit', () => {
+  const params = {
+    commandAngle: 40, scanMode: 'sine', scanAmplitude: 10,
     scanFrequencyHz: 1, scanPhaseDeg: 0,
   };
   assert.equal(galvoAngleAt(params, 0.25), 45);
-  assert.equal(galvoAngleAt(params, 0.75), 15);
+  assert.equal(galvoAngleAt(params, 0.75), 35);
   assert.ok(galvoAngleAt(params, 0.125) < 45);
 });

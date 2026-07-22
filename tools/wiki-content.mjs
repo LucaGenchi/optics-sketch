@@ -384,4 +384,166 @@ export const wikiEntries = [
       { label: 'RP Photonics Encyclopedia — Dichroic Mirrors', url: 'https://www.rp-photonics.com/dichroic_mirrors.html' },
     ],
   },
+
+  {
+    type: 'cmirrorx',
+    title: 'Convex mirror',
+    category: 'Mirrors',
+    realWorld: {
+      html: `
+        <p>A convex (diverging) spherical mirror bulges toward the incoming light and
+        spreads a reflected beam out rather than focusing it. It obeys the same mirror
+        equation as a concave mirror, but with a negative focal length — object rays
+        reflect as if diverging from a virtual focus behind the mirror, forming an
+        upright, reduced virtual image. This is the geometry behind car passenger-side
+        mirrors and wide-field security mirrors, both chosen for their expanded field of
+        view rather than any focusing power.</p>`,
+      formulas: [
+        { tex: 'f = \\frac{R}{2} < 0, \\qquad \\frac{1}{f} = \\frac{1}{d_o} + \\frac{1}{d_i}', caption: 'Same mirror equation as the concave case, with f negative by convention.' },
+      ],
+    },
+    inOpticalSetup: {
+      html: `
+        <p>Identical implementation to the <a href="../cmirror/">concave mirror</a> —
+        exact vector reflection off the drawn line, followed by the lens-style paraxial
+        correction <span class="w">u' = u − h/f</span> — just with a negative focal
+        length, which is why the reflected beam here visibly spreads instead of
+        converging.</p>`,
+      formulas: [],
+      limitations: `<p>Same caveat as the concave mirror: the curvature drawn in the icon
+        is cosmetic, the correction is exact at every ray height (no spherical
+        aberration), and there's no wavelength- or angle-dependent reflectivity.</p>`,
+    },
+    related: ['cmirror', 'mirror', 'oap'],
+    resources: [
+      { label: 'RP Photonics Encyclopedia — Mirrors', url: 'https://www.rp-photonics.com/mirrors.html' },
+    ],
+  },
+
+  {
+    type: 'cmirror',
+    title: 'Concave mirror',
+    category: 'Mirrors',
+    realWorld: {
+      html: `
+        <p>A concave (converging) spherical mirror focuses light by reflection the same
+        way a lens focuses it by refraction. For a mirror of radius of curvature
+        <span class="w">R</span>, the paraxial focal length is half the radius, and object
+        and image distances obey the same mirror equation as a lens:</p>`,
+      formulas: [
+        { tex: 'f = \\frac{R}{2}', caption: 'Paraxial focal length from the radius of curvature.' },
+        { tex: '\\frac{1}{f} = \\frac{1}{d_o} + \\frac{1}{d_i}, \\qquad m = -\\frac{d_i}{d_o}', caption: 'The mirror equation and transverse magnification — identical in form to the thin-lens equation.' },
+      ],
+      html2: `
+        <p>That formula is only exact for rays close to the axis. A real sphere brings
+        marginal (off-axis) rays to a focus slightly closer to the mirror than paraxial
+        rays — spherical aberration — which is why fast astronomical mirrors are ground as
+        parabolas instead (see the parabolic mirror page).</p>`,
+    },
+    inOpticalSetup: {
+      html: `
+        <p>OpticalSetup reflects each ray off the mirror's drawn line using the exact
+        vector law of reflection, then applies the same paraxial ray-transfer correction
+        used by the <a href="../lens/">lens</a> element — <span class="w">u' = u −
+        h/f</span> — to the reflected direction. The visible curvature in the icon is
+        cosmetic; the ray/surface interaction happens against the flat line, with focusing
+        added afterward as a per-ray angular correction.</p>`,
+      formulas: [],
+      limitations: `<p>Because the paraxial correction is applied exactly at every ray
+        height rather than being derived from a real curved surface, this mirror has
+        <em>no</em> spherical aberration at any aperture — every parallel ray converges
+        exactly to the focal point regardless of how far it is from the axis. A real
+        spherical mirror this fast would show visible aberration; this one won't. For a
+        mirror whose curvature is actually ray-traced, see the parabolic mirror.</p>`,
+    },
+    related: ['cmirrorx', 'mirror', 'oap'],
+    resources: [
+      { label: 'RP Photonics Encyclopedia — Mirrors', url: 'https://www.rp-photonics.com/mirrors.html' },
+    ],
+  },
+
+  {
+    type: 'oap',
+    title: 'Parabolic mirror',
+    category: 'Mirrors',
+    realWorld: {
+      html: `
+        <p>A parabola has an exact geometric property a sphere only approximates: every
+        ray traveling parallel to its axis, at <em>any</em> distance from that axis,
+        reflects through a single focus. There is no spherical aberration to correct for,
+        which is why fast telescope primaries, off-axis paraboloid (OAP) mirrors in
+        ultrafast laser labs, and satellite dishes are all parabolic rather than
+        spherical. In this 2D side view, the mirror profile is the parabola with vertex at
+        the origin and focus a distance <span class="w">f</span> behind it:</p>`,
+      formulas: [
+        { tex: 'x = -\\frac{y^{2}}{4f}', caption: 'The parabola profile traced by the mirror, opening toward the incoming beam.' },
+      ],
+    },
+    inOpticalSetup: {
+      html: `
+        <p>Unlike the concave and convex mirrors, which reflect off a single flat line
+        and add focusing as a separate paraxial correction, the parabolic mirror is
+        <strong>traced as its real geometric curve</strong> — split into a chain of short
+        flat segments, each obeying the exact vector law of reflection. A collimated beam
+        genuinely converges to the focus through real reflection geometry at every ray
+        height, with no paraxial approximation involved.</p>`,
+      formulas: [],
+      limitations: `<p>This is closer to first-principles optics than most elements in the
+        library, but it's still a 2D on-axis cross-section — a real OAP is typically an
+        off-axis section of a 3D paraboloid, which this side view can't represent. The
+        curve is also faceted into a finite number of straight segments rather than
+        perfectly smooth; the segment count scales with size and focal length to keep
+        faceting error negligible for realistic apertures, but an extremely fast mirror
+        sampled too coarsely could show it.</p>`,
+    },
+    related: ['cmirror', 'cmirrorx', 'mirror'],
+    resources: [
+      { label: 'RP Photonics Encyclopedia — Mirrors', url: 'https://www.rp-photonics.com/mirrors.html' },
+    ],
+  },
+
+  {
+    type: 'galvo',
+    title: 'Galvo mirror',
+    category: 'Mirrors',
+    realWorld: {
+      html: `
+        <p>A galvanometer scanner ("galvo") is a small mirror mounted on a limited-rotation
+        motor, used to steer a beam electronically instead of by hand — the core
+        building block of laser scanning microscopes, laser marking and cutting systems,
+        LiDAR, and laser light shows. Because reflection doubles an angle change, a small
+        mechanical rotation produces twice as much angular deflection in the reflected
+        beam:</p>`,
+      formulas: [
+        { tex: '\\theta_{\\text{beam}} = 2\\,\\theta_{\\text{mechanical}}', caption: 'The optical scan angle is always twice the mechanical mirror rotation — the same doubling that applies to any steering mirror.' },
+      ],
+      html2: `
+        <p>Real galvo systems pair two mirrors on perpendicular axes (X and Y) to raster-
+        or vector-scan a beam over a 2D field, and their achievable speed is limited by
+        the mirror's rotational inertia — large, fast angular steps take longer to settle
+        than small ones.</p>`,
+    },
+    inOpticalSetup: {
+      html: `
+        <p>The galvo reflects rays with the same exact vector law of reflection as a
+        plain mirror, but its surface angle is recomputed every frame from a configurable
+        command: <em>Static</em> holds a fixed mechanical angle; <em>Sine</em> and
+        <em>Triangle</em> continuously sweep it around that center at a set frequency and
+        peak amplitude. In sweep mode the mirror actually rotates and the reflected beam
+        visibly sweeps back and forth on its own — this is the one component in the
+        library that animates continuously in real time, driven by its own clock rather
+        than the pulse-timing playback controls used elsewhere.</p>`,
+      formulas: [],
+      limitations: `<p>The peak mechanical sweep is capped at 10°, and defaults to a
+        modest 1° — enough to demonstrate scanning clearly without the swing dominating a
+        sketch. There's no modeled inertia, bandwidth, or settling time: the mirror
+        follows the commanded sine or triangle wave instantly and perfectly at any
+        frequency, which a real galvo's mechanical response could not do.</p>`,
+    },
+    related: ['mirror', 'cmirror', 'cmirrorx'],
+    resources: [
+      { label: 'RP Photonics Encyclopedia — Mirrors', url: 'https://www.rp-photonics.com/mirrors.html' },
+      { label: 'RP Photonics Encyclopedia — Laser Beam Delivery', url: 'https://www.rp-photonics.com/laser_beam_delivery.html' },
+    ],
+  },
 ];

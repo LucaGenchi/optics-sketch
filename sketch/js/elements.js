@@ -280,7 +280,7 @@ export function galvoAngleAt(params = {}, timeSeconds = 0) {
   if (params.scanMode !== 'sine' && params.scanMode !== 'triangle') {
     return Math.min(45, Math.max(-45, center));
   }
-  const amplitude = Math.min(30, 45 - Math.abs(center),
+  const amplitude = Math.min(10, 45 - Math.abs(center),
     Math.max(0, Number.isFinite(params.scanAmplitude) ? params.scanAmplitude : 0));
   const frequency = Math.min(200, Math.max(0.01, Number.isFinite(params.scanFrequencyHz) ? params.scanFrequencyHz : 1));
   const phase = (Number.isFinite(params.scanPhaseDeg) ? params.scanPhaseDeg : 0) * Math.PI / 180;
@@ -380,7 +380,7 @@ export const registry = {
 
   // ---------------- Mirrors ----------------
   mirror: {
-    label: 'Mirror', category: 'Mirrors', size: { w: 14, h: 56 },
+    label: 'Mirror', category: 'Mirrors', paletteOrder: 0, size: { w: 14, h: 56 },
     params: [
       { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
       { key: 'refl', label: 'Reflectivity (%)', type: 'number', min: 1, max: 100, step: 1, def: 100 },
@@ -398,7 +398,7 @@ export const registry = {
   },
 
   galvo: {
-    label: 'Galvo mirror', category: 'Mirrors', size: { w: 30, h: 40 },
+    label: 'Galvo mirror', category: 'Mirrors', paletteOrder: 4, size: { w: 30, h: 40 },
     size_: el => {
       const L = Math.max(6, el.params.length || 20);
       const sweep = Math.abs(el.params.commandAngle || 0) + (el.params.scanMode === 'static' ? 0 : Math.abs(el.params.scanAmplitude || 0));
@@ -409,7 +409,7 @@ export const registry = {
       { key: 'length', label: 'Mirror size (mm)', type: 'number', min: 6, max: 60, step: 2, def: 20 },
       { key: 'commandAngle', label: 'Center mechanical angle (°)', type: 'number', min: -30, max: 30, step: 0.5, def: 0 },
       { key: 'scanMode', label: 'Scan waveform', type: 'select', def: 'static', options: [['static', 'Static'], ['sine', 'Sine scan'], ['triangle', 'Triangle scan']] },
-      { key: 'scanAmplitude', label: 'Peak mechanical sweep (°)', type: 'number', min: 0, max: 30, step: 0.5, def: 10, show: p => p.scanMode !== 'static' },
+      { key: 'scanAmplitude', label: 'Peak mechanical sweep (°)', type: 'number', min: 0, max: 10, step: 0.5, def: 1, show: p => p.scanMode !== 'static' },
       { key: 'scanFrequencyHz', label: 'Scan frequency (Hz)', type: 'number', min: 0.01, max: 200, step: 0.1, def: 1, show: p => p.scanMode !== 'static' },
       { key: 'scanPhaseDeg', label: 'Scan phase (°)', type: 'number', min: -360, max: 360, step: 5, def: 0, show: p => p.scanMode !== 'static' },
     ],
@@ -430,7 +430,7 @@ export const registry = {
   },
 
   cmirrorx: {
-    label: 'Convex mirror', category: 'Mirrors', size: { w: 18, h: 56 },
+    label: 'Convex mirror', category: 'Mirrors', paletteOrder: 1, size: { w: 18, h: 56 },
     params: [
       { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
       { key: 'f', label: 'Focal length (mm)', type: 'number', min: 5, max: 2000, step: 5, def: -100, negative: true },
@@ -448,7 +448,7 @@ export const registry = {
   },
 
   cmirror: {
-    label: 'Concave mirror', category: 'Mirrors', size: { w: 18, h: 56 },
+    label: 'Concave mirror', category: 'Mirrors', paletteOrder: 2, size: { w: 18, h: 56 },
     params: [
       { key: 'length', label: 'Optic size', type: 'optsize', def: 25.4 },
       { key: 'f', label: 'Focal length (mm)', type: 'number', min: 5, max: 2000, step: 5, def: 100 },
@@ -466,7 +466,7 @@ export const registry = {
   },
 
   oap: {
-    label: 'Parabolic mirror', category: 'Mirrors', size: { w: 40, h: 90 },
+    label: 'Parabolic mirror', category: 'Mirrors', paletteOrder: 3, size: { w: 40, h: 90 },
     params: [
       { key: 'length', label: 'Optic size', type: 'optsize', def: 80 },
       { key: 'f', label: 'Focal length (mm)', type: 'number', min: 5, max: 2000, step: 5, def: 50 },
