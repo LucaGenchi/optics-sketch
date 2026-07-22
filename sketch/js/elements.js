@@ -514,7 +514,7 @@ export const registry = {
 
   // ---------------- Lenses ----------------
   lens: {
-    label: 'Lens', category: 'Lenses', size: { w: 18, h: 56 },
+    label: 'Convex lens', category: 'Lenses', paletteOrder: 0, size: { w: 18, h: 56 },
     params: [
       { key: 'f', label: 'Focal length (mm)', type: 'number', min: -3000, max: 3000, step: 5, def: 100 },
       { key: 'dia', label: 'Diameter', type: 'optsize', def: 25.4 },
@@ -528,10 +528,10 @@ export const registry = {
   },
 
   telescope: {
-    label: 'Telescope (lens pair)', category: 'Lenses', size: { w: 174, h: 62 },
+    label: 'Telescope (lens pair)', category: 'Lenses', paletteOrder: 2, size: { w: 174, h: 62 },
     size_: el => ({ w: Math.max(30, el.params.f1 + el.params.f2) + 26, h: (el.params.dia || 25.4) + 10 }),
     params: [
-      { key: 'f1', label: 'Lens 1 focal (mm)', type: 'number', min: 5, max: 3000, step: 5, def: 100 },
+      { key: 'f1', label: 'Lens 1 focal (mm)', type: 'number', min: -3000, max: 3000, step: 5, def: 100 },
       { key: 'f2', label: 'Lens 2 focal (mm)', type: 'number', min: -3000, max: 3000, step: 5, def: 50 },
       { key: 'dia', label: 'Lens diameter', type: 'optsize', def: 25.4 },
     ],
@@ -550,7 +550,7 @@ export const registry = {
   },
 
   objective: {
-    label: 'Objective', category: 'Lenses', size: { w: 36, h: 40 },
+    label: 'Objective', category: 'Lenses', paletteOrder: 3, size: { w: 36, h: 40 },
     snapPt: { x: -16, y: 0 }, // lens plane
     size_: el => ({ w: 36, h: (el.params.aperture || 20) + 20 }),
     params: [
@@ -1480,6 +1480,7 @@ export const registry = {
 registry.lensc = {
   ...registry.lens,
   label: 'Concave lens',
+  paletteOrder: 1,
   params: registry.lens.params.map(p => (p.key === 'f' ? { ...p, def: -100 } : p)),
 };
 

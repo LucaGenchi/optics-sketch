@@ -91,7 +91,7 @@ export const wikiEntries = [
 
   {
     type: 'lens',
-    title: 'Lens',
+    title: 'Convex lens',
     category: 'Lenses',
     realWorld: {
       html: `
