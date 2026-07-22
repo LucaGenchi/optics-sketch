@@ -112,22 +112,27 @@ const layersParam = { key: 'layers', label: 'Optical function', type: 'layers', 
 // object shapes for image-formation diagrams, in unit coords:
 // base at (0,0), tip at (0,-1); the traced image redraws the same shape
 // scaled by the magnification (negative m = inverted)
+// Normalized around y = 0 (the object's anchor, also the ray fan's origin):
+// a shape spanning the full "height" param extends ±0.5 of it either side,
+// so a 20mm-tall shape sits 10mm above and 10mm below the point that's
+// actually irradiating — both the live icon (svg() below) and the redrawn
+// image at the image plane (raytrace.js) read these same coordinates.
 export const OBJ_SHAPES = {
   arrow: {
-    lines: [[[0, 0], [0, -0.72]]],
-    polys: [[[0, -1], [-0.17, -0.66], [0.17, -0.66]]],
+    lines: [[[0, 0.5], [0, -0.22]]],
+    polys: [[[0, -0.5], [-0.17, -0.16], [0.17, -0.16]]],
   },
   F: {
-    lines: [[[-0.06, 0], [-0.06, -1]], [[-0.06, -1], [0.42, -1]], [[-0.06, -0.55], [0.3, -0.55]]],
+    lines: [[[-0.06, 0.5], [-0.06, -0.5]], [[-0.06, -0.5], [0.42, -0.5]], [[-0.06, -0.05], [0.3, -0.05]]],
     polys: [],
   },
   tree: {
     // fir tree: short trunk + three stacked crown tiers
-    lines: [[[0, 0], [0, -0.28]]],
+    lines: [[[0, 0.5], [0, 0.22]]],
     polys: [
-      [[-0.36, -0.24], [0.36, -0.24], [0, -0.58]],
-      [[-0.28, -0.48], [0.28, -0.48], [0, -0.8]],
-      [[-0.2, -0.7], [0.2, -0.7], [0, -1]],
+      [[-0.36, 0.26], [0.36, 0.26], [0, -0.08]],
+      [[-0.28, 0.02], [0.28, 0.02], [0, -0.3]],
+      [[-0.2, -0.2], [0.2, -0.2], [0, -0.5]],
     ],
   },
 };
