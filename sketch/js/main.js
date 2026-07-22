@@ -9,11 +9,12 @@ import {
   getPulsePlayback, setPulsePlaying, setPulseSpeed, setPulseDisplayMode, resetPulseTime,
 } from './canvas.js';
 import { initInspector, renderInspector, refreshMeasurements } from './inspector.js';
-import { exportSVG, exportPNG } from './export.js';
+import { buildSVG, exportSVG, exportPNG } from './export.js';
 import { examples } from './examples.js';
 import { download, esc } from './util.js';
 import { buildShareURL, copyText, sharedSceneFromURL } from './share.js';
 import { qrSVG } from './qr.js';
+import { buildExampleProposalIssueURL } from './proposal.js';
 
 const $ = id => document.getElementById(id);
 
@@ -367,6 +368,8 @@ const hasScene = () => state.elements.length > 0 || state.beams.length > 0;
 function syncToolbar() {
   $('btnUndo').disabled = !canUndo();
   $('btnRedo').disabled = !canRedo();
+  $('btnPropose').disabled = !hasScene();
+  $('btnMobilePropose').disabled = !hasScene();
   for (const [id, pressed] of [['btnGrid', state.showGrid], ['btnSnap', state.snap], ['btnFocal', state.showFocal]]) {
     const button = $(id);
     button.classList.toggle('active', pressed);
@@ -407,6 +410,46 @@ function bindToolbar() {
     shareQrSvg,
     'image/svg+xml',
   ));
+  const proposalDialog = $('proposalDialog');
+  const proposalForm = $('proposalForm');
+  const closeProposal = () => proposalDialog.close();
+  $('proposalClose').addEventListener('click', closeProposal);
+  $('proposalCancel').addEventListener('click', closeProposal);
+  proposalDialog.addEventListener('click', event => { if (event.target === proposalDialog) closeProposal(); });
+  $('btnPropose').addEventListener('click', () => {
+    if (!hasScene()) return;
+    proposalForm.reset();
+    $('proposalError').hidden = true;
+    proposalDialog.showModal();
+    $('proposalName').focus();
+  });
+  proposalForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!proposalForm.reportValidity()) return;
+    const submit = $('proposalSubmit');
+    const error = $('proposalError');
+    submit.disabled = true;
+    submit.textContent = 'Preparing setup…';
+    error.hidden = true;
+    try {
+      const sketch = serialize();
+      parseSketch(sketch, registry);
+      const svg = buildSVG();
+      if (/\b(?:NaN|Infinity)\b/.test(svg)) throw new Error('The setup contains invalid geometry');
+      const setupURL = await buildShareURL(sketch, 'https://opticalsetup.com/sketch/');
+      const issueURL = buildExampleProposalIssueURL({
+        name: $('proposalName').value,
+        description: $('proposalDescription').value,
+        shareURL: setupURL,
+      });
+      window.location.assign(issueURL);
+    } catch (err) {
+      error.textContent = err.message || 'Could not prepare the GitHub proposal.';
+      error.hidden = false;
+      submit.disabled = false;
+      submit.innerHTML = 'Continue on GitHub <span aria-hidden="true">↗</span>';
+    }
+  });
   $('btnNew').addEventListener('click', () => {
     if (!hasScene()) { cancelTool(); return; }
     if (!confirm('Clear the current sketch? (Undo brings it back.)')) return;
@@ -483,7 +526,7 @@ function bindToolbar() {
   mobileMenu.querySelectorAll('[data-mobile-action]').forEach(button => {
     button.addEventListener('click', () => {
       const target = {
-        new: 'btnNew', open: 'btnOpen', save: 'btnSave', share: 'btnShare', svg: 'btnSVG', png: 'btnPNG',
+        new: 'btnNew', open: 'btnOpen', save: 'btnSave', share: 'btnShare', propose: 'btnPropose', svg: 'btnSVG', png: 'btnPNG',
       }[button.dataset.mobileAction];
       $(target)?.click();
       mobileMenu.close();
