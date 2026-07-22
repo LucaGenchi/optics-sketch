@@ -61,6 +61,10 @@ a { color: var(--accent); }
 .mark-ink { stroke: var(--ink); }
 .mark-accent { stroke: var(--accent); }
 
+.header-actions { display: flex; align-items: center; gap: 18px; }
+.header-link { color: var(--muted); font-weight: 600; font-size: 14px; text-decoration: none; }
+.header-link:hover { color: var(--text); }
+
 .btn {
   display: inline-flex;
   align-items: center;

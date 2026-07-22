@@ -474,3 +474,28 @@ main { flex: 1; display: flex; min-height: 0; position: relative; }
 .btnrow { display: flex; gap: 8px; margin-top: 14px; }
 .btnrow button { flex: 1; }
 .hint { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 6px; }
+
+.wiki-link {
+  display: block;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+.wiki-link:hover { text-decoration: underline; }
+
+/* Wiki embed: a single fixed, non-editable-position component. Hide
+   everything that would let the visitor add, move, or delete anything. */
+body.demo-mode #palette,
+body.demo-mode #toolbar .examples-group,
+body.demo-mode #toolbar .file-group,
+body.demo-mode #toolbar .draw-group,
+body.demo-mode #toolbar .export-group,
+body.demo-mode #toolbar .history-group,
+body.demo-mode #btnAdd,
+body.demo-mode #btnTrash,
+body.demo-mode #btnMobileMenu {
+  display: none !important;
+}

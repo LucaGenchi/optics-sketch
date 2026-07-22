@@ -887,7 +887,7 @@ function onDown(e) {
   // Shift can constrain a point drag to 45° drafting directions.
   const selectedBeforeHit = findSelected();
   const selectedPointIndex = hitElementEditPoint(selectedBeforeHit, w);
-  if (selectedPointIndex >= 0) {
+  if (selectedPointIndex >= 0 && !state.demoMode) {
     const editor = registry[selectedBeforeHit.type].editPoints;
     drag = {
       mode: 'editpoint', el: selectedBeforeHit, editor, i: selectedPointIndex,
@@ -899,7 +899,7 @@ function onDown(e) {
   }
 
   // shift interactions: toggle membership on objects, marquee on empty space
-  if (e.shiftKey) {
+  if (e.shiftKey && !state.demoMode) {
     const elHit = hitElement(w);
     const bHit = elHit ? null : hitBeam(w);
     if (elHit || bHit) {
@@ -959,7 +959,7 @@ function onDown(e) {
     return;
   }
   // rotation handle?
-  if (hitRotHandle(sel, w)) {
+  if (hitRotHandle(sel, w) && !state.demoMode) {
     drag = { mode: 'rotate', el: sel, moved: false };
     svg.setPointerCapture(e.pointerId);
     return;
@@ -975,13 +975,15 @@ function onDown(e) {
   const el = hitElement(w);
   if (el) {
     state.selection = { kind: 'element', id: el.id };
-    drag = { mode: 'move', el, ox: el.x - w.x, oy: el.y - w.y, moved: false };
-    svg.setPointerCapture(e.pointerId);
+    if (!state.demoMode) {
+      drag = { mode: 'move', el, ox: el.x - w.x, oy: el.y - w.y, moved: false };
+      svg.setPointerCapture(e.pointerId);
+    }
     renderAll(); onSelectionChange({ openMobile: e.pointerType !== 'touch' });
     return;
   }
   // manual beam?
-  const b = hitBeam(w);
+  const b = state.demoMode ? null : hitBeam(w);
   if (b) {
     state.selection = { kind: 'beam', id: b.id };
     drag = { mode: 'movebeam', beam: b, lx: w.x, ly: w.y, moved: false };

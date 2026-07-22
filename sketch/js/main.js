@@ -17,6 +17,73 @@ import { qrSVG } from './qr.js';
 
 const $ = id => document.getElementById(id);
 
+// ---------- wiki embed scenes ----------
+// Each demo needs a light source (and sometimes a second one, or a probe)
+// so the showcased component's actual optical function is visible, not
+// just its icon sitting in empty space. The showcased component keeps its
+// registry type unique within its own scene, so it can be found again by
+// type after the scene is built (see isDemo boot below).
+function mkDemo(type, x, y, rot = 0, params = {}, extra = {}) {
+  const e = createElement(type, x, y);
+  e.rot = rot;
+  Object.assign(e.params, params);
+  Object.assign(e, extra);
+  return e;
+}
+
+const demoScenes = {
+  mirror: () => [
+    mkDemo('laser', 60, 150, 0),
+    mkDemo('mirror', 220, 150, 45, { length: 50.8 }),
+  ],
+  lens: () => [
+    mkDemo('laser', 60, 220, 0, { beamMode: 'beam', beamWidth: 20 }),
+    mkDemo('lens', 220, 220, 0, { f: 100, dia: 40 }),
+    mkDemo('box', 320, 220, 0, { text: '', w: 2, h: 60, behavior: 'block', fill: '#c9d4e0' }, { label: 'focus (f = 100 mm)', showLabel: true, labelPos: 't' }),
+  ],
+  bs: () => [
+    mkDemo('laser', 60, 200, 0),
+    mkDemo('bs', 220, 200, 0, { ratio: 0.5 }),
+    mkDemo('detector', 380, 200, 0, {}, { label: 'transmitted', showLabel: true }),
+    mkDemo('detector', 220, 60, -90, {}, { label: 'reflected', showLabel: true, labelPos: 'l' }),
+  ],
+  dichroic: () => [
+    mkDemo('laser', 60, 220, 0, { wavelength: 650 }, { label: 'transmitted (650 nm)', showLabel: true }),
+    mkDemo('laser', 260, 60, 90, { wavelength: 450 }, { label: 'reflected (450 nm)', showLabel: true, labelPos: 'l' }),
+    mkDemo('dichroic', 260, 220, -45, { length: 50.8 }),
+  ],
+  prism: () => [
+    mkDemo('laser', 60, 200, 0, { bwMode: 'sc' }),
+    mkDemo('prism', 220, 206, 0, { apex: 55, psize: 50 }),
+    mkDemo('box', 480, 405, 0, { text: '', w: 10, h: 150, behavior: 'block', fill: '#f2f3f5' }, { label: 'screen', showLabel: true, labelPos: 'r' }),
+  ],
+  grating: () => [
+    mkDemo('laser', 60, 200, 0, { bwMode: 'sc' }),
+    mkDemo('grating', 220, 200, 0, { orders: '-1,0,1', transmissive: true }),
+    mkDemo('box', 340, 200, 0, { text: '', w: 10, h: 260, behavior: 'block', fill: '#f2f3f5' }, { label: 'screen', showLabel: true, labelPos: 'r' }),
+  ],
+  polarizer: () => [
+    mkDemo('laser', 60, 200, 0, { pol: 0 }),
+    mkDemo('probe', 150, 200, 0, { prop: 'pol' }),
+    mkDemo('polarizer', 240, 200, 0, { pangle: 90 }),
+    mkDemo('detector', 360, 200, 0, {}, { label: 'transmitted power', showLabel: true }),
+  ],
+  aom: () => [
+    mkDemo('laser', 60, 200, 0, {
+      temporalMode: 'pulsed', repRateMHz: 80, pulseWidthFs: 100,
+    }),
+    mkDemo('aom', 220, 200, 0, {
+      deflect: 15, rfMHz: 80, zero: true, eff: 1,
+      modulate: true, modShape: 'square', modFreqMHz: 40,
+    }),
+    mkDemo('box', 370, 200, 0, { text: '', w: 10, h: 90, behavior: 'block', fill: '#f2f3f5' }, { label: '1st order (deflected) + 0th order', showLabel: true, labelPos: 'r' }),
+  ],
+  detector: () => [
+    mkDemo('laser', 60, 200, 0),
+    mkDemo('detector', 220, 200, 0),
+  ],
+};
+
 // ---------- palette ----------
 function buildPalette() {
   const pal = $('paletteContent');
@@ -174,6 +241,7 @@ function renderSelection(detail = {}) {
 
 // ---------- selection / deletion ----------
 function deleteSelected() {
+  if (state.demoMode) return;
   const s = state.selection;
   if (s?.kind === 'multi') {
     pushUndo();
@@ -197,6 +265,7 @@ function deleteSelected() {
 const newId = pre => pre + Math.random().toString(36).slice(2, 9);
 
 function duplicateSelected() {
+  if (state.demoMode) return;
   const s = state.selection;
   if (s?.kind === 'multi') {
     const hasDuplicable = s.beams.length || s.els.some(id => {
@@ -247,6 +316,7 @@ function duplicateSelected() {
 }
 
 function rotateSelected(deg) {
+  if (state.demoMode) return;
   if (isPlacing()) { rotatePlacing(deg); return; }
   const sel = findSelected();
   if (!sel || state.selection.kind !== 'element') return;
@@ -258,6 +328,7 @@ function rotateSelected(deg) {
 }
 
 function nudgeSelected(dx, dy) {
+  if (state.demoMode) return;
   const s = state.selection;
   if (s?.kind === 'multi') {
     pushUndo();
@@ -513,7 +584,7 @@ function bindContextMenu() {
   const hide = () => { menu.hidden = true; };
   document.addEventListener('optics:contextmenu', event => {
     const detail = event.detail;
-    if (!detail) { hide(); return; }
+    if (!detail || state.demoMode) { hide(); return; }
     const rect = wrap.getBoundingClientRect();
     const rotate = menu.querySelector('[data-action="rotate"]');
     const duplicate = menu.querySelector('[data-action="duplicate"]');
@@ -557,51 +628,83 @@ document.addEventListener('optics:pulsestate', e => syncPulseControls(e.detail))
 
 // ---------- boot ----------
 window.addEventListener('DOMContentLoaded', async () => {
+  const params = new URLSearchParams(location.search);
+  const demoType = params.get('demo');
+  const isDemo = Boolean(demoType && registry[demoType] && !registry[demoType].hidden);
+
   initCanvas($('canvas'), $('status'));
   initInspector($('inspectorContent'));
-  buildPalette();
+  if (isDemo) {
+    state.demoMode = true;
+    document.body.classList.add('demo-mode');
+  } else {
+    buildPalette();
+  }
   syncToolMode();
     bindToolbar();
     bindContextMenu();
-  bindExamples();
+  if (!isDemo) bindExamples();
   bindKeys();
   setSelectionCallback(renderSelection);
   onChange(() => { renderAll(); syncToolbar(); refreshMeasurements(); });
 
-  let sharedScene = null;
-  try {
-    const sharedText = await sharedSceneFromURL();
-    if (sharedText) sharedScene = parseSketch(sharedText, registry);
-  } catch (err) {
-    alert('Could not open shared sketch: ' + err.message);
-  }
+  if (isDemo) {
+    // Wiki embed: a small fixed scene — a light source plus the showcased
+    // component, so its actual optical function is visible — with no way
+    // to add/move/delete anything. See state.demoMode call sites in this
+    // file and canvas.js for what's disabled.
+    const build = demoScenes[demoType];
+    const sceneElements = build ? build() : [createElement(demoType, 0, 0)];
+    state.elements.push(...sceneElements);
+    const hero = sceneElements.find(e => e.type === demoType) || sceneElements[0];
+    state.selection = { kind: 'element', id: hero.id };
+  } else {
+    let sharedScene = null;
+    try {
+      const sharedText = await sharedSceneFromURL();
+      if (sharedText) sharedScene = parseSketch(sharedText, registry);
+    } catch (err) {
+      alert('Could not open shared sketch: ' + err.message);
+    }
 
-  if (sharedScene) {
-    replaceScene(sharedScene, { resetHistory: true });
-    zoomFit();
-  } else if (!loadAutosave(registry)) {
-    // starter scene: laser -> lens -> beamsplitter -> two detection arms
-    const mk = (t, x, y, rot = 0, params = {}, label = '') => {
-      const e = createElement(t, x, y); e.rot = rot; Object.assign(e.params, params);
-      if (label) { e.label = label; e.showLabel = true; }
-      return e;
-    };
-    state.elements.push(
-      mk('laser', 75, 200, 0, { wavelength: 488 }, 'Laser 488 nm'),
-      mk('lens', 275, 200, 0, { f: 150 }, 'f = 150 mm'),
-      mk('bs', 425, 200, 0),
-      mk('mirror', 625, 200, 135),
-      mk('filter', 625, 330, 90, { ftype: 'bandpass', center: 488, band: 20 }),
-      mk('detector', 625, 430, 90, {}, 'PD'),
-      mk('dichroic', 425, 75, 45, { dtype: 'longpass', cutoff: 550 }),
-      mk('pmt', 600, 75, 0, {}, 'PMT'),
-    );
+    if (sharedScene) {
+      replaceScene(sharedScene, { resetHistory: true });
+      zoomFit();
+    } else if (!loadAutosave(registry)) {
+      // starter scene: laser -> lens -> beamsplitter -> two detection arms
+      const mk = (t, x, y, rot = 0, params = {}, label = '') => {
+        const e = createElement(t, x, y); e.rot = rot; Object.assign(e.params, params);
+        if (label) { e.label = label; e.showLabel = true; }
+        return e;
+      };
+      state.elements.push(
+        mk('laser', 75, 200, 0, { wavelength: 488 }, 'Laser 488 nm'),
+        mk('lens', 275, 200, 0, { f: 150 }, 'f = 150 mm'),
+        mk('bs', 425, 200, 0),
+        mk('mirror', 625, 200, 135),
+        mk('filter', 625, 330, 90, { ftype: 'bandpass', center: 488, band: 20 }),
+        mk('detector', 625, 430, 90, {}, 'PD'),
+        mk('dichroic', 425, 75, 45, { dtype: 'longpass', cutoff: 550 }),
+        mk('pmt', 600, 75, 0, {}, 'PMT'),
+      );
+    }
   }
   renderAll();
   renderSelection();
   syncToolbar();
   syncPulseControls();
   syncMobileSheets();
+
+  if (isDemo) {
+    zoomFit();
+  } else {
+    // Deep link from the wiki ("Open in the canvas" on a component page):
+    // ?place=<type> arms the placement tool for that component on load.
+    const placeType = params.get('place');
+    if (placeType && registry[placeType] && !registry[placeType].hidden) {
+      startPlacing(placeType);
+    }
+  }
   window.addEventListener('resize', () => {
     renderAll();
     if (!isMobileLayout()) {

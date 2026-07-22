@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Optics Encyclopedia — OpticalSetup</title>
+<meta name="description" content="Real-world physics, formulas, and exactly how each optical component is modeled in OpticalSetup's live ray-tracing canvas.">
+<link rel="canonical" href="https://opticalsetup.com/wiki/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Optics Encyclopedia — OpticalSetup">
+<meta property="og:description" content="Real-world physics, formulas, and exactly how each optical component is modeled in OpticalSetup's live ray-tracing canvas.">
+<meta property="og:url" content="https://opticalsetup.com/wiki/">
+<meta property="og:image" content="https://opticalsetup.com/assets/og-image.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 130 85'%3E%3Cg stroke='%231361fa' stroke-width='6' stroke-linecap='round'%3E%3Cline x1='22' y1='45' x2='29' y2='45'/%3E%3Cline x1='18' y1='49' x2='18' y2='56'/%3E%3Cline x1='14' y1='45' x2='7' y2='45'/%3E%3Cline x1='18' y1='41' x2='18' y2='34'/%3E%3C/g%3E%3Cline x1='29' y1='45' x2='77' y2='45' stroke='%231361fa' stroke-width='6' stroke-linecap='round'/%3E%3Cpolygon points='64,12 42,68 86,68' fill='none' stroke='%230a1a33' stroke-width='7' stroke-linejoin='round'/%3E%3Cg stroke='%231361fa' stroke-width='4' stroke-linecap='round'%3E%3Cline x1='77' y1='45' x2='112' y2='28'/%3E%3Cline x1='77' y1='45' x2='112' y2='45'/%3E%3Cline x1='77' y1='45' x2='112' y2='62'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="../wiki/assets/wiki.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <a class="brand" href="../">
+  <svg class="brand-mark" viewBox="0 0 130 85" aria-hidden="true">
+    <g stroke="#1361fa" stroke-width="6" stroke-linecap="round">
+      <line x1="22" y1="45" x2="29" y2="45"/><line x1="18" y1="49" x2="18" y2="56"/>
+      <line x1="14" y1="45" x2="7" y2="45"/><line x1="18" y1="41" x2="18" y2="34"/>
+    </g>
+    <line x1="29" y1="45" x2="77" y2="45" stroke="#1361fa" stroke-width="6" stroke-linecap="round"/>
+    <polygon points="64,12 42,68 86,68" fill="none" stroke="#0a1a33" stroke-width="7" stroke-linejoin="round"/>
+    <g stroke="#1361fa" stroke-width="4" stroke-linecap="round">
+      <line x1="77" y1="45" x2="112" y2="28"/><line x1="77" y1="45" x2="112" y2="45"/><line x1="77" y1="45" x2="112" y2="62"/>
+    </g>
+  </svg><span class="brand-ink">Optical</span><span class="brand-accent">Setup</span></a>
+    <div class="header-actions">
+      <a class="plain" href="../wiki/">Wiki</a>
+      <a class="btn" href="../sketch/">Open the canvas</a>
+    </div>
+  </header>
+  <div class="wiki-shell" style="grid-template-columns: 1fr;">
+    <div>
+      <div class="hub-hero">
+        <h1>The optics encyclopedia behind the canvas</h1>
+        <p>Real-world physics and formulas for each component, paired with exactly how OpticalSetup models it — including where the simulation simplifies reality. Open any page straight into the live canvas.</p>
+      </div>
+      <div class="hub-groups">
+        
+        <div class="hub-group" id="sources">
+          <h2>Sources</h2>
+          <div class="hub-grid">
+            <a class="hub-card" href="../wiki/laser/">
+                <span class="ic"><svg viewBox="-58 -58 116 116" aria-hidden="true"><rect x="-46" y="-17" width="92" height="34" rx="4" fill="#3a3f46" stroke="#22252a" stroke-width="1.5"/><text x="0" y="0"  text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="700" letter-spacing="1.5" fill="#fff">LASER</text><rect x="46" y="-6" width="5" height="12" fill="#666" stroke="#444" stroke-width="1"/></svg></span>
+                <span class="info"><span class="name">Laser</span><span class="desc">Emits a CW or pulsed monochromatic, broadband, supercontinuum, or sized collimated beam.</span></span>
+              </a>
+          </div>
+        </div>
+        <div class="hub-group" id="mirrors">
+          <h2>Mirrors</h2>
+          <div class="hub-grid">
+            <a class="hub-card" href="../wiki/mirror/">
+                <span class="ic"><svg viewBox="-21.7 -21.7 43.4 43.4" aria-hidden="true"><line x1="0" y1="-12.7" x2="0" y2="12.7" stroke="#444" stroke-width="3.5" /><line x1="-1.5" y1="-12.7" x2="-7.5" y2="-6.699999999999999" stroke="#888" stroke-width="1"/><line x1="-1.5" y1="-6.233333333333333" x2="-7.5" y2="-0.2333333333333334" stroke="#888" stroke-width="1"/><line x1="-1.5" y1="0.2333333333333325" x2="-7.5" y2="6.2333333333333325" stroke="#888" stroke-width="1"/><line x1="-1.5" y1="6.699999999999999" x2="-7.5" y2="12.7" stroke="#888" stroke-width="1"/></svg></span>
+                <span class="info"><span class="name">Mirror</span><span class="desc">Reflects rays with configurable size and reflectivity.</span></span>
+              </a>
+          </div>
+        </div>
+        <div class="hub-group" id="lenses">
+          <h2>Lenses</h2>
+          <div class="hub-grid">
+            <a class="hub-card" href="../wiki/lens/">
+                <span class="ic"><svg viewBox="-21.7 -21.7 43.4 43.4" aria-hidden="true"><path d="M 0,-12.7 Q 9,0 0,12.7 Q -9,0 0,-12.7 Z" fill="#c9e4f5" stroke="#4a90c4" stroke-width="1.5"/></svg></span>
+                <span class="info"><span class="name">Lens</span><span class="desc">Bends rays with a thin-lens, paraxial focal-length model.</span></span>
+              </a>
+          </div>
+        </div>
+        <div class="hub-group" id="filters-splitters">
+          <h2>Filters &amp; Splitters</h2>
+          <div class="hub-grid">
+            <a class="hub-card" href="../wiki/bs/">
+                <span class="ic"><svg viewBox="-20.7 -20.7 41.4 41.4" aria-hidden="true"><rect x="-12.7" y="-12.7" width="25.4" height="25.4" fill="#c9e4f5" stroke="#4a90c4" stroke-width="1.5"/><line x1="-12.7" y1="12.7" x2="12.7" y2="-12.7" stroke="#4a90c4" stroke-width="1.5"/></svg></span>
+                <span class="info"><span class="name">Beamsplitter</span><span class="desc">Splits incident light into transmitted and reflected branches.</span></span>
+              </a><a class="hub-card" href="../wiki/dichroic/">
+                <span class="ic"><svg viewBox="-21.7 -21.7 43.4 43.4" aria-hidden="true"><rect x="-3" y="-12.7" width="6" height="25.4" fill="#dfeef7" stroke="#5d7f96" stroke-width="1.5"/><line x1="-3" y1="-12.7" x2="-3" y2="12.7" stroke="#b04ad0" stroke-width="2"/></svg></span>
+                <span class="info"><span class="name">Dichroic mirror</span><span class="desc">Transmits or reflects wavelength bands around its configured cutoff.</span></span>
+              </a>
+          </div>
+        </div>
+        <div class="hub-group" id="dispersive-apertures">
+          <h2>Dispersive &amp; Apertures</h2>
+          <div class="hub-grid">
+            <a class="hub-card" href="../wiki/prism/">
+                <span class="ic"><svg viewBox="-23.664696837416493 -23.664696837416493 47.329393674832986 47.329393674832986" aria-hidden="true"><path d="M 0,-12.7 L -14.664696837416493,12.7 L 14.664696837416493,12.7 Z" fill="#c9e4f5" stroke="#4a90c4" stroke-width="1.5"/></svg></span>
+                <span class="info"><span class="name">Prism</span><span class="desc">Refracts through all three drawn BK7-like boundaries with wavelength-dependent dispersion.</span></span>
+              </a><a class="hub-card" href="../wiki/grating/">
+                <span class="ic"><svg viewBox="-21.7 -21.7 43.4 43.4" aria-hidden="true"><rect x="0" y="-12.7" width="6" height="25.4" fill="#e8e0f0" stroke="#5d5575" stroke-width="1.5"/><line x1="0" y1="-9.7" x2="4" y2="-9.7" stroke="#333" stroke-width="1"/><line x1="0" y1="-4.699999999999999" x2="4" y2="-4.699999999999999" stroke="#333" stroke-width="1"/><line x1="0" y1="0.3000000000000007" x2="4" y2="0.3000000000000007" stroke="#333" stroke-width="1"/><line x1="0" y1="5.300000000000001" x2="4" y2="5.300000000000001" stroke="#333" stroke-width="1"/></svg></span>
+                <span class="info"><span class="name">Diffraction grating</span><span class="desc">Creates selected diffraction orders using the grating equation.</span></span>
+              </a>
+          </div>
+        </div>
+        <div class="hub-group" id="polarization">
+          <h2>Polarization</h2>
+          <div class="hub-grid">
+            <a class="hub-card" href="../wiki/polarizer/">
+                <span class="ic"><svg viewBox="-21.7 -21.7 43.4 43.4" aria-hidden="true"><rect x="-2.5" y="-12.7" width="5" height="25.4" fill="#cfd8e3" stroke="#54606e" stroke-width="1.4"/><g transform="rotate(0)"><circle r="8.5" fill="#fff" stroke="#54606e" stroke-width="1.2"/><line x1="0" y1="-6" x2="0" y2="6" stroke="#54606e" stroke-width="1.6"/><path d="M 0,-8 L -2.4,-4 L 2.4,-4 Z M 0,8 L -2.4,4 L 2.4,4 Z" fill="#54606e"/></g></svg></span>
+                <span class="info"><span class="name">Polarizer</span><span class="desc">Applies a linear polarization axis and Malus-law attenuation.</span></span>
+              </a>
+          </div>
+        </div>
+        <div class="hub-group" id="detectors">
+          <h2>Detectors</h2>
+          <div class="hub-grid">
+            <a class="hub-card" href="../wiki/detector/">
+                <span class="ic"><svg viewBox="-26 -26 52 52" aria-hidden="true"><rect x="-18" y="-13" width="36" height="26" rx="3" fill="#4b5563" stroke="#2b333d" stroke-width="1.5"/><text x="0" y="0"  text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="600" fill="#fff">PD</text><rect x="-19.5" y="-9" width="3" height="18" fill="#93c5fd" stroke="#2b333d" stroke-width="1"/><circle cx="11" cy="-8" r="3.1" fill="#88919b" opacity="0.45" stroke="#fff" stroke-width="0.8"/></svg></span>
+                <span class="info"><span class="name">Photodetector</span><span class="desc">Measures qualitative ray signal, spectrum, polarization, and spot span.</span></span>
+              </a>
+          </div>
+        </div>
+        <div class="hub-group" id="modulators">
+          <h2>Modulators</h2>
+          <div class="hub-grid">
+            <a class="hub-card" href="../wiki/aom/">
+                <span class="ic"><svg viewBox="-28 -28 56 56" aria-hidden="true"><rect x="-20" y="-13" width="40" height="26" rx="3" fill="#c9b458" stroke="#8a7a2e" stroke-width="1.5"/><text x="0" y="0"  text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="600" fill="#3d3616">AOM</text></svg></span>
+                <span class="info"><span class="name">Acousto-optic modulator (AOM)</span><span class="desc">Deflects and frequency-shifts first-order light with efficiency, zero-order, and square or sinusoidal RF modulation.</span></span>
+              </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="wiki-footer">More components are added to the encyclopedia over time — <a href="../sketch/">open the full component library in the canvas</a> to see everything available today.</footer>
+</body>
+</html>
