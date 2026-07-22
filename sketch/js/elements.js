@@ -1346,12 +1346,15 @@ export const registry = {
       const p = el.params;
       if (p.raysMode !== 'fan') return [];
       const n = Math.max(2, Math.round(p.nrays)), out = [];
-      // fan from the arrow tip, aimed slightly toward the axis so the rays
-      // reconverge at the image tip after the lens
-      const tilt = Math.atan2(p.height * 0.25, 100);
+      // fan from the object's own anchor point (on the shared optical axis,
+      // not the off-axis tip): the central ray is exactly horizontal, so it
+      // passes through the center of every on-axis lens undeviated (h = 0
+      // there) and stays a fixed horizontal reference as the surrounding
+      // rays fan out symmetrically — half clockwise, half counterclockwise
+      // — and bend toward it at each focusing surface.
       for (let i = 0; i < n; i++) {
-        const a = tilt + (-p.spread / 2 + p.spread * i / (n - 1)) * Math.PI / 180;
-        out.push({ x: 1, y: -p.height, dx: Math.cos(a), dy: Math.sin(a) });
+        const a = (-p.spread / 2 + p.spread * i / (n - 1)) * Math.PI / 180;
+        out.push({ x: 1, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
       }
       return out;
     },
