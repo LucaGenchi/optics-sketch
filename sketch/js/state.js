@@ -12,6 +12,7 @@ export const state = {
   snap: true,
   showFocal: true,
   tool: 'select', // 'select' | 'beam' | 'place:<type>'
+  demoMode: false, // wiki embed: single fixed element, no adding/moving/deleting
 };
 
 const undoStack = [], redoStack = [];

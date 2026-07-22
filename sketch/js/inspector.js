@@ -218,21 +218,23 @@ export function renderInspector() {
         direct?.tune ? `purple knob tunes ${direct.tune.short || direct.tune.param.label}` : ''].filter(Boolean).join(' · ');
       h += `<div class="direct-hint"><b>On-canvas controls</b><span>${esc(def.directHint || actions)}</span></div>`;
     }
-    h += `<section class="insp-section"><div class="insp-section-title">Position</div>`;
-    h += field('X (mm)', `<input type="number" step="1" data-k="x" value="${Math.round(sel.x * 10) / 10}">`);
-    h += field('Y (mm)', `<input type="number" step="1" data-k="y" value="${Math.round(sel.y * 10) / 10}">`);
-    if (def.rotatable !== false) h += field('Angle (°)', `<input type="number" step="1" data-k="rot" value="${Math.round((sel.rot || 0) * 10) / 10}">`);
-    h += `</section>`;
-    if (!def.noLabel) {
-      h += `<section class="insp-section"><div class="insp-section-title">Appearance</div>`;
-      h += field('Label', `<input type="text" data-k="label" value="${esc(sel.label || '')}">`);
-      h += field('Show label', `<input type="checkbox" data-k="showLabel" ${sel.showLabel ? 'checked' : ''}>`);
-      if (sel.showLabel) {
-        const lp = sel.labelPos || 'b';
-        h += field('Label position', `<select data-k="labelPos">` +
-          [['b', 'Below'], ['t', 'Above'], ['l', 'Left'], ['r', 'Right']].map(([v, l]) => `<option value="${v}" ${v === lp ? 'selected' : ''}>${l}</option>`).join('') + `</select>`);
-      }
+    if (!state.demoMode) {
+      h += `<section class="insp-section"><div class="insp-section-title">Position</div>`;
+      h += field('X (mm)', `<input type="number" step="1" data-k="x" value="${Math.round(sel.x * 10) / 10}">`);
+      h += field('Y (mm)', `<input type="number" step="1" data-k="y" value="${Math.round(sel.y * 10) / 10}">`);
+      if (def.rotatable !== false) h += field('Angle (°)', `<input type="number" step="1" data-k="rot" value="${Math.round((sel.rot || 0) * 10) / 10}">`);
       h += `</section>`;
+      if (!def.noLabel) {
+        h += `<section class="insp-section"><div class="insp-section-title">Appearance</div>`;
+        h += field('Label', `<input type="text" data-k="label" value="${esc(sel.label || '')}">`);
+        h += field('Show label', `<input type="checkbox" data-k="showLabel" ${sel.showLabel ? 'checked' : ''}>`);
+        if (sel.showLabel) {
+          const lp = sel.labelPos || 'b';
+          h += field('Label position', `<select data-k="labelPos">` +
+            [['b', 'Below'], ['t', 'Above'], ['l', 'Left'], ['r', 'Right']].map(([v, l]) => `<option value="${v}" ${v === lp ? 'selected' : ''}>${l}</option>`).join('') + `</select>`);
+        }
+        h += `</section>`;
+      }
     }
     if ((def.params || []).length) h += `<section class="insp-section"><div class="insp-section-title">Optical behavior</div>`;
     for (const p of def.params || []) {
@@ -265,7 +267,10 @@ export function renderInspector() {
       }
     }
     if ((def.params || []).length) h += `</section>`;
-    h += `<div class="btnrow">${def.singleton ? '' : '<button type="button" id="inspDup">Duplicate</button>'}<button type="button" id="inspDel" class="danger">Delete</button></div>`;
+    if (!state.demoMode) {
+      h += `<div class="btnrow">${def.singleton ? '' : '<button type="button" id="inspDup">Duplicate</button>'}<button type="button" id="inspDel" class="danger">Delete</button></div>`;
+      h += `<a class="wiki-link" href="../wiki/${sel.type}/">Explore this element on the Wiki →</a>`;
+    }
     panel.innerHTML = h;
   } else {
     const b = sel;
