@@ -58,7 +58,7 @@ test('concave lens outline curves on the vertical refracting faces', () => {
 test('optically active elements carry surface-aware snap anchors', () => {
   const expected = {
     laser: { x: 52, y: 0 },
-    objective: { x: -16, y: 0 },
+    objective: { x: 16, y: 0 },
     slm: { x: -9, y: 0 },
     dmd: { x: -9, y: 0 },
     detector: { x: -19, y: 0 },
