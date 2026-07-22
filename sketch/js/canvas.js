@@ -342,12 +342,15 @@ function renderElements() {
   elementLayer.innerHTML = s;
 }
 
-// focal points of a focusing element, in local coordinates
+// focal points of a focusing element, in local coordinates. A point may
+// carry a `label` to override the default italic "f" marker text — used
+// for the objective's back focal plane (BFP), the reference plane a
+// telescope or scan relay must image onto for pupil-matched scanning.
 function focalPoints(el) {
   const p = el.params;
   switch (el.type) {
     case 'lens': case 'lensc': return [{ x: p.f, y: 0 }, { x: -p.f, y: 0 }];
-    case 'objective': return [{ x: -16 - p.f, y: 0 }];
+    case 'objective': return [{ x: -16 - p.f, y: 0, label: 'BFP' }];
     case 'cmirror': case 'cmirrorx': case 'oap': return [{ x: -p.f, y: 0 }];
     case 'telescope': {
       const s = Math.max(5, p.f1 + p.f2);
@@ -371,7 +374,7 @@ function focalMarkSVG(el, z) {
     s += `<g stroke="#f59e0b" stroke-width="${lw}">` +
       `<line x1="${w.x - r}" y1="${w.y - r}" x2="${w.x + r}" y2="${w.y + r}"/>` +
       `<line x1="${w.x - r}" y1="${w.y + r}" x2="${w.x + r}" y2="${w.y - r}"/></g>` +
-      `<text x="${w.x + r + 2 / z}" y="${w.y - 2 / z}" font-size="${10 / z}" fill="#f59e0b" font-style="italic">f</text>`;
+      `<text x="${w.x + r + 2 / z}" y="${w.y - 2 / z}" font-size="${10 / z}" fill="#f59e0b" font-style="italic">${q.label || 'f'}</text>`;
   }
   return s;
 }

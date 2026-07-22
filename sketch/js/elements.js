@@ -1610,7 +1610,7 @@ const ELEMENT_HELP = {
   lens: 'Bends rays with a thin-lens, paraxial focal-length model.',
   lensc: 'Diverges rays with a negative thin-lens focal length.',
   telescope: 'Applies two thin lenses separated by their focal lengths.',
-  objective: 'Applies a compact focusing thin-lens model.',
+  objective: 'Applies a compact focusing thin-lens model; ƒ also sets the distance to the back focal plane (BFP) behind the lens — the plane a telescope or scan relay should image onto for pupil-matched scanning.',
   dichroic: 'Transmits or reflects wavelength bands around its configured cutoff.',
   filter: 'Passes a spectral band or attenuates intensity as a neutral-density filter.',
   bs: 'Splits incident light into transmitted and reflected branches.',

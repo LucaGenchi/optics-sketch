@@ -223,20 +223,42 @@ export const wikiEntries = [
         detail it can ever resolve, regardless of magnification:</p>`,
       formulas: [
         { tex: 'd \\approx \\frac{\\lambda}{2\\,\\mathrm{NA}}', caption: "The Abbe diffraction limit — the smallest resolvable feature size, set by wavelength and numerical aperture alone." },
+        { tex: 'r_{\\text{BFP}} \\approx f \\cdot \\mathrm{NA}', caption: "Entrance-pupil radius at the back focal plane, for a well-corrected objective (the Abbe sine condition)." },
       ],
+      html2: `
+        <p>Modern objectives are almost always <strong>infinity-corrected</strong>: a
+        point at the sample (the front focal plane) emits a cone that leaves the back of
+        the objective as a <em>collimated</em> beam, which a separate tube lens then
+        focuses onto a camera or eyepiece — nothing focuses light directly behind an
+        infinity objective on its own. The reference plane a focal length
+        <span class="w">f</span> behind the objective, on that tube-lens side, is the
+        <strong>back focal plane (BFP)</strong> — where the objective's entrance pupil
+        (radius above) is imaged. It matters most in laser-scanning microscopy: a scan
+        mirror, or its relayed image via a scan lens and tube lens, is deliberately
+        positioned at a plane conjugate to the BFP, so that as the mirror tilts, the beam
+        pivots around a fixed point inside the pupil instead of walking across it —
+        keeping the full aperture illuminated at every scan angle.</p>`,
     },
     inOpticalSetup: {
       html: `
-        <p>Despite the multi-element housing drawn in the icon, this is optically
-        identical to the plain <a href="../lens/">lens</a> element: one thin-lens
-        surface at the lens plane, using the same paraxial ray-transfer relation
-        <span class="w">u' = u − h/f</span>, just with a short default focal length and a
-        drawn clear aperture typical of a real objective.</p>`,
+        <p>Optically this is the same single thin-lens surface as the plain
+        <a href="../lens/">lens</a> element, using the same paraxial ray-transfer
+        relation <span class="w">u' = u − h/f</span> at the lens plane marked by the
+        housing's flat front glass — just with a short default focal length and a drawn
+        clear aperture typical of a real objective. What's modeled precisely, though, is
+        <em>where the back focal plane actually sits</em>: toggle "Show focal points"
+        (the <span class="w">ƒ</span> button) or select the objective, and a marker
+        labeled <span class="w">BFP</span> appears exactly <span class="w">f</span>
+        behind the lens plane, on the side the beam arrives from — the real coordinate to
+        position (or image, via a <a href="../telescope/">telescope</a>) a scan mirror
+        onto for correct pupil-matched scanning, not just an illustrative icon.</p>`,
       formulas: [],
-      limitations: `<p>None of what makes a real objective hard to design is modeled —
-        no numerical aperture, no aberration correction across many elements, no
-        immersion media, no working-distance or field-flatness limits. It's a single
-        idealized thin lens wearing an objective's housing.</p>`,
+      limitations: `<p>The BFP's <em>position</em> is geometrically exact for this
+        thin-lens model, but its <em>size</em> is not modeled — there's no numerical
+        aperture parameter, so the pupil radius formula above isn't computed or enforced
+        anywhere, and no aberration correction, immersion media, or field-flatness
+        limits exist either. It's a single idealized thin lens wearing an objective's
+        housing, with one genuinely precise feature: the BFP marker's location.</p>`,
     },
     related: ['lens', 'telescope'],
     resources: [
