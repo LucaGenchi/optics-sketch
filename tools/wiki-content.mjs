@@ -224,6 +224,7 @@ export const wikiEntries = [
       formulas: [
         { tex: 'd \\approx \\frac{\\lambda}{2\\,\\mathrm{NA}}', caption: "The Abbe diffraction limit — the smallest resolvable feature size, set by wavelength and numerical aperture alone." },
         { tex: 'r_{\\text{BFP}} \\approx f \\cdot \\mathrm{NA}', caption: "Entrance-pupil radius at the back focal plane, for a well-corrected objective (the Abbe sine condition)." },
+        { tex: 'M = \\frac{f_{\\text{tube}}}{f_{\\text{objective}}}', caption: "Magnification of an infinity-corrected objective, set purely by comparing its focal length to the tube lens's." },
       ],
       html2: `
         <p>Modern objectives are almost always <strong>infinity-corrected</strong>: a
@@ -237,7 +238,20 @@ export const wikiEntries = [
         mirror, or its relayed image via a scan lens and tube lens, is deliberately
         positioned at a plane conjugate to the BFP, so that as the mirror tilts, the beam
         pivots around a fixed point inside the pupil instead of walking across it —
-        keeping the full aperture illuminated at every scan angle.</p>`,
+        keeping the full aperture illuminated at every scan angle.</p>
+        <p>That same magnification formula is also why widefield imaging systems pick
+        the objective focal length they do. A high-power compound-microscope objective
+        (60×, 100×) has a very short focal length — often just a couple of millimeters —
+        paired with a long tube lens, and trades that magnification for a short working
+        distance and a narrow field of view. A <strong>stereomicroscope</strong> sits at
+        the opposite end on purpose: its objective (shared or paired, one per eye) has a
+        comparatively long focal length, giving low-to-moderate magnification, a wide
+        field of view, and — critically for a dissecting scope — enough physical working
+        distance to actually get hands or tools under the lens. Zoom stereomicroscopes
+        vary magnification with a separate afocal zoom system in between, but the same
+        rule holds at any zoom setting: a shorter effective objective focal length always
+        means higher magnification and a smaller field of view, at the cost of working
+        distance.</p>`,
     },
     inOpticalSetup: {
       html: `
@@ -258,7 +272,11 @@ export const wikiEntries = [
         aperture parameter, so the pupil radius formula above isn't computed or enforced
         anywhere, and no aberration correction, immersion media, or field-flatness
         limits exist either. It's a single idealized thin lens wearing an objective's
-        housing, with one genuinely precise feature: the BFP marker's location.</p>`,
+        housing, with one genuinely precise feature: the BFP marker's location. There's
+        also no separate tube lens or reported magnification number — changing
+        <span class="w">f</span> changes how tightly the element focuses, which is the
+        real effect behind the magnification formula above, but OpticalSetup never
+        computes or displays a magnification value.</p>`,
     },
     related: ['lens', 'telescope'],
     resources: [

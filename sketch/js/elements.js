@@ -559,7 +559,7 @@ export const registry = {
     snapPt: { x: 16, y: 0 }, // lens plane (sample-facing front tip)
     size_: el => ({ w: 36, h: (el.params.aperture || 20) + 20 }),
     params: [
-      { key: 'f', label: 'Focal length (mm)', type: 'number', min: 1, max: 500, step: 1, def: 20 },
+      { key: 'f', label: 'Focal length (mm)', type: 'number', min: 1, max: 500, step: 1, def: 10 },
       { key: 'aperture', label: 'Clear aperture (mm)', type: 'number', min: 5, max: 100, step: 1, def: 20 },
     ],
     svg(el) {
