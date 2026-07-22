@@ -131,6 +131,121 @@ export const wikiEntries = [
   },
 
   {
+    type: 'lensc',
+    title: 'Concave lens',
+    category: 'Lenses',
+    realWorld: {
+      html: `
+        <p>A concave (diverging) lens obeys the exact same thin-lens equation as a convex
+        one — the only difference is the sign of <span class="w">f</span>. A negative
+        focal length always produces a negative image distance for a real object, which
+        means a concave lens can <em>never</em> form a real image on its own: the rays
+        always appear to diverge from a virtual, upright, reduced image on the same side
+        as the object.</p>`,
+      formulas: [
+        { tex: '\\frac{1}{f} = \\frac{1}{d_o} + \\frac{1}{d_i}, \\qquad f < 0', caption: 'The thin-lens equation with a negative focal length — the defining property of a diverging lens.' },
+      ],
+      html2: `
+        <p>Concave lenses correct myopia (short-sightedness) in eyeglasses, and paired
+        with a convex lens they make a compact Galilean telescope or beam expander — see
+        the telescope page.</p>`,
+    },
+    inOpticalSetup: {
+      html: `
+        <p>This is literally the same component as the <a href="../lens/">convex
+        lens</a> — same paraxial ray-transfer relation <span class="w">u' = u −
+        h/f</span>, same registry entry under the hood — just defaulting to a negative
+        focal length. Setting a positive focal length on this element makes it behave
+        exactly like a convex lens, and vice versa: the sign of <span class="w">f</span>
+        is the only thing that determines converging versus diverging behavior anywhere
+        in OpticalSetup.</p>`,
+      formulas: [],
+      limitations: `<p>Same caveats as the convex lens: exact paraxial optics with no
+        spherical or chromatic aberration, and no modeled lens thickness.</p>`,
+    },
+    related: ['lens', 'telescope', 'objective'],
+    resources: [
+      { label: 'RP Photonics Encyclopedia — Lenses', url: 'https://www.rp-photonics.com/lenses.html' },
+    ],
+  },
+
+  {
+    type: 'telescope',
+    title: 'Telescope (lens pair)',
+    category: 'Lenses',
+    realWorld: {
+      html: `
+        <p>An afocal telescope pairs two lenses a distance
+        <span class="w">f₁ + f₂</span> apart so that parallel rays in produce parallel
+        rays out — no net focusing power, just a change in beam diameter and angular
+        magnification. A <strong>Keplerian</strong> telescope uses two convex lenses and
+        has a real, inverted intermediate image at the shared focus between them; a
+        <strong>Galilean</strong> telescope uses a convex objective and a concave
+        eyepiece, stays upright, and needs no space for an intermediate image — the
+        arrangement behind classic opera glasses and compact laser beam expanders.</p>`,
+      formulas: [
+        { tex: 'M = -\\frac{f_1}{f_2}', caption: 'Angular magnification — negative for the inverted Keplerian case (both lenses convex), positive and upright when f₂ is negative (Galilean).' },
+      ],
+    },
+    inOpticalSetup: {
+      html: `
+        <p>Two independent <a href="../lens/">lens</a> surfaces, each applying the same
+        paraxial ray-transfer relation, separated by exactly
+        <span class="w">f₁ + f₂</span> — the afocal spacing shown by the dashed
+        centerline through the icon. Either lens's focal length can be set negative
+        independently, so the same element models both configurations: two positive
+        focal lengths gives a Keplerian telescope with a real crossing point in the
+        middle, while a negative second focal length gives a Galilean telescope that
+        never focuses the beam down to a point at all.</p>`,
+      formulas: [],
+      limitations: `<p>Same paraxial-only physics as a single lens, with no eyepiece
+        field-of-view limits, eye relief, or exit-pupil modeling — just the afocal
+        geometry and magnification.</p>`,
+    },
+    related: ['lens', 'lensc', 'objective'],
+    resources: [
+      { label: 'RP Photonics Encyclopedia — Beam Expanders', url: 'https://www.rp-photonics.com/beam_expanders.html' },
+    ],
+  },
+
+  {
+    type: 'objective',
+    title: 'Objective',
+    category: 'Lenses',
+    realWorld: {
+      html: `
+        <p>A real microscope or camera objective is a highly corrected assembly of many
+        lens elements, not a single piece of glass — the element count exists almost
+        entirely to cancel spherical and chromatic aberration, flatten the field, and
+        reach a high numerical aperture without the image falling apart. Numerical
+        aperture <span class="w">NA</span> is the single number that matters most: it
+        sets the objective's light-gathering cone and, through diffraction, the finest
+        detail it can ever resolve, regardless of magnification:</p>`,
+      formulas: [
+        { tex: 'd \\approx \\frac{\\lambda}{2\\,\\mathrm{NA}}', caption: "The Abbe diffraction limit — the smallest resolvable feature size, set by wavelength and numerical aperture alone." },
+      ],
+    },
+    inOpticalSetup: {
+      html: `
+        <p>Despite the multi-element housing drawn in the icon, this is optically
+        identical to the plain <a href="../lens/">lens</a> element: one thin-lens
+        surface at the lens plane, using the same paraxial ray-transfer relation
+        <span class="w">u' = u − h/f</span>, just with a short default focal length and a
+        drawn clear aperture typical of a real objective.</p>`,
+      formulas: [],
+      limitations: `<p>None of what makes a real objective hard to design is modeled —
+        no numerical aperture, no aberration correction across many elements, no
+        immersion media, no working-distance or field-flatness limits. It's a single
+        idealized thin lens wearing an objective's housing.</p>`,
+    },
+    related: ['lens', 'telescope'],
+    resources: [
+      { label: 'RP Photonics Encyclopedia — Microscope Objectives', url: 'https://www.rp-photonics.com/microscope_objectives.html' },
+      { label: 'RP Photonics Encyclopedia — Numerical Aperture', url: 'https://www.rp-photonics.com/numerical_aperture.html' },
+    ],
+  },
+
+  {
     type: 'prism',
     title: 'Prism',
     category: 'Dispersive & Apertures',
