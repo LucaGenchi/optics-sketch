@@ -41,6 +41,21 @@ const demoScenes = {
     mkDemo('lens', 220, 220, 0, { f: 100, dia: 40 }),
     mkDemo('box', 320, 220, 0, { text: '', w: 2, h: 60, behavior: 'block', fill: '#c9d4e0' }, { label: 'focus (f = 100 mm)', showLabel: true, labelPos: 't' }),
   ],
+  lensc: () => [
+    mkDemo('laser', 60, 220, 0, { beamMode: 'beam', beamWidth: 20 }),
+    mkDemo('lensc', 220, 220, 0, { f: -100, dia: 40 }),
+    mkDemo('box', 340, 220, 0, { text: '', w: 2, h: 2, behavior: 'pass', fill: '#c9d4e0' }, { label: 'diverges — virtual image on the source side', showLabel: true, labelPos: 't' }),
+  ],
+  telescope: () => [
+    mkDemo('laser', 60, 300, 0, { beamMode: 'beam', beamWidth: 10 }),
+    mkDemo('telescope', 280, 300, 0, { f1: 50, f2: 150, dia: 50.8 }),
+    mkDemo('box', 460, 300, 0, { text: '', w: 2, h: 2, behavior: 'pass', fill: '#c9d4e0' }, { label: 'still parallel — 3× wider', showLabel: true, labelPos: 't' }),
+  ],
+  objective: () => [
+    mkDemo('laser', 60, 300, 0, { beamMode: 'beam', beamWidth: 18 }),
+    mkDemo('objective', 300, 300, 0, { f: 40, aperture: 24 }),
+    mkDemo('box', 324, 300, 0, { text: '', w: 2, h: 50, behavior: 'block', fill: '#c9d4e0' }, { label: 'focus (f = 40 mm)', showLabel: true, labelPos: 't' }),
+  ],
   bs: () => [
     mkDemo('laser', 60, 200, 0),
     mkDemo('bs', 220, 200, 0, { ratio: 0.5 }),
