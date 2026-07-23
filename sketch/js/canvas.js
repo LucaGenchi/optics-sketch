@@ -350,7 +350,7 @@ function focalPoints(el) {
   const p = el.params;
   switch (el.type) {
     case 'lens': case 'lensc': return [{ x: p.f, y: 0 }, { x: -p.f, y: 0 }];
-    case 'objective': return [{ x: 16 - p.f, y: 0, label: 'BFP' }];
+    case 'objective': return [{ x: 16 - p.f, y: 0, label: 'BFP' }, { x: 16 + p.f, y: 0 }];
     case 'cmirror': case 'cmirrorx': case 'oap': return [{ x: -p.f, y: 0 }];
     case 'telescope': {
       const s = Math.max(5, p.f1 + p.f2);

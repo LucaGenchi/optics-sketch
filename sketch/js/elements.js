@@ -112,22 +112,27 @@ const layersParam = { key: 'layers', label: 'Optical function', type: 'layers', 
 // object shapes for image-formation diagrams, in unit coords:
 // base at (0,0), tip at (0,-1); the traced image redraws the same shape
 // scaled by the magnification (negative m = inverted)
+// Normalized around y = 0 (the object's anchor, also the ray fan's origin):
+// a shape spanning the full "height" param extends ±0.5 of it either side,
+// so a 20mm-tall shape sits 10mm above and 10mm below the point that's
+// actually irradiating — both the live icon (svg() below) and the redrawn
+// image at the image plane (raytrace.js) read these same coordinates.
 export const OBJ_SHAPES = {
   arrow: {
-    lines: [[[0, 0], [0, -0.72]]],
-    polys: [[[0, -1], [-0.17, -0.66], [0.17, -0.66]]],
+    lines: [[[0, 0.5], [0, -0.22]]],
+    polys: [[[0, -0.5], [-0.17, -0.16], [0.17, -0.16]]],
   },
   F: {
-    lines: [[[-0.06, 0], [-0.06, -1]], [[-0.06, -1], [0.42, -1]], [[-0.06, -0.55], [0.3, -0.55]]],
+    lines: [[[-0.06, 0.5], [-0.06, -0.5]], [[-0.06, -0.5], [0.42, -0.5]], [[-0.06, -0.05], [0.3, -0.05]]],
     polys: [],
   },
   tree: {
     // fir tree: short trunk + three stacked crown tiers
-    lines: [[[0, 0], [0, -0.28]]],
+    lines: [[[0, 0.5], [0, 0.22]]],
     polys: [
-      [[-0.36, -0.24], [0.36, -0.24], [0, -0.58]],
-      [[-0.28, -0.48], [0.28, -0.48], [0, -0.8]],
-      [[-0.2, -0.7], [0.2, -0.7], [0, -1]],
+      [[-0.36, 0.26], [0.36, 0.26], [0, -0.08]],
+      [[-0.28, 0.02], [0.28, 0.02], [0, -0.3]],
+      [[-0.2, -0.2], [0.2, -0.2], [0, -0.5]],
     ],
   },
 };
@@ -1346,12 +1351,15 @@ export const registry = {
       const p = el.params;
       if (p.raysMode !== 'fan') return [];
       const n = Math.max(2, Math.round(p.nrays)), out = [];
-      // fan from the arrow tip, aimed slightly toward the axis so the rays
-      // reconverge at the image tip after the lens
-      const tilt = Math.atan2(p.height * 0.25, 100);
+      // fan from the object's own anchor point (on the shared optical axis,
+      // not the off-axis tip): the central ray is exactly horizontal, so it
+      // passes through the center of every on-axis lens undeviated (h = 0
+      // there) and stays a fixed horizontal reference as the surrounding
+      // rays fan out symmetrically — half clockwise, half counterclockwise
+      // — and bend toward it at each focusing surface.
       for (let i = 0; i < n; i++) {
-        const a = tilt + (-p.spread / 2 + p.spread * i / (n - 1)) * Math.PI / 180;
-        out.push({ x: 1, y: -p.height, dx: Math.cos(a), dy: Math.sin(a) });
+        const a = (-p.spread / 2 + p.spread * i / (n - 1)) * Math.PI / 180;
+        out.push({ x: 1, y: 0, dx: Math.cos(a), dy: Math.sin(a) });
       }
       return out;
     },
