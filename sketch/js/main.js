@@ -14,6 +14,7 @@ import { examples } from './examples-data.js';
 import { download, esc } from './util.js';
 import { buildShareURL, copyText, sharedSceneFromURL } from './share.js';
 import { qrSVG } from './qr.js';
+import { initTheme } from './theme.js';
 
 const $ = id => document.getElementById(id);
 
@@ -676,6 +677,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const demoType = params.get('demo');
   const isDemo = Boolean(demoType && registry[demoType] && !registry[demoType].hidden);
 
+  initTheme($('btnTheme'));
   initCanvas($('canvas'), $('status'));
   initInspector($('inspectorContent'));
   if (isDemo) {
