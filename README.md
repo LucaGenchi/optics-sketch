@@ -40,10 +40,11 @@ figures as SVG or PNG.
   delays remain physical. Mechanical delay lines add folded optical path, while AOMs
   support square gating or graded sinusoidal intensity modulation. Playback can be
   paused, reset, and time-scaled.
-- **Qualitative detector readouts**: photodetectors, PMTs, and cameras report
-  relative ray signal, spectrum, polarization, and spot span at their front face;
-  pulsed paths add optical-path delay and path spread. PMTs include qualitative
-  gain/saturation, cameras provide a 1D sensor profile, and the eye reads its retina.
+- **Qualitative detector readouts**: photodetectors, PMTs, cameras, and the eye
+  report relative ray signal, spectrum, polarization, and spot span at their active
+  surface; pulsed paths add optical-path delay and path spread. A data-only sensor
+  display can be linked to any of them and mirrors the live output directly on the
+  canvas. PMTs include qualitative gain/saturation and cameras provide a 1D profile.
 - **Physics that responds**: thin-lens/paraxial transfer, spectral band arithmetic at
   filters, Malus's law, grating equation, Cauchy prism dispersion, cavity round trips
   with partial mirrors, image formation with magnification (arrow / letter F / tree
