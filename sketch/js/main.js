@@ -9,11 +9,13 @@ import {
   getPulsePlayback, setPulsePlaying, setPulseSpeed, setPulseDisplayMode, resetPulseTime,
 } from './canvas.js';
 import { initInspector, renderInspector, refreshMeasurements } from './inspector.js';
-import { exportSVG, exportPNG } from './export.js';
+import { buildSVG, exportSVG, exportPNG } from './export.js';
 import { examples } from './examples-data.js';
+import { community } from './community-data.js';
 import { download, esc } from './util.js';
 import { buildShareURL, copyText, sharedSceneFromURL } from './share.js';
 import { qrSVG } from './qr.js';
+import { buildExampleProposalIssueURL } from './proposal.js';
 
 const $ = id => document.getElementById(id);
 
@@ -476,12 +478,57 @@ function bindExamples() {
   }));
 }
 
+// ---------- community dropdown ----------
+// Setups shared by other users, approved by a maintainer and published under
+// community-submissions/issue-<N>.json — same fetch + parseSketch() pattern as Examples,
+// just a separate, unmoderated-for-pedagogy, flat list (see wiki/community/
+// for the write-up per entry, with an embedded read-only preview of each).
+async function loadCommunity(index) {
+  if (index === '') return;
+  const entry = community[+index];
+  if (!entry) return;
+  if (hasScene() && !confirm(`Load “${entry.name}” from the community? This replaces the current sketch (Undo brings it back).`)) return;
+  try {
+    const res = await fetch(entry.path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const scene = parseSketch(JSON.stringify(data.scene), registry);
+    pushUndo();
+    cancelTool();
+    replaceScene(scene);
+    renderSelection();
+    zoomFit();
+  } catch (err) {
+    alert('Could not load this community setup: ' + err.message);
+  }
+}
+
+function bindCommunity() {
+  const selects = [$('communitySel'), $('mobileCommunitySel')].filter(Boolean);
+  community.forEach((entry, i) => {
+    for (const sel of selects) {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = entry.name;
+      sel.appendChild(o);
+    }
+  });
+  selects.forEach(sel => sel.addEventListener('change', () => {
+    const i = sel.value;
+    sel.value = '';
+    loadCommunity(i);
+    if (sel.id === 'mobileCommunitySel') $('mobileMenu').close();
+  }));
+}
+
 // ---------- toolbar ----------
 const hasScene = () => state.elements.length > 0 || state.beams.length > 0;
 
 function syncToolbar() {
   $('btnUndo').disabled = !canUndo();
   $('btnRedo').disabled = !canRedo();
+  $('btnPropose').disabled = !hasScene();
+  if ($('btnMobilePropose')) $('btnMobilePropose').disabled = !hasScene();
   for (const [id, pressed] of [['btnGrid', state.showGrid], ['btnSnap', state.snap], ['btnFocal', state.showFocal]]) {
     const button = $(id);
     button.classList.toggle('active', pressed);
@@ -522,6 +569,47 @@ function bindToolbar() {
     shareQrSvg,
     'image/svg+xml',
   ));
+  const proposalDialog = $('proposalDialog');
+  const proposalForm = $('proposalForm');
+  const closeProposal = () => proposalDialog.close();
+  $('proposalClose').addEventListener('click', closeProposal);
+  $('proposalCancel').addEventListener('click', closeProposal);
+  proposalDialog.addEventListener('click', event => { if (event.target === proposalDialog) closeProposal(); });
+  $('btnPropose').addEventListener('click', () => {
+    if (!hasScene()) return;
+    proposalForm.reset();
+    $('proposalError').hidden = true;
+    proposalDialog.showModal();
+    $('proposalName').focus();
+  });
+  proposalForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!proposalForm.reportValidity()) return;
+    const submit = $('proposalSubmit');
+    const error = $('proposalError');
+    submit.disabled = true;
+    submit.textContent = 'Preparing setup…';
+    error.hidden = true;
+    try {
+      const sketch = serialize();
+      parseSketch(sketch, registry);
+      const svg = buildSVG();
+      if (/\b(?:NaN|Infinity)\b/.test(svg)) throw new Error('The setup contains invalid geometry');
+      const setupURL = await buildShareURL(sketch, 'https://opticalsetup.com/sketch/');
+      const issueURL = buildExampleProposalIssueURL({
+        name: $('proposalName').value,
+        description: $('proposalDescription').value,
+        reference: $('proposalReference').value,
+        shareURL: setupURL,
+      });
+      window.location.assign(issueURL);
+    } catch (err) {
+      error.textContent = err.message || 'Could not prepare the GitHub proposal.';
+      error.hidden = false;
+      submit.disabled = false;
+      submit.innerHTML = 'Continue on GitHub <span aria-hidden="true">↗</span>';
+    }
+  });
   $('btnNew').addEventListener('click', () => {
     if (!hasScene()) { cancelTool(); return; }
     if (!confirm('Clear the current sketch? (Undo brings it back.)')) return;
@@ -598,7 +686,7 @@ function bindToolbar() {
   mobileMenu.querySelectorAll('[data-mobile-action]').forEach(button => {
     button.addEventListener('click', () => {
       const target = {
-        new: 'btnNew', open: 'btnOpen', save: 'btnSave', share: 'btnShare', svg: 'btnSVG', png: 'btnPNG',
+        new: 'btnNew', open: 'btnOpen', save: 'btnSave', share: 'btnShare', propose: 'btnPropose', svg: 'btnSVG', png: 'btnPNG',
       }[button.dataset.mobileAction];
       $(target)?.click();
       mobileMenu.close();
@@ -674,7 +762,10 @@ document.addEventListener('optics:pulsestate', e => syncPulseControls(e.detail))
 window.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(location.search);
   const demoType = params.get('demo');
-  const isDemo = Boolean(demoType && registry[demoType] && !registry[demoType].hidden);
+  const communitySlug = params.get('community');
+  const isTypeDemo = Boolean(demoType && registry[demoType] && !registry[demoType].hidden);
+  const isCommunityDemo = Boolean(!isTypeDemo && communitySlug);
+  const isDemo = isTypeDemo || isCommunityDemo;
 
   initCanvas($('canvas'), $('status'));
   initInspector($('inspectorContent'));
@@ -687,12 +778,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   syncToolMode();
     bindToolbar();
     bindContextMenu();
-  if (!isDemo) bindExamples();
+  if (!isDemo) { bindExamples(); bindCommunity(); }
   bindKeys();
   setSelectionCallback(renderSelection);
   onChange(() => { renderAll(); syncToolbar(); refreshMeasurements(); });
 
-  if (isDemo) {
+  if (isTypeDemo) {
     // Wiki embed: a small fixed scene — a light source plus the showcased
     // component, so its actual optical function is visible — with no way
     // to add/move/delete anything. See state.demoMode call sites in this
@@ -702,6 +793,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     state.elements.push(...sceneElements);
     const hero = sceneElements.find(e => e.type === demoType) || sceneElements[0];
     state.selection = { kind: 'element', id: hero.id };
+  } else if (isCommunityDemo) {
+    // Community embed: the actual submitted scene, locked the same way as a
+    // wiki demo (state.demoMode), but with no single "hero" element — the
+    // whole setup is there to click through, not one component to focus on.
+    try {
+      const entry = community.find(e => e.slug === communitySlug);
+      if (!entry) throw new Error('Unknown community setup');
+      const res = await fetch(entry.path);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const scene = parseSketch(JSON.stringify(data.scene), registry);
+      state.elements.push(...scene.elements);
+      state.beams.push(...scene.beams);
+    } catch (err) {
+      console.error('Could not load community setup:', err);
+    }
   } else {
     let sharedScene = null;
     try {

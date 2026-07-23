@@ -54,7 +54,10 @@ a:hover { text-decoration: underline; }
 .brand-mark { width: 26px; height: 17px; flex: 0 0 auto; }
 .brand-ink { color: var(--ink); }
 .brand-accent { color: var(--accent); }
+.mark-ink { stroke: var(--ink); }
+.mark-accent { stroke: var(--accent); }
 .header-actions { display: flex; align-items: center; gap: 16px; font-size: 13.5px; }
+.header-actions a.plain, .header-actions .btn { white-space: nowrap; flex: 0 0 auto; }
 .header-actions .btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 14px; border-radius: 999px; border: 1px solid var(--accent);
@@ -96,6 +99,10 @@ a:hover { text-decoration: underline; }
   .embed-wrap { height: 360px; }
   .article-icon { width: 80px; height: 80px; }
   .article-icon svg { width: 58px; height: 58px; }
+}
+
+@media (max-width: 640px) {
+  .header-actions .btn { display: none; }
 }
 
 /* ---------- article ---------- */
