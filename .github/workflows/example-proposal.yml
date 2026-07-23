@@ -1,0 +1,78 @@
+name: Materialize example proposal
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  create-draft-pr:
+    if: startsWith(github.event.issue.title, '[Example proposal]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      ISSUE_BODY: ${{ github.event.issue.body }}
+      ISSUE_USER_LOGIN: ${{ github.event.issue.user.login }}
+      ISSUE_CREATED_AT: ${{ github.event.issue.created_at }}
+
+    steps:
+      - name: Check out the reviewed workflow
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate and materialize the proposal
+        id: proposal
+        run: node scripts/materialize-example-proposal.mjs
+
+      - name: Run repository checks
+        run: npm test
+
+      - name: Commit the proposal branch
+        env:
+          BRANCH_NAME: ${{ steps.proposal.outputs.branch_name }}
+          PROPOSAL_FILE: ${{ steps.proposal.outputs.proposal_file }}
+          COMMIT_SUBJECT: ${{ steps.proposal.outputs.commit_subject }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH_NAME"
+          git add "$PROPOSAL_FILE"
+          git diff --cached --check
+          git commit -m "$COMMIT_SUBJECT"
+          remote_sha="$(git ls-remote --heads origin "$BRANCH_NAME" | awk '{print $1}')"
+          if [[ -n "$remote_sha" ]]; then
+            git push --force-with-lease="refs/heads/$BRANCH_NAME:$remote_sha" origin "HEAD:refs/heads/$BRANCH_NAME"
+          else
+            git push --set-upstream origin "$BRANCH_NAME"
+          fi
+
+      - name: Open or find the draft pull request
+        id: pull_request
+        env:
+          BRANCH_NAME: ${{ steps.proposal.outputs.branch_name }}
+          PR_TITLE: ${{ steps.proposal.outputs.pr_title }}
+          PR_BODY_FILE: ${{ steps.proposal.outputs.pr_body_file }}
+        run: |
+          pr_url="$(gh pr list --state open --head "$BRANCH_NAME" --json url --jq '.[0].url')"
+          if [[ -z "$pr_url" ]]; then
+            pr_url="$(gh pr create --draft --base main --head "$BRANCH_NAME" --title "$PR_TITLE" --body-file "$PR_BODY_FILE")"
+          fi
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Link the draft pull request
+        env:
+          PR_URL: ${{ steps.pull_request.outputs.pr_url }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body "Automated validation passed and a draft pull request is ready for maintainer review: $PR_URL"
+
+      - name: Report a failed proposal
+        if: failure()
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body "The automated proposal checks could not prepare a draft pull request. The setup remains in this issue for maintainer review; see the workflow run for the validation result."
