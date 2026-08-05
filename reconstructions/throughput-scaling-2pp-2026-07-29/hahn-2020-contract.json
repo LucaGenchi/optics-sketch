@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "hahn-2020.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Rapid Assembly of Small Materials Building Blocks (Voxels) into Large Functional 3D Metamaterials",
+    "citation": "V. Hahn et al., Advanced Functional Materials 30, 1907795 (2020)",
+    "doi": "10.1002/adfm.201907795",
+    "pdfUrl": "https://d-nb.info/1259433633/34",
+    "pdfStatus": "accessible repository PDF",
+    "figureOrMethodsAnchor": "Fig. 2, PDF page 5 (system schematic)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "790 nm Ti:sapphire source, 2.8 W, 80 MHz, and 90 fs at source output.",
+      "AOM, two-prism compressor, 3×3 DOE, DCT, PBS, relay, GX/GY galvos, quarter-wave plate, 40× NA 1.4 objective, and XY/Z stage.",
+      "Nine foci and 2.8 kHz peak galvo operation."
+    ],
+    "inferredOrDiagramOnly": [
+      "Fold flattening and pass-through representations for the compressor, DOE, DCT, PBS, and scan pair."
+    ],
+    "unknown": [
+      "Delivered pulse duration/power at every focus and full relay prescriptions."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "hahn-2020-source",
+      "paperComponent": "790 nm · 90 fs · 80 MHz · 2.8 W",
+      "registryType": "laser",
+      "simulationStatus": "qualitative pulsed source"
+    },
+    {
+      "id": "hahn-2020-train-1",
+      "paperComponent": "AOM ~1 MHz",
+      "registryType": "aom",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "hahn-2020-train-2",
+      "paperComponent": "N-SF10 prism compressor pair",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "hahn-2020-train-3",
+      "paperComponent": "3×3 DOE",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "hahn-2020-train-4",
+      "paperComponent": "DCT + PBS",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "hahn-2020-train-5",
+      "paperComponent": "GX/GY galvos 2.8 kHz",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "hahn-2020-focus",
+      "paperComponent": "40× NA 1.4 objective",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "hahn-2020-sample-stage",
+      "paperComponent": "IP-L · XY + Z piezo",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "The 3×3 DOE is represented as one chief ray; pulse compression and diffractive splitting are annotations."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "kiefer-2024.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "A multi-photon (7 × 7)-focus 3D laser printer based on a 3D-printed diffractive optical element and a 3D-printed multi-lens array",
+    "citation": "P. Kiefer et al., Light: Advanced Manufacturing 4, 3 (2024)",
+    "doi": "10.37188/lam.2024.003",
+    "pdfUrl": "https://www.light-am.com/article/pdf/preview/LAM2023080053.pdf",
+    "pdfStatus": "accessible publisher PDF",
+    "figureOrMethodsAnchor": "Fig. 2, PDF page 4 (system schematic)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "790 nm Ti:sapphire source, 3.7 W, 80 MHz, and 140 fs.",
+      "Three telescope/relay groups, AOM, 7×7 DOE, 7×7 microlens array, scan relays, GX/GY galvos, 40× NA 1.4 objective, and XY/Z stage.",
+      "Forty-nine foci with 60 µm focus spacing."
+    ],
+    "inferredOrDiagramOnly": [
+      "Linearization of the folded relay and compact trace focal lengths preserving magnification ordering only."
+    ],
+    "unknown": [
+      "Delivered power per focus and full coating/calibration data."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "kiefer-2024-source",
+      "paperComponent": "790 nm · 140 fs · 80 MHz · 3.7 W",
+      "registryType": "laser",
+      "simulationStatus": "qualitative pulsed source"
+    },
+    {
+      "id": "kiefer-2024-train-1",
+      "paperComponent": "L1/L2 1.25×",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "kiefer-2024-train-2",
+      "paperComponent": "AOM",
+      "registryType": "aom",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "kiefer-2024-train-3",
+      "paperComponent": "L3/L4 1.60×",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "kiefer-2024-train-4",
+      "paperComponent": "DOE · 7×7",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "kiefer-2024-train-5",
+      "paperComponent": "L5/L6/L7 relay",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "kiefer-2024-train-6",
+      "paperComponent": "MLA · 7×7",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "kiefer-2024-train-7",
+      "paperComponent": "GX/GY galvos",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "kiefer-2024-focus",
+      "paperComponent": "40× NA 1.4 objective",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "kiefer-2024-sample-stage",
+      "paperComponent": "XY + Z piezo stage",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "The DOE/MLA pair is diagram-only; the live trace does not create 49 beamlets."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

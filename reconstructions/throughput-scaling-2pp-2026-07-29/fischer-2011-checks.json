@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-checks",
+  "sceneFile": "fischer-2011.opticalsetup.json",
+  "registryNormalized": true,
+  "noManualBeams": true,
+  "finiteElements": true,
+  "finiteTrace": true,
+  "finiteSvg": true,
+  "sourceMode": "diagram-only",
+  "sourceToSample": null,
+  "sourceCount": 0,
+  "stageHitCount": 0,
+  "manualBeamCount": 0,
+  "elementCount": 16,
+  "passed": true
+}

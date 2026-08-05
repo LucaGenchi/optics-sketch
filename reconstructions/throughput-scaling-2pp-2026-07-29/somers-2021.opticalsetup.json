@@ -1,0 +1,244 @@
+{
+  "app": "optics2d",
+  "version": 1,
+  "elements": [
+    {
+      "id": "somers-2021-frame",
+      "type": "figureframe",
+      "x": 550,
+      "y": 300,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "w": 1060,
+        "h": 540,
+        "background": "white"
+      }
+    },
+    {
+      "id": "somers-2021-title",
+      "type": "textlabel",
+      "x": 550,
+      "y": 58,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Rapid, continuous projection multi-photon 3D printing enabled by spatiotemporal focusing of femtosecond pulses",
+        "fontSize": 18,
+        "fill": "#172033"
+      }
+    },
+    {
+      "id": "somers-2021-citation",
+      "type": "textlabel",
+      "x": 550,
+      "y": 87,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "P. Somers et al., Light: Science & Applications 10, 199 (2021)",
+        "fontSize": 11,
+        "fill": "#475569"
+      }
+    },
+    {
+      "id": "somers-2021-figure",
+      "type": "textlabel",
+      "x": 550,
+      "y": 111,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Fig. 1, PDF page 2 (system schematic)",
+        "fontSize": 10,
+        "fill": "#64748b"
+      }
+    },
+    {
+      "id": "somers-2021-source",
+      "type": "laser",
+      "x": 145,
+      "y": 310,
+      "rot": 0,
+      "label": "800 nm · 65 fs · 5 kHz · ~22 nm band",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "wavelength": 800,
+        "avgPowerW": 0,
+        "beamMode": "line",
+        "beamWidth": 6,
+        "bwMode": "band",
+        "bandwidth": 22,
+        "pol": 0,
+        "temporalMode": "pulsed",
+        "repRateMHz": 0.005,
+        "pulseWidthFs": 65,
+        "pulsePhaseNs": 0,
+        "autoColor": true,
+        "color": "#e02020"
+      }
+    },
+    {
+      "id": "somers-2021-train-1",
+      "type": "box",
+      "x": 250,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "t",
+      "params": {
+        "text": "πShaper",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "somers-2021-train-2",
+      "type": "telescope",
+      "x": 392.5,
+      "y": 310,
+      "rot": 0,
+      "label": "L1/L2 expansion\n100/150 mm",
+      "showLabel": true,
+      "labelPos": "b",
+      "params": {
+        "f1": 50,
+        "f2": 75,
+        "dia": 34,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "somers-2021-train-3",
+      "type": "box",
+      "x": 535,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "t",
+      "params": {
+        "text": "DMD\n≤4 kHz patterns",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "somers-2021-train-4",
+      "type": "lens",
+      "x": 677.5,
+      "y": 310,
+      "rot": 0,
+      "label": "L3 · 300 mm",
+      "showLabel": true,
+      "labelPos": "b",
+      "params": {
+        "f": 70,
+        "dia": 25.4,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "somers-2021-train-5",
+      "type": "box",
+      "x": 820,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "t",
+      "params": {
+        "text": "projection plane",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "somers-2021-focus",
+      "type": "objective",
+      "x": 904,
+      "y": 310,
+      "rot": 0,
+      "label": "100× NA 1.49 objective",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "f": 40,
+        "aperture": 46,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "somers-2021-sample-stage",
+      "type": "stage",
+      "x": 960,
+      "y": 310,
+      "rot": 0,
+      "label": "PETA resin · 3-axis stage",
+      "showLabel": true,
+      "labelPos": "b",
+      "params": {
+        "pzMode": "static",
+        "pzTravelXY": 12,
+        "pzFreqXY": 0.15,
+        "pzTravelZ": 8,
+        "pzFreqZ": 0.1,
+        "pzZSteps": 5,
+        "containsSample": true,
+        "aperture": 48,
+        "sampleKind": "resin",
+        "showMaterialLabel": true,
+        "showSignalSpot": true,
+        "voxelPreview": true,
+        "voxelSize": 0.8,
+        "mode": "none",
+        "fluorWl": 520,
+        "carsWl": 660,
+        "transmitExc": true,
+        "transmission": 0.8,
+        "signalEff": 0.1
+      }
+    },
+    {
+      "id": "somers-2021-limitation-1",
+      "type": "textlabel",
+      "x": 550,
+      "y": 438,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Spatiotemporal focusing, DMD diffraction, and 2D projected dose are not simulated.",
+        "fontSize": 10,
+        "fill": "#7c2d12"
+      }
+    },
+    {
+      "id": "somers-2021-scope",
+      "type": "textlabel",
+      "x": 550,
+      "y": 505,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Qualitative chief ray only · diagram boxes do not claim simulated multi-focus, diffraction, dose, cure, or throughput",
+        "fontSize": 10,
+        "fill": "#475569"
+      }
+    }
+  ],
+  "beams": []
+}

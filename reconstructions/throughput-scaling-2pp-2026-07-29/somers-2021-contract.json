@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "somers-2021.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Rapid, continuous projection multi-photon 3D printing enabled by spatiotemporal focusing of femtosecond pulses",
+    "citation": "P. Somers et al., Light: Science & Applications 10, 199 (2021)",
+    "doi": "10.1038/s41377-021-00645-z",
+    "pdfUrl": "https://www.nature.com/articles/s41377-021-00645-z.pdf",
+    "pdfStatus": "accessible publisher PDF",
+    "figureOrMethodsAnchor": "Fig. 1, PDF page 2 (system schematic)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "800 nm, 65 fs, 5 kHz, approximately 22 nm bandwidth regenerative amplifier.",
+      "πShaper, L1/L2 expansion, DMD, L3 collection, 100× NA 1.49 objective, and three-axis stage.",
+      "DMD patterns up to 4 kHz provide continuous layer-by-layer projection."
+    ],
+    "inferredOrDiagramOnly": [
+      "Flattened fold geometry and representative trace focal lengths."
+    ],
+    "unknown": [
+      "A single delivered average power for the plotted result and exact complete relay coatings."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "somers-2021-source",
+      "paperComponent": "800 nm · 65 fs · 5 kHz · ~22 nm band",
+      "registryType": "laser",
+      "simulationStatus": "qualitative pulsed source"
+    },
+    {
+      "id": "somers-2021-train-1",
+      "paperComponent": "πShaper",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "somers-2021-train-2",
+      "paperComponent": "L1/L2 expansion 100/150 mm",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "somers-2021-train-3",
+      "paperComponent": "DMD ≤4 kHz patterns",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "somers-2021-train-4",
+      "paperComponent": "L3 · 300 mm",
+      "registryType": "lens",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "somers-2021-train-5",
+      "paperComponent": "projection plane",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "somers-2021-focus",
+      "paperComponent": "100× NA 1.49 objective",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "somers-2021-sample-stage",
+      "paperComponent": "PETA resin · 3-axis stage",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "Spatiotemporal focusing, DMD diffraction, and 2D projected dose are not simulated."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

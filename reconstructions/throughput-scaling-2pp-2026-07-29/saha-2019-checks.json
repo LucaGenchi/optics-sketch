@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-checks",
+  "sceneFile": "saha-2019.opticalsetup.json",
+  "registryNormalized": true,
+  "noManualBeams": true,
+  "finiteElements": true,
+  "finiteTrace": true,
+  "finiteSvg": true,
+  "sourceMode": "traced",
+  "sourceToSample": true,
+  "sourceCount": 1,
+  "stageHitCount": 1,
+  "manualBeamCount": 0,
+  "elementCount": 13,
+  "passed": true
+}

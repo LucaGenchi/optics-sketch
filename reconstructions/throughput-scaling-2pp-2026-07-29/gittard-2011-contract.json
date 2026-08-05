@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "gittard-2011.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Fabrication of microscale medical devices by two-photon polymerization with multiple foci via a spatial light modulator",
+    "citation": "S. D. Gittard et al., Biomedical Optics Express 2, 3167–3178 (2011)",
+    "doi": "10.1364/BOE.2.003167",
+    "pdfUrl": "https://europepmc.org/api/getPdf?pmcid=PMC3207384",
+    "pdfStatus": "accessible full article",
+    "figureOrMethodsAnchor": "Fig. 1, PDF page 7 (full optical train)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "780 nm Ti:sapphire source, pulse width under 150 fs, 80 MHz, and 4 W source power.",
+      "Energy control, two-lens expansion, reflective SLM, Fourier-plane stop, camera branch, galvo scanner, objective/sample stack, and XYZ stage.",
+      "A 4×4 focus pattern is used for one fabrication example; the paper also reports six-by-six hologram capability."
+    ],
+    "inferredOrDiagramOnly": [
+      "The readable left-to-right placement flattens the paper’s folded microscope train."
+    ],
+    "unknown": [
+      "Relay focal lengths, split ratio, SLM diffraction efficiency, scanner model, and delivered sample power."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "gittard-2011-source",
+      "paperComponent": "780 nm · <150 fs · 80 MHz · 4 W",
+      "registryType": "laser",
+      "simulationStatus": "qualitative pulsed source"
+    },
+    {
+      "id": "gittard-2011-train-1",
+      "paperComponent": "LC energy control + PBS",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "gittard-2011-train-2",
+      "paperComponent": "2× Galilean expander",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "gittard-2011-train-3",
+      "paperComponent": "reflective SLM multi-focus",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "gittard-2011-train-4",
+      "paperComponent": "Fourier stop + camera branch",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "gittard-2011-train-5",
+      "paperComponent": "galvo scanner",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "gittard-2011-focus",
+      "paperComponent": "100× NA 1.4 / 20× NA 0.4",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "gittard-2011-sample-stage",
+      "paperComponent": "Ormocer on XYZ stage",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "The SLM and Fourier train are diagram-only pass-through boxes; the live ray is one representative chief ray, not the multi-focus array."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

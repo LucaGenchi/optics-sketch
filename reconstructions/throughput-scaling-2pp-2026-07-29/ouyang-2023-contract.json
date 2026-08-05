@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "ouyang-2023.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Ultrafast 3D nanofabrication via digital holography",
+    "citation": "W. Ouyang et al., Nature Communications 14, 1716 (2023)",
+    "doi": "10.1038/s41467-023-37163-y",
+    "pdfUrl": "https://www.nature.com/articles/s41467-023-37163-y.pdf",
+    "pdfStatus": "accessible publisher PDF",
+    "figureOrMethodsAnchor": "Fig. 1a, PDF page 2 (system schematic)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "800 nm Ti:sapphire amplifier, 1 kHz, 100 fs, and 4 W.",
+      "600 lines/mm grating, L1/L2 dispersion precompensation, DMD hologram, Fourier lens and spatial filter, relay/dichroic, objective, and six-axis stage.",
+      "Up to 2,000 individually programmable foci and single-pulse fabrication."
+    ],
+    "inferredOrDiagramOnly": [
+      "Readable linearization of the folded holographic train."
+    ],
+    "unknown": [
+      "Objective focal length/NA in the main schematic and per-focus delivered power for each result."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "ouyang-2023-source",
+      "paperComponent": "800 nm · 100 fs · 1 kHz · 4 W",
+      "registryType": "laser",
+      "simulationStatus": "qualitative pulsed source"
+    },
+    {
+      "id": "ouyang-2023-train-1",
+      "paperComponent": "600 lines/mm grating",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "ouyang-2023-train-2",
+      "paperComponent": "L1/L2 4f 225/250 mm",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "ouyang-2023-train-3",
+      "paperComponent": "DMD hologram pulse-synchronized",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "ouyang-2023-train-4",
+      "paperComponent": "L3 + spatial filter",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "ouyang-2023-train-5",
+      "paperComponent": "L4 + dichroic + L5 relay",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "ouyang-2023-focus",
+      "paperComponent": "objective L5",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "ouyang-2023-sample-stage",
+      "paperComponent": "FTO/resin · 6-axis stage",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "The DMD hologram, 2,000-focus array, and pulse-synchronized exposure are not simulated."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

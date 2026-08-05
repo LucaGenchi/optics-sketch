@@ -1,0 +1,251 @@
+{
+  "app": "optics2d",
+  "version": 1,
+  "elements": [
+    {
+      "id": "geng-2019-frame",
+      "type": "figureframe",
+      "x": 550,
+      "y": 300,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "w": 1060,
+        "h": 540,
+        "background": "white"
+      }
+    },
+    {
+      "id": "geng-2019-title",
+      "type": "textlabel",
+      "x": 550,
+      "y": 58,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Ultrafast multi-focus 3-D nano-fabrication based on two-photon polymerization",
+        "fontSize": 18,
+        "fill": "#172033"
+      }
+    },
+    {
+      "id": "geng-2019-citation",
+      "type": "textlabel",
+      "x": 550,
+      "y": 87,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Q. Geng et al., Nature Communications 10, 2179 (2019)",
+        "fontSize": 11,
+        "fill": "#475569"
+      }
+    },
+    {
+      "id": "geng-2019-figure",
+      "type": "textlabel",
+      "x": 550,
+      "y": 111,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Fig. 1, PDF page 2 (system schematic)",
+        "fontSize": 10,
+        "fill": "#64748b"
+      }
+    },
+    {
+      "id": "geng-2019-source-diagram",
+      "type": "box",
+      "x": 145,
+      "y": 310,
+      "rot": 0,
+      "label": "diagram-only source · timing incomplete",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "text": "800 nm · 200 fs · 3.3 W",
+        "w": 170,
+        "h": 54,
+        "behavior": "pass",
+        "fill": "#fff4d6"
+      }
+    },
+    {
+      "id": "geng-2019-train-1",
+      "type": "telescope",
+      "x": 290,
+      "y": 310,
+      "rot": 0,
+      "label": "4f L1/L2\n100/250 mm",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "f1": 40,
+        "f2": 100,
+        "dia": 34,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "geng-2019-train-2",
+      "type": "box",
+      "x": 422.5,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "b",
+      "params": {
+        "text": "1200 lines/mm\ngrating + M1",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "geng-2019-train-3",
+      "type": "box",
+      "x": 555,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "t",
+      "params": {
+        "text": "reflective DMD\n≤22.7 kHz",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "geng-2019-train-4",
+      "type": "box",
+      "x": 687.5,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "b",
+      "params": {
+        "text": "spatial filter",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "geng-2019-train-5",
+      "type": "telescope",
+      "x": 820,
+      "y": 310,
+      "rot": 0,
+      "label": "L3/L4 relay\n200/200 mm",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "f1": 60,
+        "f2": 60,
+        "dia": 34,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "geng-2019-focus",
+      "type": "objective",
+      "x": 904,
+      "y": 310,
+      "rot": 0,
+      "label": "40× NA 1.3 objective",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "f": 40,
+        "aperture": 46,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "geng-2019-sample-stage",
+      "type": "stage",
+      "x": 960,
+      "y": 310,
+      "rot": 0,
+      "label": "IP-Dip on XYZ stage",
+      "showLabel": true,
+      "labelPos": "b",
+      "params": {
+        "pzMode": "static",
+        "pzTravelXY": 12,
+        "pzFreqXY": 0.15,
+        "pzTravelZ": 8,
+        "pzFreqZ": 0.1,
+        "pzZSteps": 5,
+        "containsSample": true,
+        "aperture": 48,
+        "sampleKind": "resin",
+        "showMaterialLabel": true,
+        "showSignalSpot": true,
+        "voxelPreview": false,
+        "voxelSize": 0.8,
+        "mode": "none",
+        "fluorWl": 520,
+        "carsWl": 660,
+        "transmitExc": true,
+        "transmission": 0.8,
+        "signalEff": 0.1
+      }
+    },
+    {
+      "id": "geng-2019-limitation-1",
+      "type": "textlabel",
+      "x": 550,
+      "y": 438,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "The DMD/grating section is diagram-only. No emitted ray is claimed because completing the pulsed-source schema would",
+        "fontSize": 10,
+        "fill": "#7c2d12"
+      }
+    },
+    {
+      "id": "geng-2019-limitation-2",
+      "type": "textlabel",
+      "x": 550,
+      "y": 456,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "require inventing an unreported repetition rate.",
+        "fontSize": 10,
+        "fill": "#7c2d12"
+      }
+    },
+    {
+      "id": "geng-2019-scope",
+      "type": "textlabel",
+      "x": 550,
+      "y": 505,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Qualitative chief ray only · diagram boxes do not claim simulated multi-focus, diffraction, dose, cure, or throughput",
+        "fontSize": 10,
+        "fill": "#475569"
+      }
+    }
+  ],
+  "beams": []
+}

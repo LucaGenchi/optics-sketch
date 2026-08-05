@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "saha-2019.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Scalable submicrometer additive manufacturing",
+    "citation": "S. K. Saha et al., Science 366, 105–109 (2019)",
+    "doi": "10.1126/science.aax8760",
+    "pdfUrl": "https://liuchao-jin.github.io/files/essay/saha2019scalable.pdf",
+    "pdfStatus": "accessible article mirror",
+    "figureOrMethodsAnchor": "Fig. 1B, PDF page 1 (system schematic)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "Femtosecond source, DMD used as both pattern mask and dispersive element, collimating lens, objective, and moving resist stage.",
+      "800 nm, nominal 35 fs, 1 kHz, and 60× NA 1.25 objective in the reported fabrication configuration."
+    ],
+    "inferredOrDiagramOnly": [
+      "Flattened DMD-to-objective fold."
+    ],
+    "unknown": [
+      "Single delivered operating power for the plotted throughput point and complete relay prescription."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "saha-2019-source",
+      "paperComponent": "800 nm · nominal 35 fs · 1 kHz",
+      "registryType": "laser",
+      "simulationStatus": "qualitative pulsed source"
+    },
+    {
+      "id": "saha-2019-train-1",
+      "paperComponent": "DMD mask + grating",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "saha-2019-train-2",
+      "paperComponent": "L1 collimator",
+      "registryType": "lens",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "saha-2019-train-3",
+      "paperComponent": "parallel focal pattern",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "saha-2019-train-4",
+      "paperComponent": "motion-stage synchronization",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "saha-2019-focus",
+      "paperComponent": "60× NA 1.25 objective",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "saha-2019-sample-stage",
+      "paperComponent": "resist on motion stage",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "DMD temporal/spatial focusing and parallel pixels are not simulated; the live beam is one chief ray."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

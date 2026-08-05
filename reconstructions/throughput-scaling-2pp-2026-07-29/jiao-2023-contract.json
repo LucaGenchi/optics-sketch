@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "jiao-2023.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Acousto-optic scanning spatial-switching multiphoton lithography",
+    "citation": "B. Jiao et al., International Journal of Extreme Manufacturing 5, 035008 (2023)",
+    "doi": "10.1088/2631-7990/ace0a7",
+    "pdfUrl": "https://www.ijemnet.com/en/article/pdf/preview/10.1088/2631-7990/ace0a7.pdf",
+    "pdfStatus": "accessible publisher-platform PDF",
+    "figureOrMethodsAnchor": "Fig. 1, PDF page 3 (system schematic)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "517 nm femtosecond source, 250 fs, 45 MHz, and 6.5 W.",
+      "Prism precompensation, 2 MHz AOM switch, angular-dispersion prism, two-axis AOD, compensation relay, DOE, DMD switch, 100× NA 1.4 objective, and stage.",
+      "Eight-focus acousto-optic spatial-switching architecture."
+    ],
+    "inferredOrDiagramOnly": [
+      "All three-dimensional folds are flattened into the reported order."
+    ],
+    "unknown": [
+      "Complete focal-length inventory and delivered power at every focus."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "jiao-2023-source",
+      "paperComponent": "517 nm · 250 fs · 45 MHz · 6.5 W",
+      "registryType": "laser",
+      "simulationStatus": "qualitative pulsed source"
+    },
+    {
+      "id": "jiao-2023-train-1",
+      "paperComponent": "P1/P2 prism precompensation",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "jiao-2023-train-2",
+      "paperComponent": "AOM switch 2 MHz",
+      "registryType": "aom",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "jiao-2023-train-3",
+      "paperComponent": "P3 angular dispersion",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "jiao-2023-train-4",
+      "paperComponent": "two-axis AOD",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "jiao-2023-train-5",
+      "paperComponent": "Kepler + cyl. compensation",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "jiao-2023-train-6",
+      "paperComponent": "DOE · 8 beams",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "jiao-2023-train-7",
+      "paperComponent": "DMD switch",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "jiao-2023-focus",
+      "paperComponent": "100× NA 1.4 objective",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "jiao-2023-sample-stage",
+      "paperComponent": "resin on XYZ stage",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "Acousto-optic swept-wavefront correction and the eight-focus DMD switching pattern are diagram-only."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

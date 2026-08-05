@@ -1,0 +1,228 @@
+{
+  "app": "optics2d",
+  "version": 1,
+  "elements": [
+    {
+      "id": "saha-2019-frame",
+      "type": "figureframe",
+      "x": 550,
+      "y": 300,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "w": 1060,
+        "h": 540,
+        "background": "white"
+      }
+    },
+    {
+      "id": "saha-2019-title",
+      "type": "textlabel",
+      "x": 550,
+      "y": 58,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Scalable submicrometer additive manufacturing",
+        "fontSize": 18,
+        "fill": "#172033"
+      }
+    },
+    {
+      "id": "saha-2019-citation",
+      "type": "textlabel",
+      "x": 550,
+      "y": 87,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "S. K. Saha et al., Science 366, 105–109 (2019)",
+        "fontSize": 11,
+        "fill": "#475569"
+      }
+    },
+    {
+      "id": "saha-2019-figure",
+      "type": "textlabel",
+      "x": 550,
+      "y": 111,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Fig. 1B, PDF page 1 (system schematic)",
+        "fontSize": 10,
+        "fill": "#64748b"
+      }
+    },
+    {
+      "id": "saha-2019-source",
+      "type": "laser",
+      "x": 145,
+      "y": 310,
+      "rot": 0,
+      "label": "800 nm · nominal 35 fs · 1 kHz",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "wavelength": 800,
+        "avgPowerW": 0,
+        "beamMode": "line",
+        "beamWidth": 6,
+        "bwMode": "mono",
+        "bandwidth": 40,
+        "pol": 0,
+        "temporalMode": "pulsed",
+        "repRateMHz": 0.001,
+        "pulseWidthFs": 35,
+        "pulsePhaseNs": 0,
+        "autoColor": true,
+        "color": "#e02020"
+      }
+    },
+    {
+      "id": "saha-2019-train-1",
+      "type": "box",
+      "x": 250,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "t",
+      "params": {
+        "text": "DMD\nmask + grating",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "saha-2019-train-2",
+      "type": "lens",
+      "x": 440,
+      "y": 310,
+      "rot": 0,
+      "label": "L1 collimator",
+      "showLabel": true,
+      "labelPos": "b",
+      "params": {
+        "f": 55,
+        "dia": 25.4,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "saha-2019-train-3",
+      "type": "box",
+      "x": 630,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "t",
+      "params": {
+        "text": "parallel focal\npattern",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "saha-2019-train-4",
+      "type": "box",
+      "x": 820,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "b",
+      "params": {
+        "text": "motion-stage\nsynchronization",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "saha-2019-focus",
+      "type": "objective",
+      "x": 904,
+      "y": 310,
+      "rot": 0,
+      "label": "60× NA 1.25 objective",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "f": 40,
+        "aperture": 46,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "saha-2019-sample-stage",
+      "type": "stage",
+      "x": 960,
+      "y": 310,
+      "rot": 0,
+      "label": "resist on motion stage",
+      "showLabel": true,
+      "labelPos": "b",
+      "params": {
+        "pzMode": "static",
+        "pzTravelXY": 12,
+        "pzFreqXY": 0.15,
+        "pzTravelZ": 8,
+        "pzFreqZ": 0.1,
+        "pzZSteps": 5,
+        "containsSample": true,
+        "aperture": 48,
+        "sampleKind": "resin",
+        "showMaterialLabel": true,
+        "showSignalSpot": true,
+        "voxelPreview": true,
+        "voxelSize": 0.8,
+        "mode": "none",
+        "fluorWl": 520,
+        "carsWl": 660,
+        "transmitExc": true,
+        "transmission": 0.8,
+        "signalEff": 0.1
+      }
+    },
+    {
+      "id": "saha-2019-limitation-1",
+      "type": "textlabel",
+      "x": 550,
+      "y": 438,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "DMD temporal/spatial focusing and parallel pixels are not simulated; the live beam is one chief ray.",
+        "fontSize": 10,
+        "fill": "#7c2d12"
+      }
+    },
+    {
+      "id": "saha-2019-scope",
+      "type": "textlabel",
+      "x": 550,
+      "y": 505,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Qualitative chief ray only · diagram boxes do not claim simulated multi-focus, diffraction, dose, cure, or throughput",
+        "fontSize": 10,
+        "fill": "#475569"
+      }
+    }
+  ],
+  "beams": []
+}

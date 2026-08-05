@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "fischer-2011.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Three-dimensional direct laser writing inspired by stimulated-emission-depletion microscopy",
+    "citation": "J. Fischer and M. Wegener, Optical Materials Express 1, 614–624 (2011)",
+    "doi": "10.1364/OME.1.000614",
+    "pdfUrl": "https://arxiv.org/pdf/1105.5703",
+    "pdfStatus": "accessible author manuscript",
+    "figureOrMethodsAnchor": "Fig. 2, PDF page 7 (focus profiles; not a complete train)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "810 nm femtosecond excitation and 532 nm continuous-wave depletion beams, both circularly polarized.",
+      "Both beams are chopped at 4 kHz with 3% duty; the depletion arm contains a 430 nm SU-8 phase mask imaged to the objective pupil.",
+      "Leica HCX PL APO NA 1.4 objective, DETC resist formulation, and 100 µm/s scan speed."
+    ],
+    "inferredOrDiagramOnly": [
+      "Quarter-wave plates, dichroic combiner, pupil-relay layout, and all 2D folds.",
+      "The source is a diagram-only box because pulse duration and repetition rate are not reported."
+    ],
+    "unknown": [
+      "Full optical train, relay focal lengths, delivered powers, and scan actuator."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "fischer-2011-source-diagram",
+      "paperComponent": "810 nm fs excitation · duration/rate not reported",
+      "registryType": "box",
+      "simulationStatus": "diagram-only; no emitted ray"
+    },
+    {
+      "id": "fischer-2011-train-1",
+      "paperComponent": "AOM 4 kHz, 3%",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "fischer-2011-train-2",
+      "paperComponent": "circular pol. QWP inferred",
+      "registryType": "qwp",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "fischer-2011-train-3",
+      "paperComponent": "532 nm CW branch AOM + SU-8 mask",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "fischer-2011-train-4",
+      "paperComponent": "pupil relay inferred",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "fischer-2011-train-5",
+      "paperComponent": "532/810 combiner inferred",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "fischer-2011-focus",
+      "paperComponent": "NA 1.4 objective",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "fischer-2011-sample-stage",
+      "paperComponent": "DETC resist · 100 µm/s",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "The PDF figure shows focal distributions rather than the complete apparatus.",
+    "OpticalSetup does not model STED depletion photochemistry or the phase mask’s three-dimensional focal shaping.",
+    "The paper’s 3% AOM duty is below the app’s current 5% inspector minimum, so it remains an annotation."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

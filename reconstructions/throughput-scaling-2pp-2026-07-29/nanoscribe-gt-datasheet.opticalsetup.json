@@ -1,0 +1,236 @@
+{
+  "app": "optics2d",
+  "version": 1,
+  "elements": [
+    {
+      "id": "nanoscribe-gt-datasheet-frame",
+      "type": "figureframe",
+      "x": 550,
+      "y": 300,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "w": 1060,
+        "h": 540,
+        "background": "white"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-title",
+      "type": "textlabel",
+      "x": 550,
+      "y": 58,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Data Sheet — Photonic Professional GT",
+        "fontSize": 18,
+        "fill": "#172033"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-citation",
+      "type": "textlabel",
+      "x": 550,
+      "y": 87,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Nanoscribe Photonic Professional GT data sheet, revision DS/GT/V04_2016",
+        "fontSize": 11,
+        "fill": "#475569"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-figure",
+      "type": "textlabel",
+      "x": 550,
+      "y": 111,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Page 1, “SYSTEM & COMPONENTS” product image",
+        "fontSize": 10,
+        "fill": "#64748b"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-source-diagram",
+      "type": "box",
+      "x": 145,
+      "y": 310,
+      "rot": 0,
+      "label": "diagram-only source · timing incomplete",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "text": "NIR fs fibre source",
+        "w": 170,
+        "h": 54,
+        "behavior": "pass",
+        "fill": "#fff4d6"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-train-1",
+      "type": "box",
+      "x": 290,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "t",
+      "params": {
+        "text": "beam conditioning\nnot disclosed",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-train-2",
+      "type": "box",
+      "x": 466.66666666666663,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "b",
+      "params": {
+        "text": "galvo scanner",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-train-3",
+      "type": "box",
+      "x": 643.3333333333333,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "t",
+      "params": {
+        "text": "motorized XY\n+ XYZ piezo",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-train-4",
+      "type": "box",
+      "x": 820,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "b",
+      "params": {
+        "text": "camera / autofocus",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-focus",
+      "type": "objective",
+      "x": 904,
+      "y": 310,
+      "rot": 0,
+      "label": "interchangeable objectives",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "f": 40,
+        "aperture": 46,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-sample-stage",
+      "type": "stage",
+      "x": 960,
+      "y": 310,
+      "rot": 0,
+      "label": "photoresist platform",
+      "showLabel": true,
+      "labelPos": "b",
+      "params": {
+        "pzMode": "static",
+        "pzTravelXY": 12,
+        "pzFreqXY": 0.15,
+        "pzTravelZ": 8,
+        "pzFreqZ": 0.1,
+        "pzZSteps": 5,
+        "containsSample": true,
+        "aperture": 48,
+        "sampleKind": "resin",
+        "showMaterialLabel": true,
+        "showSignalSpot": true,
+        "voxelPreview": false,
+        "voxelSize": 0.8,
+        "mode": "none",
+        "fluorWl": 520,
+        "carsWl": 660,
+        "transmitExc": true,
+        "transmission": 0.8,
+        "signalEff": 0.1
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-limitation-1",
+      "type": "textlabel",
+      "x": 550,
+      "y": 438,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "This is revision DS/GT/V04_2016, not a verified copy of the explorer’s 2014-era sheet. The source remains diagram-only",
+        "fontSize": 10,
+        "fill": "#7c2d12"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-limitation-2",
+      "type": "textlabel",
+      "x": 550,
+      "y": 456,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "because the data sheet does not disclose numerical laser parameters.",
+        "fontSize": 10,
+        "fill": "#7c2d12"
+      }
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-scope",
+      "type": "textlabel",
+      "x": 550,
+      "y": 505,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Qualitative chief ray only · diagram boxes do not claim simulated multi-focus, diffraction, dose, cure, or throughput",
+        "fontSize": 10,
+        "fill": "#475569"
+      }
+    }
+  ],
+  "beams": []
+}

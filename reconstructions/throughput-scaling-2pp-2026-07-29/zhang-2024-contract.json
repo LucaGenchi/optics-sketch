@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "zhang-2024.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "High-Throughput Two-Photon 3D Printing Enabled by Holographic Multi-Foci High-Speed Scanning",
+    "citation": "L. Zhang et al., Nano Letters 24, 2671–2679 (2024)",
+    "doi": "10.1021/acs.nanolett.4c00505",
+    "pdfUrl": "https://mane.ustc.edu.cn/_upload/article/files/87/1e/a51f62f74e9d807ff2eb58cf86a2/3b90a55f-f7a8-4bac-8cbb-0305af0aee96.pdf",
+    "pdfStatus": "accessible institutional PDF",
+    "figureOrMethodsAnchor": "Fig. 1a, PDF page 2 (system schematic)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "1030 nm femtosecond fibre source, 1 MHz, 400 fs, and 10 W maximum.",
+      "AOM, HWP/PBS energy control, beam expander and iris, reflective LCoS-SLM, two 4f relays with galvanometers, 60× NA 1.35 objective, piezo Z, and CCD branch.",
+      "More than 400 holographic foci are demonstrated."
+    ],
+    "inferredOrDiagramOnly": [
+      "Fold flattening and representative telescope/objective trace parameters."
+    ],
+    "unknown": [
+      "Delivered power per focus and exact operating power for every printed structure."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "zhang-2024-source",
+      "paperComponent": "1030 nm · 400 fs · 1 MHz · max 10 W",
+      "registryType": "laser",
+      "simulationStatus": "qualitative pulsed source"
+    },
+    {
+      "id": "zhang-2024-train-1",
+      "paperComponent": "AOM",
+      "registryType": "aom",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "zhang-2024-train-2",
+      "paperComponent": "HWP/PBS energy control",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "zhang-2024-train-3",
+      "paperComponent": "beam expander + iris",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "zhang-2024-train-4",
+      "paperComponent": "reflective LCoS-SLM",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "zhang-2024-train-5",
+      "paperComponent": "4f relays + galvo pair",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "zhang-2024-train-6",
+      "paperComponent": "CCD branch",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "zhang-2024-focus",
+      "paperComponent": "60× NA 1.35 oil objective",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "zhang-2024-sample-stage",
+      "paperComponent": "resist · piezo Z",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "Holographic focus synthesis, zero-order suppression, and multi-focus galvo scanning are diagram-only."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

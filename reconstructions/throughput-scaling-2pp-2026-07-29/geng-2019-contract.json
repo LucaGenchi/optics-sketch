@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "geng-2019.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Ultrafast multi-focus 3-D nano-fabrication based on two-photon polymerization",
+    "citation": "Q. Geng et al., Nature Communications 10, 2179 (2019)",
+    "doi": "10.1038/s41467-019-10249-2",
+    "pdfUrl": "https://www.nature.com/articles/s41467-019-10249-2.pdf",
+    "pdfStatus": "accessible publisher PDF",
+    "figureOrMethodsAnchor": "Fig. 1, PDF page 2 (system schematic)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "Tunable Ti:sapphire source set to 800 nm, 200 fs, and 3.3 W.",
+      "L1/L2 4f expansion, 1200 lines/mm grating with mirror, reflective DMD, spatial filter, L3/L4 relay, 40× NA 1.3 objective, and XYZ stage.",
+      "The DMD system produces one to tens of foci with refresh rates up to 22.7 kHz."
+    ],
+    "inferredOrDiagramOnly": [
+      "The source stays diagram-only because the repetition rate is not stated in the extracted apparatus paragraph."
+    ],
+    "unknown": [
+      "Exact DMD operating pattern, delivered power per focus, and every fold mirror."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "geng-2019-source-diagram",
+      "paperComponent": "800 nm · 200 fs · 3.3 W · repetition rate not reported",
+      "registryType": "box",
+      "simulationStatus": "diagram-only; no emitted ray"
+    },
+    {
+      "id": "geng-2019-train-1",
+      "paperComponent": "4f L1/L2 100/250 mm",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "geng-2019-train-2",
+      "paperComponent": "1200 lines/mm grating + M1",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "geng-2019-train-3",
+      "paperComponent": "reflective DMD ≤22.7 kHz",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "geng-2019-train-4",
+      "paperComponent": "spatial filter",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "geng-2019-train-5",
+      "paperComponent": "L3/L4 relay 200/200 mm",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "geng-2019-focus",
+      "paperComponent": "40× NA 1.3 objective",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "geng-2019-sample-stage",
+      "paperComponent": "IP-Dip on XYZ stage",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "The DMD/grating section is diagram-only.",
+    "No emitted ray is claimed because completing the pulsed-source schema would require inventing an unreported repetition rate."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

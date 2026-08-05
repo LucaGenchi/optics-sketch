@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "gu-2025.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "3D nanolithography with metalens arrays and spatially adaptive illumination",
+    "citation": "S. Gu et al., Nature (2025), DOI 10.1038/s41586-025-09842-x",
+    "doi": "10.1038/s41586-025-09842-x",
+    "pdfUrl": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41586-025-09842-x/MediaObjects/41586_2025_9842_MOESM1_ESM.pdf",
+    "pdfStatus": "official supplementary-information PDF; main article PDF was not openly accessible",
+    "figureOrMethodsAnchor": "Extended Data Fig. 2 on the article page; quantitative support in the official SI PDF",
+    "supplementBacked": true
+  },
+  "evidence": {
+    "direct": [
+      "Official supplementary information reports 800 nm center wavelength, 20 nm FWHM, 7 W, and 1 kHz for the current system.",
+      "SLM-based spatially adaptive illumination, beam expansion, metalens array, three-axis stage with two-axis tip/tilt, alignment microscope, and confocal distance sensor.",
+      "The explorer’s N=2,500 and N=129,500 points refer to the same apparatus; one setup covers both."
+    ],
+    "inferredOrDiagramOnly": [
+      "The OpticalSetup objective icon is explicitly a single-chief-ray focusing surrogate for the metalens array.",
+      "Readable ordering of the polarization-control and alignment branches."
+    ],
+    "unknown": [
+      "Current-system pulse duration and a lawful open main-article PDF."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "gu-2025-source-diagram",
+      "paperComponent": "800 nm · 20 nm FWHM · 7 W · 1 kHz · duration not reported",
+      "registryType": "box",
+      "simulationStatus": "diagram-only; no emitted ray"
+    },
+    {
+      "id": "gu-2025-train-1",
+      "paperComponent": "HWP/PBS power control",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "gu-2025-train-2",
+      "paperComponent": "SLM phase-to- amplitude control",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "gu-2025-train-3",
+      "paperComponent": "beam expander",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "gu-2025-train-4",
+      "paperComponent": "metalens array 2,500–129,500 sites",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "gu-2025-train-5",
+      "paperComponent": "alignment microscope + confocal sensor",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "gu-2025-focus",
+      "paperComponent": "metalens focus surrogate",
+      "registryType": "objective",
+      "simulationStatus": "single-chief-ray focusing surrogate for metalens array"
+    },
+    {
+      "id": "gu-2025-sample-stage",
+      "paperComponent": "resist · XYZ + tip/tilt",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "This reconstruction is supplement-backed; the main article PDF was not openly accessible.",
+    "The source stays diagram-only so an unreported pulse duration is not silently invented.",
+    "Metalens diffraction, 2,500/129,500 simultaneous foci, spatial calibration, and dose are not simulated."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "pearre-2018.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Fast Micron-Scale 3D Printing with a Resonant-Scanning Two-Photon Microscope",
+    "citation": "B. W. Pearre et al., arXiv:1803.07135 (2018)",
+    "doi": null,
+    "pdfUrl": "https://arxiv.org/pdf/1803.07135",
+    "pdfStatus": "accessible author manuscript",
+    "figureOrMethodsAnchor": "Fig. 1, PDF page 3 (system schematic)",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "Tunable Ti:sapphire source, usually 780 nm, about 120 fs, 80 MHz, and 600–1000 mW.",
+      "3.33 MHz Pockels-cell modulation, 2× Galilean expander, 7.91 kHz resonant X scanner, Y galvo, 25× NA 0.8 objective, Z piezo, and PMT branch."
+    ],
+    "inferredOrDiagramOnly": [
+      "The operating-range midpoint is not used; 0.8 W is explicitly only a bounded representative trace value."
+    ],
+    "unknown": [
+      "Exact operating power for every build and complete scanner-relay prescriptions."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "pearre-2018-source",
+      "paperComponent": "780 nm typical · ~120 fs · 80 MHz",
+      "registryType": "laser",
+      "simulationStatus": "qualitative pulsed source"
+    },
+    {
+      "id": "pearre-2018-train-1",
+      "paperComponent": "Pockels cell 3.33 MHz",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "pearre-2018-train-2",
+      "paperComponent": "2× Galilean expander",
+      "registryType": "telescope",
+      "simulationStatus": "qualitative native element"
+    },
+    {
+      "id": "pearre-2018-train-3",
+      "paperComponent": "X resonant scanner 7.91 kHz",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "pearre-2018-train-4",
+      "paperComponent": "Y galvo",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "pearre-2018-train-5",
+      "paperComponent": "objective Z piezo + PMT branch",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "pearre-2018-focus",
+      "paperComponent": "25× NA 0.8 immersion objective",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "pearre-2018-sample-stage",
+      "paperComponent": "IP-Dip on print stage",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "The resonant scanner is a diagram-only box because OpticalSetup’s animated galvo control is capped at 5 kHz."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}

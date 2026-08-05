@@ -1,0 +1,269 @@
+{
+  "app": "optics2d",
+  "version": 1,
+  "elements": [
+    {
+      "id": "zhang-2024-frame",
+      "type": "figureframe",
+      "x": 550,
+      "y": 300,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "w": 1060,
+        "h": 540,
+        "background": "white"
+      }
+    },
+    {
+      "id": "zhang-2024-title",
+      "type": "textlabel",
+      "x": 550,
+      "y": 58,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "High-Throughput Two-Photon 3D Printing Enabled by Holographic Multi-Foci High-Speed Scanning",
+        "fontSize": 18,
+        "fill": "#172033"
+      }
+    },
+    {
+      "id": "zhang-2024-citation",
+      "type": "textlabel",
+      "x": 550,
+      "y": 87,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "L. Zhang et al., Nano Letters 24, 2671–2679 (2024)",
+        "fontSize": 11,
+        "fill": "#475569"
+      }
+    },
+    {
+      "id": "zhang-2024-figure",
+      "type": "textlabel",
+      "x": 550,
+      "y": 111,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Fig. 1a, PDF page 2 (system schematic)",
+        "fontSize": 10,
+        "fill": "#64748b"
+      }
+    },
+    {
+      "id": "zhang-2024-source",
+      "type": "laser",
+      "x": 145,
+      "y": 310,
+      "rot": 0,
+      "label": "1030 nm · 400 fs · 1 MHz · max 10 W",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "wavelength": 1030,
+        "avgPowerW": 10,
+        "beamMode": "line",
+        "beamWidth": 6,
+        "bwMode": "mono",
+        "bandwidth": 40,
+        "pol": 0,
+        "temporalMode": "pulsed",
+        "repRateMHz": 1,
+        "pulseWidthFs": 400,
+        "pulsePhaseNs": 0,
+        "autoColor": true,
+        "color": "#e02020"
+      }
+    },
+    {
+      "id": "zhang-2024-train-1",
+      "type": "aom",
+      "x": 250,
+      "y": 310,
+      "rot": 0,
+      "label": "AOM",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "aperture": 26,
+        "deflect": 0,
+        "rfMHz": 80,
+        "zero": false,
+        "eff": 0.85,
+        "modulate": false,
+        "modShape": "square",
+        "modFreqMHz": 1,
+        "chopDuty": 0.5,
+        "modDepth": 1,
+        "phaseNs": 0
+      }
+    },
+    {
+      "id": "zhang-2024-train-2",
+      "type": "box",
+      "x": 364,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "b",
+      "params": {
+        "text": "HWP/PBS\nenergy control",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "zhang-2024-train-3",
+      "type": "telescope",
+      "x": 478,
+      "y": 310,
+      "rot": 0,
+      "label": "beam expander\n+ iris",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "f1": 45,
+        "f2": 90,
+        "dia": 34,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "zhang-2024-train-4",
+      "type": "box",
+      "x": 592,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "b",
+      "params": {
+        "text": "reflective\nLCoS-SLM",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "zhang-2024-train-5",
+      "type": "box",
+      "x": 706,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "t",
+      "params": {
+        "text": "4f relays +\ngalvo pair",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "zhang-2024-train-6",
+      "type": "box",
+      "x": 820,
+      "y": 310,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "labelPos": "b",
+      "params": {
+        "text": "CCD branch",
+        "w": 72,
+        "h": 48,
+        "behavior": "pass",
+        "fill": "#eef2f7"
+      }
+    },
+    {
+      "id": "zhang-2024-focus",
+      "type": "objective",
+      "x": 904,
+      "y": 310,
+      "rot": 0,
+      "label": "60× NA 1.35 oil objective",
+      "showLabel": true,
+      "labelPos": "t",
+      "params": {
+        "f": 40,
+        "aperture": 46,
+        "transEff": 100
+      }
+    },
+    {
+      "id": "zhang-2024-sample-stage",
+      "type": "stage",
+      "x": 960,
+      "y": 310,
+      "rot": 0,
+      "label": "resist · piezo Z",
+      "showLabel": true,
+      "labelPos": "b",
+      "params": {
+        "pzMode": "static",
+        "pzTravelXY": 12,
+        "pzFreqXY": 0.15,
+        "pzTravelZ": 8,
+        "pzFreqZ": 0.1,
+        "pzZSteps": 5,
+        "containsSample": true,
+        "aperture": 48,
+        "sampleKind": "resin",
+        "showMaterialLabel": true,
+        "showSignalSpot": true,
+        "voxelPreview": true,
+        "voxelSize": 0.8,
+        "mode": "none",
+        "fluorWl": 520,
+        "carsWl": 660,
+        "transmitExc": true,
+        "transmission": 0.8,
+        "signalEff": 0.1
+      }
+    },
+    {
+      "id": "zhang-2024-limitation-1",
+      "type": "textlabel",
+      "x": 550,
+      "y": 438,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Holographic focus synthesis, zero-order suppression, and multi-focus galvo scanning are diagram-only.",
+        "fontSize": 10,
+        "fill": "#7c2d12"
+      }
+    },
+    {
+      "id": "zhang-2024-scope",
+      "type": "textlabel",
+      "x": 550,
+      "y": 505,
+      "rot": 0,
+      "label": "",
+      "showLabel": false,
+      "params": {
+        "text": "Qualitative chief ray only · diagram boxes do not claim simulated multi-focus, diffraction, dose, cure, or throughput",
+        "fontSize": 10,
+        "fill": "#475569"
+      }
+    }
+  ],
+  "beams": []
+}

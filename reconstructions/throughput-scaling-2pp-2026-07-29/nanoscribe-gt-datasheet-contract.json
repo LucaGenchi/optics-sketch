@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "kind": "opticalsetup-paper-reconstruction-contract",
+  "sceneFile": "nanoscribe-gt-datasheet.opticalsetup.json",
+  "explorer": "https://andreabertoncini.com/blog/throughput-scaling-two-photon-polymerization/explore",
+  "source": {
+    "title": "Data Sheet — Photonic Professional GT",
+    "citation": "Nanoscribe Photonic Professional GT data sheet, revision DS/GT/V04_2016",
+    "doi": null,
+    "pdfUrl": "https://mdpi-res.com/d_attachment/polymers/polymers-10-00011/article_deploy/polymers-10-00011-s001.pdf?version=1513942821",
+    "pdfStatus": "accessible mirrored product data sheet; 2016 revision",
+    "figureOrMethodsAnchor": "Page 1, “SYSTEM & COMPONENTS” product image",
+    "supplementBacked": false
+  },
+  "evidence": {
+    "direct": [
+      "NIR femtosecond fibre laser, galvo scanner, motorized XY stage, XYZ piezo stage, objectives, and camera."
+    ],
+    "inferredOrDiagramOnly": [
+      "Readable subsystem order and a generic objective-to-resist endpoint."
+    ],
+    "unknown": [
+      "Laser wavelength, pulse duration, repetition rate, power, relay optics, objective model, and sample parameters."
+    ]
+  },
+  "componentMappings": [
+    {
+      "id": "nanoscribe-gt-datasheet-source-diagram",
+      "paperComponent": "NIR fs fibre laser · wavelength/timing not disclosed",
+      "registryType": "box",
+      "simulationStatus": "diagram-only; no emitted ray"
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-train-1",
+      "paperComponent": "beam conditioning not disclosed",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-train-2",
+      "paperComponent": "galvo scanner",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-train-3",
+      "paperComponent": "motorized XY + XYZ piezo",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-train-4",
+      "paperComponent": "camera / autofocus",
+      "registryType": "box",
+      "simulationStatus": "diagram-only pass-through"
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-focus",
+      "paperComponent": "interchangeable objectives",
+      "registryType": "objective",
+      "simulationStatus": "qualitative thin-lens objective surrogate"
+    },
+    {
+      "id": "nanoscribe-gt-datasheet-sample-stage",
+      "paperComponent": "photoresist platform",
+      "registryType": "stage",
+      "simulationStatus": "qualitative resin hit / voxel marker only"
+    }
+  ],
+  "limitations": [
+    "This is revision DS/GT/V04_2016, not a verified copy of the explorer’s 2014-era sheet.",
+    "The source remains diagram-only because the data sheet does not disclose numerical laser parameters."
+  ],
+  "globalLimitations": [
+    "Coordinates, trace focal lengths, and flattened folds are diagram choices unless explicitly stated as paper evidence.",
+    "Diagram-only custom boxes use pass-through behavior and do not absorb or redirect rays.",
+    "One chief ray never represents the number, power uniformity, wavefront, or dose of a parallel focus array.",
+    "The resin-stage preview is not a two-photon polymerization or throughput model."
+  ]
+}
